@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>false</UseWindowsForms>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NPOI" Version="2.6.2" />
+    <PackageReference Include="MaterialDesignThemes" Version="5.2.1" />
+    <PackageReference Include="Prism.DryIoc" Version="9.0.537" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FatFullVersion.Core\FatFullVersion.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="DCMCAJ">
+      <HintPath>..\..\..\..\DCMCAJ\DCMCAJ\DCMCAJ\bin\Release\net6.0\DCMCAJ.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>
