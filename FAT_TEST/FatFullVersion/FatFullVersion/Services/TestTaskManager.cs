@@ -10,6 +10,7 @@ using FatFullVersion.Entities;
 using FatFullVersion.Entities.EntitiesEnum;
 using FatFullVersion.IServices;
 using FatFullVersion.Services.ChannelTask;
+using DryIoc;
 
 namespace FatFullVersion.Services
 {
@@ -21,22 +22,12 @@ namespace FatFullVersion.Services
         #region 字段
 
         private readonly IChannelMappingService _channelMappingService;
-        private readonly IPlcCommunication _testPlcCommunication; // 测试PLC通信实例
-        private readonly IPlcCommunication _targetPlcCommunication; // 被测PLC通信实例
-
-        // 使用线程安全的集合存储所有活动的测试任务
+        private readonly IPlcCommunication _testPlcCommunication;
+        private readonly IPlcCommunication _targetPlcCommunication;
         private readonly ConcurrentDictionary<string, TestTask> _activeTasks;
-        
-        // 用于管理任务执行和取消的令牌源
         private CancellationTokenSource _masterCancellationTokenSource;
-        
-        // 并行任务选项，用于限制并发任务数量
         private readonly ParallelOptions _parallelOptions;
-
-        // 任务状态
         private bool _isRunning;
-
-        // 信号量，用于限制同时执行的任务数量
         private readonly SemaphoreSlim _semaphore;
 
         #endregion
@@ -47,18 +38,17 @@ namespace FatFullVersion.Services
         /// 创建测试任务管理器实例
         /// </summary>
         /// <param name="channelMappingService">通道映射服务</param>
-        /// <param name="testPlcCommunication">测试PLC通信实例</param>
-        /// <param name="targetPlcCommunication">被测PLC通信实例</param>
+        /// <param name="serviceLocator">服务定位器</param>
         /// <param name="maxConcurrentTasks">最大并发任务数量，默认为处理器核心数的2倍</param>
         public TestTaskManager(
             IChannelMappingService channelMappingService,
-            IPlcCommunication testPlcCommunication,
-            IPlcCommunication targetPlcCommunication,
+            IServiceLocator serviceLocator,
             int? maxConcurrentTasks = null)
         {
             _channelMappingService = channelMappingService ?? throw new ArgumentNullException(nameof(channelMappingService));
-            _testPlcCommunication = testPlcCommunication ?? throw new ArgumentNullException(nameof(testPlcCommunication));
-            _targetPlcCommunication = targetPlcCommunication ?? throw new ArgumentNullException(nameof(targetPlcCommunication));
+            //使用ServiceLocator这个单例服务来完成在APP的注册(使用同一个接口但是通过名称来区分实例)
+            _testPlcCommunication = serviceLocator.ResolveNamed<IPlcCommunication>("TestPlcCommunication");
+            _targetPlcCommunication = serviceLocator.ResolveNamed<IPlcCommunication>("TargetPlcCommunication");
             
             _activeTasks = new ConcurrentDictionary<string, TestTask>();
             _masterCancellationTokenSource = new CancellationTokenSource();

@@ -90,11 +90,11 @@ namespace FatFullVersion.Models
         /// <summary>
         /// 量程低限数值
         /// </summary>
-        public double RangeLowerLimitValue 
+        public float RangeLowerLimitValue 
         { 
             get 
             {
-                if (double.TryParse(RangeLowerLimit, out double result))
+                if (float.TryParse(RangeLowerLimit, out float result))
                 {
                     return result;
                 }
@@ -110,11 +110,11 @@ namespace FatFullVersion.Models
         /// <summary>
         /// 量程高限数值
         /// </summary>
-        public double RangeUpperLimitValue 
+        public float RangeUpperLimitValue 
         { 
             get 
             {
-                if (double.TryParse(RangeUpperLimit, out double result))
+                if (float.TryParse(RangeUpperLimit, out float result))
                 {
                     return result;
                 }
@@ -130,11 +130,11 @@ namespace FatFullVersion.Models
         /// <summary>
         /// SLL设定值数值
         /// </summary>
-        public double SLLSetValueNumber
+        public float SLLSetValueNumber
         {
             get
             {
-                if (double.TryParse(SLLSetValue, out double result))
+                if (float.TryParse(SLLSetValue, out float result))
                 {
                     return result;
                 }
@@ -165,11 +165,11 @@ namespace FatFullVersion.Models
         /// <summary>
         /// SL设定值数值
         /// </summary>
-        public double SLSetValueNumber
+        public float SLSetValueNumber
         {
             get
             {
-                if (double.TryParse(SLSetValue, out double result))
+                if (float.TryParse(SLSetValue, out float result))
                 {
                     return result;
                 }
@@ -200,11 +200,11 @@ namespace FatFullVersion.Models
         /// <summary>
         /// SH设定值数值
         /// </summary>
-        public double SHSetValueNumber
+        public float SHSetValueNumber
         {
             get
             {
-                if (double.TryParse(SHSetValue, out double result))
+                if (float.TryParse(SHSetValue, out float result))
                 {
                     return result;
                 }
@@ -235,11 +235,11 @@ namespace FatFullVersion.Models
         /// <summary>
         /// SHH设定值数值
         /// </summary>
-        public double SHHSetValueNumber
+        public float SHHSetValueNumber
         {
             get
             {
-                if (double.TryParse(SHHSetValue, out double result))
+                if (float.TryParse(SHHSetValue, out float result))
                 {
                     return result;
                 }
@@ -380,21 +380,21 @@ namespace FatFullVersion.Models
         /// <summary>
         /// 获取低低限值
         /// </summary>
-        public double LowLowLimit => SLLSetValueNumber;
+        public float LowLowLimit => SLLSetValueNumber;
 
         /// <summary>
         /// 获取低限值
         /// </summary>
-        public double LowLimit => SLSetValueNumber;
+        public float LowLimit => SLSetValueNumber;
 
         /// <summary>
         /// 获取高限值
         /// </summary>
-        public double HighLimit => SHSetValueNumber;
+        public float HighLimit => SHSetValueNumber;
 
         /// <summary>
         /// 获取高高限值
         /// </summary>
-        public double HighHighLimit => SHHSetValueNumber;
+        public float HighHighLimit => SHHSetValueNumber;
     }
 }

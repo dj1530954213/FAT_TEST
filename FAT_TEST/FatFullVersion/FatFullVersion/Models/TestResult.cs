@@ -12,6 +12,24 @@ namespace FatFullVersion.Models
     /// </summary>
     public class TestResult : INotifyPropertyChanged
     {
+        #region 基本信息字段
+
+        private int _testId;
+        /// <summary>
+        /// 测试序号
+        /// </summary>
+        public int TestId
+        {
+            get { return _testId; }
+            set
+            {
+                if (_testId != value)
+                {
+                    _testId = value;
+                    OnPropertyChanged(nameof(TestId));
+                }
+            }
+        }
 
         private string _variableName;
         /// <summary>
@@ -26,6 +44,40 @@ namespace FatFullVersion.Models
                 {
                     _variableName = value;
                     OnPropertyChanged(nameof(VariableName));
+                }
+            }
+        }
+
+        private string _pointType;
+        /// <summary>
+        /// 点位类型
+        /// </summary>
+        public string PointType
+        {
+            get { return _pointType; }
+            set
+            {
+                if (_pointType != value)
+                {
+                    _pointType = value;
+                    OnPropertyChanged(nameof(PointType));
+                }
+            }
+        }
+
+        private string _valueType;
+        /// <summary>
+        /// 数据类型
+        /// </summary>
+        public string ValueType
+        {
+            get { return _valueType; }
+            set
+            {
+                if (_valueType != value)
+                {
+                    _valueType = value;
+                    OnPropertyChanged(nameof(ValueType));
                 }
             }
         }
@@ -46,6 +98,99 @@ namespace FatFullVersion.Models
                 }
             }
         }
+
+        private string _targetPlcChannel;
+        /// <summary>
+        /// 被测PLC通道
+        /// </summary>
+        public string TargetPlcChannel
+        {
+            get { return _targetPlcChannel; }
+            set
+            {
+                if (_targetPlcChannel != value)
+                {
+                    _targetPlcChannel = value;
+                    OnPropertyChanged(nameof(TargetPlcChannel));
+                }
+            }
+        }
+
+        #endregion
+
+        #region 测试状态字段
+
+        private int _testResultStatus;
+        /// <summary>
+        /// 测试状态(0:未测试, 1:通过, 2:失败)
+        /// </summary>
+        public int TestResultStatus
+        {
+            get { return _testResultStatus; }
+            set
+            {
+                if (_testResultStatus != value)
+                {
+                    _testResultStatus = value;
+                    OnPropertyChanged(nameof(TestResultStatus));
+                }
+            }
+        }
+
+        private string _resultText;
+        /// <summary>
+        /// 测试结果信息
+        /// </summary>
+        public string ResultText
+        {
+            get { return _resultText; }
+            set
+            {
+                if (_resultText != value)
+                {
+                    _resultText = value;
+                    OnPropertyChanged(nameof(ResultText));
+                }
+            }
+        }
+
+        private DateTime? _testTime;
+        /// <summary>
+        /// 测试时间
+        /// </summary>
+        public DateTime? TestTime
+        {
+            get { return _testTime; }
+            set
+            {
+                if (_testTime != value)
+                {
+                    _testTime = value;
+                    OnPropertyChanged(nameof(TestTime));
+                }
+            }
+        }
+
+        private string _status;
+        /// <summary>
+        /// 当前测试状态（通过/失败/取消等）
+        /// </summary>
+        public string Status
+        {
+            get { return _status; }
+            set
+            {
+                if (_status != value)
+                {
+                    _status = value;
+                    OnPropertyChanged(nameof(Status));
+                }
+            }
+        }
+
+        #endregion
+
+        #region 测试时间与持续时间字段
 
         private DateTime _startTime;
         /// <summary>
@@ -97,6 +242,48 @@ namespace FatFullVersion.Models
                 return 0;
             }
         }
+
+        #endregion
+
+        #region 量程与范围字段
+
+        private double _rangeMin;
+        /// <summary>
+        /// 最小量程
+        /// </summary>
+        public double RangeMin
+        {
+            get { return _rangeMin; }
+            set
+            {
+                if (_rangeMin != value)
+                {
+                    _rangeMin = value;
+                    OnPropertyChanged(nameof(RangeMin));
+                }
+            }
+        }
+
+        private double _rangeMax;
+        /// <summary>
+        /// 最大量程
+        /// </summary>
+        public double RangeMax
+        {
+            get { return _rangeMax; }
+            set
+            {
+                if (_rangeMax != value)
+                {
+                    _rangeMax = value;
+                    OnPropertyChanged(nameof(RangeMax));
+                }
+            }
+        }
+
+        #endregion
+
+        #region 测试值字段
 
         private double _expectedValue;
         /// <summary>
@@ -158,22 +345,187 @@ namespace FatFullVersion.Models
             }
         }
 
-        private string _status;
+        #endregion
+
+        #region 百分比测试点位值
+
+        private double _value0Percent;
         /// <summary>
-        /// 测试状态（通过/失败/取消等）
+        /// 0%对比值
         /// </summary>
-        public string Status
+        public double Value0Percent
         {
-            get { return _status; }
+            get { return _value0Percent; }
             set
             {
-                if (_status != value)
+                if (_value0Percent != value)
                 {
-                    _status = value;
-                    OnPropertyChanged(nameof(Status));
+                    _value0Percent = value;
+                    OnPropertyChanged(nameof(Value0Percent));
                 }
             }
         }
+
+        private double _value25Percent;
+        /// <summary>
+        /// 25%对比值
+        /// </summary>
+        public double Value25Percent
+        {
+            get { return _value25Percent; }
+            set
+            {
+                if (_value25Percent != value)
+                {
+                    _value25Percent = value;
+                    OnPropertyChanged(nameof(Value25Percent));
+                }
+            }
+        }
+
+        private double _value50Percent;
+        /// <summary>
+        /// 50%对比值
+        /// </summary>
+        public double Value50Percent
+        {
+            get { return _value50Percent; }
+            set
+            {
+                if (_value50Percent != value)
+                {
+                    _value50Percent = value;
+                    OnPropertyChanged(nameof(Value50Percent));
+                }
+            }
+        }
+
+        private double _value75Percent;
+        /// <summary>
+        /// 75%对比值
+        /// </summary>
+        public double Value75Percent
+        {
+            get { return _value75Percent; }
+            set
+            {
+                if (_value75Percent != value)
+                {
+                    _value75Percent = value;
+                    OnPropertyChanged(nameof(Value75Percent));
+                }
+            }
+        }
+
+        private double _value100Percent;
+        /// <summary>
+        /// 100%对比值
+        /// </summary>
+        public double Value100Percent
+        {
+            get { return _value100Percent; }
+            set
+            {
+                if (_value100Percent != value)
+                {
+                    _value100Percent = value;
+                    OnPropertyChanged(nameof(Value100Percent));
+                }
+            }
+        }
+
+        #endregion
+
+        #region 报警状态字段
+
+        private string _lowLowAlarmStatus;
+        /// <summary>
+        /// 低低报状态
+        /// </summary>
+        public string LowLowAlarmStatus
+        {
+            get { return _lowLowAlarmStatus; }
+            set
+            {
+                if (_lowLowAlarmStatus != value)
+                {
+                    _lowLowAlarmStatus = value;
+                    OnPropertyChanged(nameof(LowLowAlarmStatus));
+                }
+            }
+        }
+
+        private string _lowAlarmStatus;
+        /// <summary>
+        /// 低报状态
+        /// </summary>
+        public string LowAlarmStatus
+        {
+            get { return _lowAlarmStatus; }
+            set
+            {
+                if (_lowAlarmStatus != value)
+                {
+                    _lowAlarmStatus = value;
+                    OnPropertyChanged(nameof(LowAlarmStatus));
+                }
+            }
+        }
+
+        private string _highAlarmStatus;
+        /// <summary>
+        /// 高报状态
+        /// </summary>
+        public string HighAlarmStatus
+        {
+            get { return _highAlarmStatus; }
+            set
+            {
+                if (_highAlarmStatus != value)
+                {
+                    _highAlarmStatus = value;
+                    OnPropertyChanged(nameof(HighAlarmStatus));
+                }
+            }
+        }
+
+        private string _highHighAlarmStatus;
+        /// <summary>
+        /// 高高报状态
+        /// </summary>
+        public string HighHighAlarmStatus
+        {
+            get { return _highHighAlarmStatus; }
+            set
+            {
+                if (_highHighAlarmStatus != value)
+                {
+                    _highHighAlarmStatus = value;
+                    OnPropertyChanged(nameof(HighHighAlarmStatus));
+                }
+            }
+        }
+
+        private string _maintenanceFunction;
+        /// <summary>
+        /// 维护功能结果
+        /// </summary>
+        public string MaintenanceFunction
+        {
+            get { return _maintenanceFunction; }
+            set
+            {
+                if (_maintenanceFunction != value)
+                {
+                    _maintenanceFunction = value;
+                    OnPropertyChanged(nameof(MaintenanceFunction));
+                }
+            }
+        }
+
+        #endregion
+
+        #region 其他字段
 
         private string _errorMessage;
         /// <summary>
@@ -209,11 +561,17 @@ namespace FatFullVersion.Models
             }
         }
 
+        #endregion
+
+        #region INotifyPropertyChanged 实现
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         protected virtual void OnPropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
+
+        #endregion
     }
 } 

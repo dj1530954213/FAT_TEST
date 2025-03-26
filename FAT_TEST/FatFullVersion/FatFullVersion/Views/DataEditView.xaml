@@ -17,6 +17,9 @@
         <converter:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converter:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
         <converter:BatchStatusToColorConverter x:Key="BatchStatusToColorConverter" />
+        <converter:ModuleTypeToVisibilityConverter x:Key="ModuleTypeToVisibilityConverter" />
+        <converter:NotApplicableValueConverter x:Key="NotApplicableValueConverter" />
+        <converter:DoubleToSlashConverter x:Key="DoubleToSlashConverter" />
 
         <!--  公共DataGrid样式  -->
         <Style x:Key="DataGridCellStyle" TargetType="{x:Type DataGridCell}">
@@ -35,7 +38,7 @@
                 </Setter.Value>
             </Setter>
             <Setter Property="FontSize" Value="14" />
-            <Setter Property="Foreground" Value="#333333" />
+            <Setter Property="Foreground" Value="LightBlue" />
         </Style>
 
         <Style x:Key="DataGridStyle" TargetType="{x:Type DataGrid}">
@@ -101,7 +104,7 @@
             <Setter Property="Width" Value="Auto" />
             <Setter Property="Background" Value="#607D8B" />
             <Setter Property="Foreground" Value="White" />
-            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontSize" Value="18" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Padding" Value="8,12" />
             <Setter Property="HorizontalContentAlignment" Value="Center" />
@@ -217,6 +220,7 @@
                     <ColumnDefinition />
                     <ColumnDefinition />
                     <ColumnDefinition />
+                    <!--<ColumnDefinition />-->
                 </Grid.ColumnDefinitions>
                 <Button
                     Grid.Column="0"
@@ -256,10 +260,21 @@
                     Padding="8,6"
                     Background="#4472C4"
                     Command="{Binding StartTestCommand}"
-                    Content="开始测试"
+                    Content="通道硬点自动测试"
                     FontSize="18"
                     FontWeight="Bold"
                     Foreground="White" />
+
+                <!--<Button
+                    Grid.Column="4"
+                    Margin="10,5"
+                    Padding="8,6"
+                    Background="#4472C4"
+                    Command="{Binding StartTestCommand}"
+                    Content="开始测试"
+                    FontSize="18"
+                    FontWeight="Bold"
+                    Foreground="White" />-->
             </Grid>
         </Border>
 
@@ -280,7 +295,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock
                         Grid.Column="0"
-                        FontSize="18"
+                        FontSize="20"
                         FontWeight="Bold"
                         Foreground="#333333"
                         Text="测试队列显示区域" />
@@ -290,6 +305,7 @@
                         Grid.Column="1"
                         Width="120"
                         Margin="0,0,8,0"
+                        FontSize="18"
                         Foreground="Black"
                         SelectedIndex="0"
                         Text="{Binding SelectedChannelType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
@@ -306,9 +322,12 @@
                     AutoGenerateColumns="False"
                     CanUserAddRows="False"
                     ColumnHeaderStyle="{StaticResource DataGridColumnHeaderStyle}"
-                    IsReadOnly="False"
+                    FontSize="20"
+                    IsReadOnly="True"
                     ItemsSource="{Binding CurrentChannels}"
                     ScrollViewer.CanContentScroll="False"
+                    SelectionMode="Single"
+                    SelectionUnit="FullRow"
                     Style="{StaticResource DataGridStyle}">
                     <DataGrid.Resources>
                         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="Transparent" />
@@ -358,7 +377,7 @@
                             Header="测试批次" />
                         <DataGridTextColumn
                             Width="*"
-                            Binding="{Binding Tag}"
+                            Binding="{Binding VariableName}"
                             Header="变量地址" />
                         <DataGridTextColumn
                             Width="*"
@@ -372,30 +391,40 @@
                             Width="*"
                             Binding="{Binding ModuleType}"
                             Header="通道类型" />
-                        <!--<DataGridTemplateColumn Width="Auto" Header="排序">
+                        <DataGridTextColumn
+                            Width="*"
+                            Binding="{Binding ChannelTag}"
+                            Header="通道硬点测试结果" />
+                        <DataGridTemplateColumn Width="*" Header="通道复测">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button
-                                            Margin="2"
-                                            Padding="5,0"
-                                            Background="#5B9BD5"
-                                            Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                                            CommandParameter="{Binding}"
-                                            Content="上"
-                                            Foreground="White" />
-                                        <Button
-                                            Margin="2"
-                                            Padding="5,0"
-                                            Background="#5B9BD5"
-                                            Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                                            CommandParameter="{Binding}"
-                                            Content="下"
-                                            Foreground="White" />
-                                    </StackPanel>
+                                    <Button
+                                        Margin="4"
+                                        Padding="10,4"
+                                        Background="#5B9BD5"
+                                        Command="{Binding DataContext.RetestCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                        Content="通道复测"
+                                        FontSize="18"
+                                        Foreground="White" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>-->
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Width="*" Header="手动测试环节">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button
+                                        Margin="4"
+                                        Padding="10,4"
+                                        Background="#5B9BD5"
+                                        Command="{Binding DataContext.OpenManualTestCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                        CommandParameter="{Binding DataContext, RelativeSource={RelativeSource Self}}"
+                                        Content="打开手动测试窗口"
+                                        FontSize="18"
+                                        Foreground="White"
+                                        Visibility="{Binding ModuleType, Converter={StaticResource ModuleTypeToVisibilityConverter}}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
@@ -465,6 +494,7 @@
                     AutoGenerateColumns="False"
                     CanUserAddRows="False"
                     ColumnHeaderStyle="{StaticResource DataGridColumnHeaderStyle}"
+                    FontSize="20"
                     IsReadOnly="True"
                     ItemsSource="{Binding TestResults}"
                     Style="{StaticResource DataGridStyle}"
@@ -550,37 +580,37 @@
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding RangeMin}"
+                            Binding="{Binding RangeMin, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="行程最小值" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding RangeMax}"
+                            Binding="{Binding RangeMax, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="行程最大值" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding Value0Percent}"
+                            Binding="{Binding Value0Percent, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="0%对比值" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding Value25Percent}"
+                            Binding="{Binding Value25Percent, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="25%对比值" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding Value50Percent}"
+                            Binding="{Binding Value50Percent, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="50%对比值" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding Value75Percent}"
+                            Binding="{Binding Value75Percent, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="75%对比值" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding Value100Percent}"
+                            Binding="{Binding Value100Percent, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="100%对比值" />
                         <DataGridTextColumn
                             Width="Auto"
@@ -614,10 +644,10 @@
                             Header="测试时间" />
                         <DataGridTextColumn
                             Width="Auto"
-                            MinWidth="150"
+                            MinWidth="300"
                             Binding="{Binding ResultText}"
                             Header="测试结果" />
-                        <DataGridTemplateColumn Width="Auto" Header="操作">
+                        <!--<DataGridTemplateColumn Width="Auto" Header="操作">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Button
@@ -631,7 +661,7 @@
                                         Foreground="White" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
+                        </DataGridTemplateColumn>-->
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
@@ -644,7 +674,7 @@
             Height="760"
             IsOpen="{Binding IsBatchSelectionOpen, Mode=TwoWay}"
             Placement="Center"
-            StaysOpen="False">
+            StaysOpen="True">
             <Border
                 Padding="16"
                 Background="White"
@@ -718,20 +748,24 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn
                                 Width="*"
-                                Binding="{Binding BatchId}"
-                                Header="批次ID" />
-                            <DataGridTextColumn
-                                Width="*"
                                 Binding="{Binding BatchName}"
                                 Header="批次名称" />
                             <DataGridTextColumn
                                 Width="*"
-                                Binding="{Binding CreationDate, StringFormat={}{0:yyyy-MM-dd}}"
-                                Header="创建日期" />
+                                Binding="{Binding ItemCount}"
+                                Header="测试项点数" />
                             <DataGridTextColumn
                                 Width="*"
-                                Binding="{Binding ItemCount}"
-                                Header="测试项数量" />
+                                Binding="{Binding CreationDate, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
+                                Header="创建时间" />
+                            <DataGridTextColumn
+                                Width="*"
+                                Binding="{Binding FirstTestTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
+                                Header="初次测试时间" />
+                            <DataGridTextColumn
+                                Width="*"
+                                Binding="{Binding LastTestTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
+                                Header="最终测试时间" />
                             <DataGridTemplateColumn Width="*" Header="状态">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -769,5 +803,289 @@
                 </Grid>
             </Border>
         </Popup>
+
+        <!--  AI手动测试窗口  -->
+        <Popup
+            x:Name="AIManualTestPopup"
+            Width="500"
+            Height="680"
+            IsOpen="{Binding IsAIManualTestOpen, Mode=TwoWay}"
+            Placement="Center"
+            StaysOpen="True">
+            <Border
+                Padding="16"
+                Background="White"
+                BorderBrush="#AAAAAA"
+                BorderThickness="1"
+                CornerRadius="6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock
+                        Grid.Row="0"
+                        Margin="0,0,0,0"
+                        FontSize="18"
+                        FontWeight="Bold"
+                        Text="AI手动测试窗口" />
+
+                    <StackPanel Grid.Row="1" Margin="0,5">
+                        <!--  第一区域：显示值核对  -->
+                        <GroupBox Margin="0,0,0,5" Header="显示值核对">
+                            <Grid Margin="6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBox
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Margin="0,0,8,8"
+                                    materialDesign:HintAssist.Hint="设定值"
+                                    FontSize="16"
+                                    Text="{Binding AISetValue, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Margin="0,0,0,8"
+                                    Padding="12,8"
+                                    Background="#5B9BD5"
+                                    Command="{Binding SendAITestValueCommand}"
+                                    Content="测试值下发"
+                                    Foreground="White" />
+
+                                <Button
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="2"
+                                    Padding="16,8"
+                                    Background="#4472C4"
+                                    Command="{Binding ConfirmAIValueCommand}"
+                                    Content="确认通过"
+                                    Foreground="White" />
+                            </Grid>
+                        </GroupBox>
+
+                        <!--  第二区域：高报及高高报核对  -->
+                        <GroupBox Margin="0,0,0,12" Header="高报及高高报核对">
+                            <Grid Margin="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                                    <Button
+                                        Margin="0,0,8,0"
+                                        Padding="12,8"
+                                        Background="#5B9BD5"
+                                        Command="{Binding SendAIHighAlarmCommand}"
+                                        Content="下发测试命令"
+                                        Foreground="White" />
+                                    <Button
+                                        Width="100"
+                                        Padding="12,8"
+                                        HorizontalAlignment="Right"
+                                        Background="#E6E6E6"
+                                        Command="{Binding ResetAIHighAlarmCommand}"
+                                        Content="复位"
+                                        Foreground="#333333" />
+                                </DockPanel>
+
+                                <Button
+                                    Grid.Row="1"
+                                    Padding="16,8"
+                                    Background="#4472C4"
+                                    Command="{Binding ConfirmAIHighAlarmCommand}"
+                                    Content="确认通过"
+                                    Foreground="White" />
+                            </Grid>
+                        </GroupBox>
+
+                        <!--  第三区域：低报及低低报核对  -->
+                        <GroupBox Margin="0,0,0,12" Header="低报及低低报核对">
+                            <Grid Margin="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                                    <Button
+                                        Margin="0,0,8,0"
+                                        Padding="12,8"
+                                        Background="#5B9BD5"
+                                        Command="{Binding SendAILowAlarmCommand}"
+                                        Content="下发测试命令"
+                                        Foreground="White" />
+
+                                    <Button
+                                        Width="100"
+                                        Padding="12,8"
+                                        HorizontalAlignment="Right"
+                                        Background="#E6E6E6"
+                                        Command="{Binding ResetAILowAlarmCommand}"
+                                        Content="复位"
+                                        Foreground="#333333" />
+                                </DockPanel>
+
+                                <Button
+                                    Grid.Row="1"
+                                    Padding="16,8"
+                                    Background="#4472C4"
+                                    Command="{Binding ConfirmAILowAlarmCommand}"
+                                    Content="确认通过"
+                                    Foreground="White" />
+                            </Grid>
+                        </GroupBox>
+
+                        <!--  第四区域：维护功能核对  -->
+                        <GroupBox Margin="0,0,0,12" Header="维护功能核对">
+                            <Grid Margin="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                                    <Button
+                                        Margin="0,0,8,0"
+                                        Padding="12,8"
+                                        Background="#5B9BD5"
+                                        Command="{Binding SendAIMaintenanceCommand}"
+                                        Content="下发测试命令"
+                                        Foreground="White" />
+
+                                    <Button
+                                        Width="100"
+                                        Padding="12,8"
+                                        HorizontalAlignment="Right"
+                                        Background="#E6E6E6"
+                                        Command="{Binding ResetAIMaintenanceCommand}"
+                                        Content="复位"
+                                        Foreground="#333333" />
+                                </DockPanel>
+
+                                <Button
+                                    Grid.Row="1"
+                                    Padding="16,8"
+                                    Background="#4472C4"
+                                    Command="{Binding ConfirmAIMaintenanceCommand}"
+                                    Content="确认通过"
+                                    Foreground="White" />
+                            </Grid>
+                        </GroupBox>
+                    </StackPanel>
+
+                    <StackPanel
+                        Grid.Row="2"
+                        Margin="0,12,0,0"
+                        HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                        <Button
+                            Margin="8,0"
+                            Padding="16,8"
+                            Background="#4472C4"
+                            Command="{Binding CloseAIManualTestCommand}"
+                            Content="关闭"
+                            Foreground="White" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Popup>
+
+        <!--  DI手动测试窗口  -->
+        <Popup
+            x:Name="DIManualTestPopup"
+            Width="380"
+            Height="300"
+            IsOpen="{Binding IsDIManualTestOpen, Mode=TwoWay}"
+            Placement="Center"
+            StaysOpen="True">
+            <Border
+                Padding="16"
+                Background="White"
+                BorderBrush="#AAAAAA"
+                BorderThickness="1"
+                CornerRadius="6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock
+                        Grid.Row="0"
+                        Margin="0,0,0,12"
+                        FontSize="20"
+                        FontWeight="Bold"
+                        Text="DI手动测试窗口" />
+
+                    <StackPanel Grid.Row="1" Margin="0,12">
+                        <!--  反馈状态核对区域  -->
+                        <GroupBox Margin="0,0,0,12" Header="反馈状态核对">
+                            <Grid Margin="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                                    <Button
+                                        Margin="0,0,8,0"
+                                        Padding="12,8"
+                                        Background="#5B9BD5"
+                                        Command="{Binding SendDITestCommand}"
+                                        Content="下发测试命令"
+                                        Foreground="White" />
+
+                                    <Button
+                                        Width="100"
+                                        Padding="12,8"
+                                        HorizontalAlignment="Right"
+                                        Background="#E6E6E6"
+                                        Command="{Binding ResetDICommand}"
+                                        Content="复位"
+                                        Foreground="#333333" />
+                                </DockPanel>
+
+                                <Button
+                                    Grid.Row="1"
+                                    Padding="16,8"
+                                    Background="#4472C4"
+                                    Command="{Binding ConfirmDICommand}"
+                                    Content="确认通过"
+                                    Foreground="White" />
+                            </Grid>
+                        </GroupBox>
+                    </StackPanel>
+
+                    <StackPanel
+                        Grid.Row="2"
+                        Margin="0,12,0,0"
+                        HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                        <Button
+                            Margin="8,0"
+                            Padding="16,8"
+                            Background="#4472C4"
+                            Command="{Binding CloseDIManualTestCommand}"
+                            Content="关闭"
+                            Foreground="White" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Popup>
     </Grid>
 </UserControl>
+

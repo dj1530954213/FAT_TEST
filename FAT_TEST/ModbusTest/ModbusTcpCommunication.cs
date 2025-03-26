@@ -8,7 +8,7 @@ using FatFullVersion.IServices;
 
 namespace ModbusTest
 {
-    public class ModbusTcpCommunication:IPlcCommunication
+    public class ModbusTcpCommunication
     {
         private DCMCAJ.ModBus.ModbusTcpNet modbus;
         public ModbusTcpCommunication()
@@ -22,7 +22,6 @@ namespace ModbusTest
             modbus.IsCheckMessageId = true;
             modbus.IsStringReverse = false;
             modbus.DataFormat = DCMCAJ.Core.DataFormat.ABCD;
-            //modbus.BroadcastStation = -1;
             modbus.CommunicationPipe = new DCMCAJ.Core.Pipe.PipeTcpNet("127.0.0.1", 502)
             {
                 ConnectTimeOut = 5000,    // 连接超时时间，单位毫秒
@@ -82,24 +81,56 @@ namespace ModbusTest
             }
         }
 
-        public Task<double> ReadAnalogValueAsync(string address)
+        public async Task<float> ReadAnalogValueAsync(string address)
         {
-            throw new NotImplementedException();
+            var result = await modbus.ReadFloatAsync(address);
+            if (result.IsSuccess)
+            {
+                return result.Content;
+            }
+            else
+            {
+                throw new Exception("读取失败");
+            }
         }
 
-        public Task<bool> WriteAnalogValueAsync(string address, double value)
+        public async Task<bool> WriteAnalogValueAsync(string address, float value)
         {
-            throw new NotImplementedException();
+            var result = await modbus.WriteAsync(address,value);
+            if (result.IsSuccess)
+            {
+                return true;
+            }
+            else
+            {
+                throw new Exception("写入失败");
+            }
         }
 
-        public Task<bool> ReadDigitalValueAsync(string address)
+        public async Task<bool> ReadDigitalValueAsync(string address)
         {
-            throw new NotImplementedException();
+            var result = await modbus.ReadBoolAsync(address);
+            if (result.IsSuccess)
+            {
+                return result.Content;
+            }
+            else
+            {
+                throw new Exception("读取失败");
+            }
         }
 
-        public Task<bool> WriteDigitalValueAsync(string address, bool value)
+        public async Task<bool> WriteDigitalValueAsync(string address, bool value)
         {
-            throw new NotImplementedException();
+            var result = await modbus.WriteAsync(address, value);
+            if (result.IsSuccess)
+            {
+                return true;
+            }
+            else
+            {
+                throw new Exception("写入失败");
+            }
         }
 
         public bool IsConnected { get; set; }

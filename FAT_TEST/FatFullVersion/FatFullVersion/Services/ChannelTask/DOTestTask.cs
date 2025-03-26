@@ -60,13 +60,25 @@ namespace FatFullVersion.Services.ChannelTask
                 await CheckAndWaitForResumeAsync(cancellationToken);
 
                 // 写入OFF状态到被测PLC
-                await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.VariableName, false);
+                var writeOffResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.VariableName, false);
+                if (!writeOffResult.IsSuccess)
+                {
+                    Result.Status = $"写入OFF状态失败：{writeOffResult.ErrorMessage}";
+                    return;
+                }
 
                 // 等待信号稳定(大约2秒)
                 await Task.Delay(2000, cancellationToken);
 
                 // 读取测试PLC的值
-                bool actualOffValue = await TestPlcCommunication.ReadDigitalValueAsync(ChannelMapping.TestPLCCommunicationAddress);
+                var readOffResult = await TestPlcCommunication.ReadDigitalValueAsync(ChannelMapping.TestPLCCommunicationAddress);
+                if (!readOffResult.IsSuccess)
+                {
+                    Result.Status = $"读取OFF状态失败：{readOffResult.ErrorMessage}";
+                    return;
+                }
+
+                bool actualOffValue = readOffResult.Data;
 
                 // 更新测试结果
                 Result.ExpectedValue = 0; // OFF状态
@@ -83,13 +95,25 @@ namespace FatFullVersion.Services.ChannelTask
                 await CheckAndWaitForResumeAsync(cancellationToken);
 
                 // 写入ON状态到被测PLC
-                await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.VariableName, true);
+                var writeOnResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.VariableName, true);
+                if (!writeOnResult.IsSuccess)
+                {
+                    Result.Status = $"写入ON状态失败：{writeOnResult.ErrorMessage}";
+                    return;
+                }
 
                 // 等待信号稳定(大约2秒)
                 await Task.Delay(2000, cancellationToken);
 
                 // 读取测试PLC的值
-                bool actualOnValue = await TestPlcCommunication.ReadDigitalValueAsync(ChannelMapping.TestPLCCommunicationAddress);
+                var readOnResult = await TestPlcCommunication.ReadDigitalValueAsync(ChannelMapping.TestPLCCommunicationAddress);
+                if (!readOnResult.IsSuccess)
+                {
+                    Result.Status = $"读取ON状态失败：{readOnResult.ErrorMessage}";
+                    return;
+                }
+
+                bool actualOnValue = readOnResult.Data;
 
                 // 更新测试结果
                 Result.ExpectedValue = 1; // ON状态
@@ -133,7 +157,12 @@ namespace FatFullVersion.Services.ChannelTask
                 // 结束测试时，将被测PLC输出复位到OFF
                 try
                 {
-                    await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.VariableName, false);
+                    var resetResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.VariableName, false);
+                    if (!resetResult.IsSuccess)
+                    {
+                        // 记录复位失败但不影响测试结果
+                        Result.ErrorMessage = $"复位失败：{resetResult.ErrorMessage}";
+                    }
                 }
                 catch
                 {

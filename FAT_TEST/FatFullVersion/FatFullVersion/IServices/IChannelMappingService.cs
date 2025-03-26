@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using FatFullVersion.Models;
 using FatFullVersion.Entities;
+using FatFullVersion.ViewModels;
 
 namespace FatFullVersion.IServices
 {
@@ -87,6 +88,12 @@ namespace FatFullVersion.IServices
             string newTestPlcCommAddress,
             IEnumerable<ChannelMapping> allChannels);
 
+        void AllocateResult(IEnumerable<ChannelMapping> aiChannels,
+            IEnumerable<ChannelMapping> aoChannels,
+            IEnumerable<ChannelMapping> diChannels,
+            IEnumerable<ChannelMapping> doChannels,
+            IEnumerable<TestResult> testResults);
+
         /// <summary>
         /// 设置当前使用的测试PLC配置
         /// </summary>
@@ -121,5 +128,21 @@ namespace FatFullVersion.IServices
         /// <param name="channels">需要清除分配信息的通道集合</param>
         /// <returns>清除分配信息后的通道集合</returns>
         Task<IEnumerable<ChannelMapping>> ClearAllChannelAllocationsAsync(IEnumerable<ChannelMapping> channels);
+
+        /// <summary>
+        /// 从通道映射信息中提取批次信息并管理批次状态
+        /// </summary>
+        /// <param name="aiChannels">AI通道列表</param>
+        /// <param name="aoChannels">AO通道列表</param>
+        /// <param name="diChannels">DI通道列表</param>
+        /// <param name="doChannels">DO通道列表</param>
+        /// <param name="testResults">测试结果列表</param>
+        /// <returns>提取的批次信息集合</returns>
+        Task<IEnumerable<ViewModels.BatchInfo>> ExtractBatchInfoAsync(
+            IEnumerable<ChannelMapping> aiChannels,
+            IEnumerable<ChannelMapping> aoChannels,
+            IEnumerable<ChannelMapping> diChannels,
+            IEnumerable<ChannelMapping> doChannels,
+            IEnumerable<TestResult> testResults);
     }
 }

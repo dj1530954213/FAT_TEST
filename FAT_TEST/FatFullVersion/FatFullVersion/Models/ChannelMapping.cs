@@ -151,11 +151,11 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _rangeLowerLimit, value); }
         }
         
-        private double _rangeLowerLimitValue;
+        private float _rangeLowerLimitValue;
         /// <summary>
         /// 量程低限数值
         /// </summary>
-        public double RangeLowerLimitValue
+        public float RangeLowerLimitValue
         {
             get { return _rangeLowerLimitValue; }
             set { SetProperty(ref _rangeLowerLimitValue, value); }
@@ -171,11 +171,11 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _rangeUpperLimit, value); }
         }
         
-        private double _rangeUpperLimitValue;
+        private float _rangeUpperLimitValue;
         /// <summary>
         /// 量程高限数值
         /// </summary>
-        public double RangeUpperLimitValue
+        public float RangeUpperLimitValue
         {
             get { return _rangeUpperLimitValue; }
             set { SetProperty(ref _rangeUpperLimitValue, value); }
@@ -191,11 +191,11 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _sllSetValue, value); }
         }
         
-        private double _sllSetValueNumber;
+        private float _sllSetValueNumber;
         /// <summary>
         /// SLL设定值数值
         /// </summary>
-        public double SLLSetValueNumber
+        public float SLLSetValueNumber
         {
             get { return _sllSetValueNumber; }
             set { SetProperty(ref _sllSetValueNumber, value); }
@@ -241,11 +241,11 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _slSetValue, value); }
         }
         
-        private double _slSetValueNumber;
+        private float _slSetValueNumber;
         /// <summary>
         /// SL设定值数值
         /// </summary>
-        public double SLSetValueNumber
+        public float SLSetValueNumber
         {
             get { return _slSetValueNumber; }
             set { SetProperty(ref _slSetValueNumber, value); }
@@ -291,11 +291,11 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _shSetValue, value); }
         }
         
-        private double _shSetValueNumber;
+        private float _shSetValueNumber;
         /// <summary>
         /// SH设定值数值
         /// </summary>
-        public double SHSetValueNumber
+        public float SHSetValueNumber
         {
             get { return _shSetValueNumber; }
             set { SetProperty(ref _shSetValueNumber, value); }
@@ -341,11 +341,11 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _shhSetValue, value); }
         }
         
-        private double _shhSetValueNumber;
+        private float _shhSetValueNumber;
         /// <summary>
         /// SHH设定值数值
         /// </summary>
-        public double SHHSetValueNumber
+        public float SHHSetValueNumber
         {
             get { return _shhSetValueNumber; }
             set { SetProperty(ref _shhSetValueNumber, value); }
@@ -642,22 +642,22 @@ namespace FatFullVersion.Models
         /// <summary>
         /// 获取低低限值
         /// </summary>
-        public double LowLowLimit => SLLSetValueNumber;
+        public float LowLowLimit => SLLSetValueNumber;
 
         /// <summary>
         /// 获取低限值
         /// </summary>
-        public double LowLimit => SLSetValueNumber;
+        public float LowLimit => SLSetValueNumber;
 
         /// <summary>
         /// 获取高限值
         /// </summary>
-        public double HighLimit => SHSetValueNumber;
+        public float HighLimit => SHSetValueNumber;
 
         /// <summary>
         /// 获取高高限值
         /// </summary>
-        public double HighHighLimit => SHHSetValueNumber;
+        public float HighHighLimit => SHHSetValueNumber;
         
         #endregion
     }

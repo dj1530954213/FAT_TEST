@@ -53,12 +53,12 @@ namespace FatFullVersion.Models
                 // 测试多个不同的信号值（0%、25%、50%、75%、100%等）
 
                 // 定义测试信号值（根据工程单位和量程计算）
-                double minValue = ChannelMapping.LowLowLimit;
-                double maxValue = ChannelMapping.HighHighLimit;
-                double range = maxValue - minValue;
+                float minValue = ChannelMapping.LowLowLimit;
+                float maxValue = ChannelMapping.HighHighLimit;
+                float range = maxValue - minValue;
 
                 // 依次测试不同百分比的信号值
-                double[] percentages = { 0, 25, 50, 75, 100 };
+                float[] percentages = { 0, 25, 50, 75, 100 };
                 
                 foreach (var percentage in percentages)
                 {
@@ -69,28 +69,40 @@ namespace FatFullVersion.Models
                     await CheckAndWaitForResumeAsync(cancellationToken);
                     
                     // 计算当前测试值
-                    double testValue = minValue + (range * percentage / 100);
+                    float testValue = minValue + (range * percentage / 100);
                     
                     // 写入测试值到测试PLC
-                    await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress, testValue);
+                    var writeResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress, testValue);
+                    if (!writeResult.IsSuccess)
+                    {
+                        Result.Status = $"写入测试值失败：{writeResult.ErrorMessage}";
+                        break;
+                    }
                     
                     // 等待信号稳定(大约3秒)
                     await Task.Delay(3000, cancellationToken);
                     
                     // 读取被测PLC的值
-                    double actualValue = await TargetPlcCommunication.ReadAnalogValueAsync(ChannelMapping.VariableName);
+                    var readResult = await TargetPlcCommunication.ReadAnalogValueAsync(ChannelMapping.VariableName);
+                    if (!readResult.IsSuccess)
+                    {
+                        Result.Status = $"读取被测PLC值失败：{readResult.ErrorMessage}";
+                        break;
+                    }
+                    
+                    float actualValue = readResult.Data;
                     
                     // 更新测试结果
                     Result.ExpectedValue = testValue;
                     Result.ActualValue = actualValue;
                     
                     // 计算偏差是否在容许范围内
-                    double deviation = Math.Abs(actualValue - testValue);
-                    double deviationPercent = (testValue != 0) ? (deviation / Math.Abs(testValue)) * 100 : 0;
+                    float deviation = Math.Abs(actualValue - testValue);
+                    float deviationPercent = (testValue != 0) ? (deviation / Math.Abs(testValue)) * 100 : 0;
                     
                     // 根据偏差判断是否通过测试
                     // 假设允许偏差为1%
-                    const double allowedDeviation = 1.0;
+                    const float allowedDeviation = 1.0f;
                     
                     if (deviationPercent <= allowedDeviation)
                     {
@@ -129,7 +141,12 @@ namespace FatFullVersion.Models
                 // 结束测试时，将测试PLC输出复位到0%
                 try
                 {
-                    await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress, ChannelMapping.LowLowLimit);
+                    var resetResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress, ChannelMapping.LowLowLimit);
+                    if (!resetResult.IsSuccess)
+                    {
+                        // 记录复位失败但不影响测试结果
+                        Result.ErrorMessage = $"复位失败：{resetResult.ErrorMessage}";
+                    }
                 }
                 catch
                 {

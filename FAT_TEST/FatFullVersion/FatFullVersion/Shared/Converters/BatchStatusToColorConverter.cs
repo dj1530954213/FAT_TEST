@@ -5,15 +5,18 @@ using System.Windows.Media;
 
 namespace FatFullVersion.Shared.Converters
 {
+    /// <summary>
+    /// 批次状态颜色转换器，将不同的批次状态转换为对应的颜色
+    /// </summary>
     public class BatchStatusToColorConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is string status)
             {
-                switch (status.ToLower())
+                switch (status)
                 {
-                    case "完成":
+                    case "已完成":
                         return new SolidColorBrush(Colors.Green);
                     case "进行中":
                         return new SolidColorBrush(Colors.Blue);

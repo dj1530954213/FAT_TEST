@@ -15,6 +15,7 @@ using System.Threading.Tasks;
 using FatFullVersion.Entities;
 using FatFullVersion.Entities.ValueObject;
 using FatFullVersion.Entities.EntitiesEnum;
+using FatFullVersion.Services;
 
 namespace FatFullVersion.ViewModels
 {
@@ -123,6 +124,7 @@ namespace FatFullVersion.ViewModels
             set { SetProperty(ref _batches, value); }
         }
 
+        //选择的当前批次信息
         private BatchInfo _selectedBatch;
         public BatchInfo SelectedBatch
         {
@@ -200,6 +202,137 @@ namespace FatFullVersion.ViewModels
         public DelegateCommand AllocateChannelsCommand { get; private set; }
         public DelegateCommand ClearChannelAllocationsCommand { get; private set; }
 
+        // 添加原始通道集合属性
+        private ObservableCollection<ChannelMapping> _originalAIChannels;
+        private ObservableCollection<ChannelMapping> _originalAOChannels;
+        private ObservableCollection<ChannelMapping> _originalDIChannels;
+        private ObservableCollection<ChannelMapping> _originalDOChannels;
+
+        /// <summary>
+        /// AI手动测试窗口是否打开
+        /// </summary>
+        private bool _isAIManualTestOpen;
+        public bool IsAIManualTestOpen
+        {
+            get => _isAIManualTestOpen;
+            set => SetProperty(ref _isAIManualTestOpen, value);
+        }
+
+        /// <summary>
+        /// DI手动测试窗口是否打开
+        /// </summary>
+        private bool _isDIManualTestOpen;
+        public bool IsDIManualTestOpen
+        {
+            get => _isDIManualTestOpen;
+            set => SetProperty(ref _isDIManualTestOpen, value);
+        }
+
+        /// <summary>
+        /// AI设定值
+        /// </summary>
+        private string _aiSetValue;
+        public string AISetValue
+        {
+            get => _aiSetValue;
+            set => SetProperty(ref _aiSetValue, value);
+        }
+
+        /// <summary>
+        /// 当前选中的通道
+        /// </summary>
+        private ChannelMapping _selectedChannel;
+        public ChannelMapping SelectedChannel
+        {
+            get => _selectedChannel;
+            set => SetProperty(ref _selectedChannel, value);
+        }
+
+        /// <summary>
+        /// 打开手动测试窗口命令
+        /// </summary>
+        public DelegateCommand<ChannelMapping> OpenManualTestCommand { get; private set; }
+
+        /// <summary>
+        /// 关闭AI手动测试窗口命令
+        /// </summary>
+        public DelegateCommand CloseAIManualTestCommand { get; private set; }
+
+        /// <summary>
+        /// 关闭DI手动测试窗口命令
+        /// </summary>
+        public DelegateCommand CloseDIManualTestCommand { get; private set; }
+
+        /// <summary>
+        /// 发送AI测试值命令
+        /// </summary>
+        public DelegateCommand SendAITestValueCommand { get; private set; }
+
+        /// <summary>
+        /// 确认AI值命令
+        /// </summary>
+        public DelegateCommand ConfirmAIValueCommand { get; private set; }
+
+        /// <summary>
+        /// 发送AI高报命令
+        /// </summary>
+        public DelegateCommand SendAIHighAlarmCommand { get; private set; }
+
+        /// <summary>
+        /// 复位AI高报命令
+        /// </summary>
+        public DelegateCommand ResetAIHighAlarmCommand { get; private set; }
+
+        /// <summary>
+        /// 确认AI高报命令
+        /// </summary>
+        public DelegateCommand ConfirmAIHighAlarmCommand { get; private set; }
+
+        /// <summary>
+        /// 发送AI低报命令
+        /// </summary>
+        public DelegateCommand SendAILowAlarmCommand { get; private set; }
+
+        /// <summary>
+        /// 复位AI低报命令
+        /// </summary>
+        public DelegateCommand ResetAILowAlarmCommand { get; private set; }
+
+        /// <summary>
+        /// 确认AI低报命令
+        /// </summary>
+        public DelegateCommand ConfirmAILowAlarmCommand { get; private set; }
+
+        /// <summary>
+        /// 发送AI维护功能命令
+        /// </summary>
+        public DelegateCommand SendAIMaintenanceCommand { get; private set; }
+
+        /// <summary>
+        /// 复位AI维护功能命令
+        /// </summary>
+        public DelegateCommand ResetAIMaintenanceCommand { get; private set; }
+
+        /// <summary>
+        /// 确认AI维护功能命令
+        /// </summary>
+        public DelegateCommand ConfirmAIMaintenanceCommand { get; private set; }
+
+        /// <summary>
+        /// 发送DI测试命令
+        /// </summary>
+        public DelegateCommand SendDITestCommand { get; private set; }
+
+        /// <summary>
+        /// 复位DI命令
+        /// </summary>
+        public DelegateCommand ResetDICommand { get; private set; }
+
+        /// <summary>
+        /// 确认DI命令
+        /// </summary>
+        public DelegateCommand ConfirmDICommand { get; private set; }
+
         #endregion
 
         public DataEditViewModel(IPointDataService pointDataService, IChannelMappingService channelMappingService)
@@ -215,11 +348,11 @@ namespace FatFullVersion.ViewModels
             FinishWiringCommand = new DelegateCommand(FinishWiring);
             StartTestCommand = new DelegateCommand(StartTest);
             RetestCommand = new DelegateCommand<TestResult>(Retest);
-            MoveUpCommand = new DelegateCommand<ChannelMapping>(MoveUp);
-            MoveDownCommand = new DelegateCommand<ChannelMapping>(MoveDown);
+            //MoveUpCommand = new DelegateCommand<ChannelMapping>(MoveUp);
+            //MoveDownCommand = new DelegateCommand<ChannelMapping>(MoveDown);
             ConfirmBatchSelectionCommand = new DelegateCommand(ConfirmBatchSelection);
             CancelBatchSelectionCommand = new DelegateCommand(CancelBatchSelection);
-            AllocateChannelsCommand = new DelegateCommand(AllocateChannelsAsync);
+            //AllocateChannelsCommand = new DelegateCommand(AllocateChannelsAsync);
             ClearChannelAllocationsCommand = new DelegateCommand(ClearChannelAllocationsAsync);
 
             // 初始化各种集合
@@ -245,8 +378,29 @@ namespace FatFullVersion.ViewModels
 
             // 更新点位统计数据
             UpdatePointStatistics();
-        }
 
+            // 初始化手动测试命令
+            OpenManualTestCommand = new DelegateCommand<ChannelMapping>(ExecuteOpenManualTest);
+            CloseAIManualTestCommand = new DelegateCommand(ExecuteCloseAIManualTest);
+            CloseDIManualTestCommand = new DelegateCommand(ExecuteCloseDIManualTest);
+            SendAITestValueCommand = new DelegateCommand(ExecuteSendAITestValue);
+            ConfirmAIValueCommand = new DelegateCommand(ExecuteConfirmAIValue);
+            SendAIHighAlarmCommand = new DelegateCommand(ExecuteSendAIHighAlarm);
+            ResetAIHighAlarmCommand = new DelegateCommand(ExecuteResetAIHighAlarm);
+            ConfirmAIHighAlarmCommand = new DelegateCommand(ExecuteConfirmAIHighAlarm);
+            SendAILowAlarmCommand = new DelegateCommand(ExecuteSendAILowAlarm);
+            ResetAILowAlarmCommand = new DelegateCommand(ExecuteResetAILowAlarm);
+            ConfirmAILowAlarmCommand = new DelegateCommand(ExecuteConfirmAILowAlarm);
+            SendAIMaintenanceCommand = new DelegateCommand(ExecuteSendAIMaintenance);
+            ResetAIMaintenanceCommand = new DelegateCommand(ExecuteResetAIMaintenance);
+            ConfirmAIMaintenanceCommand = new DelegateCommand(ExecuteConfirmAIMaintenance);
+            SendDITestCommand = new DelegateCommand(ExecuteSendDITest);
+            ResetDICommand = new DelegateCommand(ExecuteResetDI);
+            ConfirmDICommand = new DelegateCommand(ExecuteConfirmDI);
+        }
+        /// <summary>
+        /// 选择批次后将选择的批次信息放置在当前的显示区域中
+        /// </summary>
         private void UpdateCurrentChannels()
         {
             if (string.IsNullOrEmpty(SelectedChannelType))
@@ -299,6 +453,12 @@ namespace FatFullVersion.ViewModels
                     // 等待异步操作完成并获取结果
                     var importedData = await tcs.Task;
                     
+                    // 清空原始通道集合引用
+                    _originalAIChannels = null;
+                    _originalAOChannels = null;
+                    _originalDIChannels = null;
+                    _originalDOChannels = null;
+                    
                     // 处理导入的数据
                     if (importedData != null)
                     {
@@ -329,182 +489,289 @@ namespace FatFullVersion.ViewModels
         {
             try
             {
-                // 清空现有数据
+                IsLoading = true;
+                StatusMessage = "正在处理导入数据...";
+
+                // 分类存储各类点表
+                var aiPoints = importedData.Where(p => p.ModuleType?.ToLower() == "ai").ToList();
+                var aoPoints = importedData.Where(p => p.ModuleType?.ToLower() == "ao").ToList();
+                var diPoints = importedData.Where(p => p.ModuleType?.ToLower() == "di").ToList();
+                var doPoints = importedData.Where(p => p.ModuleType?.ToLower() == "do").ToList();
+
+                // 清空现有通道数据
                 AIChannels.Clear();
                 AOChannels.Clear();
                 DIChannels.Clear();
                 DOChannels.Clear();
                 TestResults.Clear();
 
-                // 按模块类型分类导入的数据
-                foreach (var excelPointData in importedData)
+                // 添加AI通道
+                foreach (var point in aiPoints)
                 {
-                    // 创建通道映射
-                    var channelMapping = new ChannelMapping
+                    var channel = new ChannelMapping
                     {
-                        // ExcelPointData属性映射
-                        ModuleName = excelPointData.ModuleName,
-                        ModuleType = excelPointData.ModuleType,
-                        PowerSupplyType = excelPointData.PowerSupplyType,
-                        WireSystem = excelPointData.WireSystem,
-                        Tag = excelPointData.Tag,
-                        StationName = excelPointData.StationName,
-                        VariableName = excelPointData.VariableName,
-                        VariableDescription = excelPointData.VariableDescription,
-                        DataType = excelPointData.DataType,
-                        AccessProperty = excelPointData.AccessProperty,
-                        SaveHistory = excelPointData.SaveHistory,
-                        PowerFailureProtection = excelPointData.PowerFailureProtection,
-                        ChannelTag = excelPointData.ChannelTag,
-                        
-                        // 量程信息
-                        RangeLowerLimit = excelPointData.RangeLowerLimit,
-                        RangeLowerLimitValue = excelPointData.RangeLowerLimitValue,
-                        RangeUpperLimit = excelPointData.RangeUpperLimit,
-                        RangeUpperLimitValue = excelPointData.RangeUpperLimitValue,
-                        
-                        // 报警设定
-                        SLLSetValue = excelPointData.SLLSetValue,
-                        SLLSetValueNumber = excelPointData.SLLSetValueNumber,
-                        SLLSetPoint = excelPointData.SLLSetPoint,
-                        SLLSetPointPLCAddress = excelPointData.SLLSetPointPLCAddress,
-                        SLLSetPointCommAddress = excelPointData.SLLSetPointCommAddress,
-                        
-                        SLSetValue = excelPointData.SLSetValue,
-                        SLSetValueNumber = excelPointData.SLSetValueNumber,
-                        SLSetPoint = excelPointData.SLSetPoint,
-                        SLSetPointPLCAddress = excelPointData.SLSetPointPLCAddress,
-                        SLSetPointCommAddress = excelPointData.SLSetPointCommAddress,
-                        
-                        SHSetValue = excelPointData.SHSetValue,
-                        SHSetValueNumber = excelPointData.SHSetValueNumber,
-                        SHSetPoint = excelPointData.SHSetPoint,
-                        SHSetPointPLCAddress = excelPointData.SHSetPointPLCAddress,
-                        SHSetPointCommAddress = excelPointData.SHSetPointCommAddress,
-                        
-                        SHHSetValue = excelPointData.SHHSetValue,
-                        SHHSetValueNumber = excelPointData.SHHSetValueNumber,
-                        SHHSetPoint = excelPointData.SHHSetPoint,
-                        SHHSetPointPLCAddress = excelPointData.SHHSetPointPLCAddress,
-                        SHHSetPointCommAddress = excelPointData.SHHSetPointCommAddress,
-                        
-                        // 报警点位
-                        LLAlarm = excelPointData.LLAlarm,
-                        LLAlarmPLCAddress = excelPointData.LLAlarmPLCAddress,
-                        LLAlarmCommAddress = excelPointData.LLAlarmCommAddress,
-                        
-                        LAlarm = excelPointData.LAlarm,
-                        LAlarmPLCAddress = excelPointData.LAlarmPLCAddress,
-                        LAlarmCommAddress = excelPointData.LAlarmCommAddress,
-                        
-                        HAlarm = excelPointData.HAlarm,
-                        HAlarmPLCAddress = excelPointData.HAlarmPLCAddress,
-                        HAlarmCommAddress = excelPointData.HAlarmCommAddress,
-                        
-                        HHAlarm = excelPointData.HHAlarm,
-                        HHAlarmPLCAddress = excelPointData.HHAlarmPLCAddress,
-                        HHAlarmCommAddress = excelPointData.HHAlarmCommAddress,
-                        
-                        // 维护相关
-                        MaintenanceValueSetting = excelPointData.MaintenanceValueSetting,
-                        MaintenanceValueSetPoint = excelPointData.MaintenanceValueSetPoint,
-                        MaintenanceValueSetPointPLCAddress = excelPointData.MaintenanceValueSetPointPLCAddress,
-                        MaintenanceValueSetPointCommAddress = excelPointData.MaintenanceValueSetPointCommAddress,
-                        MaintenanceEnableSwitchPoint = excelPointData.MaintenanceEnableSwitchPoint,
-                        MaintenanceEnableSwitchPointPLCAddress = excelPointData.MaintenanceEnableSwitchPointPLCAddress,
-                        MaintenanceEnableSwitchPointCommAddress = excelPointData.MaintenanceEnableSwitchPointCommAddress,
-                        
-                        // 地址信息
-                        PLCAbsoluteAddress = excelPointData.PLCAbsoluteAddress,
-                        
-                        // 时间信息
-                        CreatedTime = DateTime.Now,
-                        
-                        // 新增字段
-                        TestBatch = $"批次{DateTime.Now:yyyyMMdd}",
-                        TestPLCChannelTag = string.Empty,
-                        TestPLCCommunicationAddress = string.Empty
+                        ChannelTag = point.ChannelTag,
+                        //TestBatch = newBatch.BatchName,
+                        VariableName = point.VariableName,
+                        ModuleType = point.ModuleType,
+                        // 设置通道映射的其他属性
+                        SLLSetValue = point.SLLSetValue,
+                        SLLSetValueNumber = point.SLLSetValueNumber,
+                        SLSetValue = point.SLSetValue,
+                        SLSetValueNumber = point.SLSetValueNumber,
+                        SHSetValue = point.SHSetValue,
+                        SHSetValueNumber = point.SHSetValueNumber,
+                        SHHSetValue = point.SHHSetValue,
+                        SHHSetValueNumber = point.SHHSetValueNumber
                     };
+                    AIChannels.Add(channel);
 
-                    // 根据模块类型分配到对应的通道组
-                    switch (excelPointData.ModuleType?.ToLower())
+                    // 创建对应的测试结果
+                    var result = new TestResult
                     {
-                        case "ai":
-                            AIChannels.Add(channelMapping);
-                            break;
-
-                        case "ao":
-                            AOChannels.Add(channelMapping);
-                            break;
-
-                        case "di":
-                            DIChannels.Add(channelMapping);
-                            break;
-
-                        case "do":
-                            DOChannels.Add(channelMapping);
-                            break;
-
-                        default:
-                            // 对于不识别的模块类型，默认分到AI组
-                            AIChannels.Add(channelMapping);
-                            break;
-                    }
-
-                    // 将测试信息写入测试结果区域
-                    TestResults.Add(new TestResult()
-                    {
-                        TestId = excelPointData.SerialNumber,
-                        BatchName = channelMapping.TestBatch, // 使用新设置的测试批次
-                        VariableName = excelPointData.VariableName,
-                        PointType = excelPointData.ModuleType,
-                        ValueType = excelPointData.DataType,
-                        TestPlcChannel = channelMapping.TestPLCChannelTag, // 使用新添加的字段
-                        TargetPlcChannel = excelPointData.ChannelTag,
-                        RangeMax = excelPointData.RangeUpperLimitValue,
-                        RangeMin = excelPointData.RangeLowerLimitValue,
-                        ResultText = "待测试",
-                        TestResultStatus = 0,
-                    });
+                        TestId = TestResults.Count + 1,
+                        VariableName = point.VariableName,
+                        PointType = point.ModuleType,
+                        ValueType = point.DataType,
+                        TargetPlcChannel = point.ChannelTag,
+                        RangeMin = point.LowLowLimit,
+                        RangeMax = point.HighHighLimit,
+                        Value0Percent = point.LowLowLimit,
+                        Value25Percent = point.LowLowLimit + (point.HighHighLimit - point.LowLowLimit) * 0.25,
+                        Value50Percent = point.LowLowLimit + (point.HighHighLimit - point.LowLowLimit) * 0.5,
+                        Value75Percent = point.LowLowLimit + (point.HighHighLimit - point.LowLowLimit) * 0.75,
+                        Value100Percent = point.HighHighLimit,
+                        //BatchName = newBatch.BatchName,
+                        //BatchId = newBatch.BatchId,
+                        TestResultStatus = 0, // 未测试
+                        ResultText = "未测试"
+                    };
+                    TestResults.Add(result);
                 }
-                //自动分配通道服务调用
-                var channelsMappingResult = await _channelMappingService.AllocateChannelsTestAsync(
-                    aiChannels: AIChannels, 
-                    aoChannels: AOChannels, 
-                    diChannels: DIChannels, 
-                    doChannels: DOChannels);
-                var result = channelsMappingResult.AI.Where(a => a.TestBatch.Contains("3")).ToArray();
-                //同步更新测试结果表中的测试批次于测试PLC通道
-                UpdateTestResultChannels(channelsMappingResult.AI, channelsMappingResult.AO, channelsMappingResult.DI, channelsMappingResult.DO);
 
+                // 添加AO通道
+                foreach (var point in aoPoints)
+                {
+                    var channel = new ChannelMapping
+                    {
+                        ChannelTag = point.ChannelTag,
+                        //TestBatch = newBatch.BatchName,
+                        VariableName = point.VariableName,
+                        ModuleType = point.ModuleType,
+                        // 设置通道映射的其他属性
+                        SLLSetValue = point.SLLSetValue,
+                        SLLSetValueNumber = point.SLLSetValueNumber,
+                        SLSetValue = point.SLSetValue,
+                        SLSetValueNumber = point.SLSetValueNumber,
+                        SHSetValue = point.SHSetValue,
+                        SHSetValueNumber = point.SHSetValueNumber,
+                        SHHSetValue = point.SHHSetValue,
+                        SHHSetValueNumber = point.SHHSetValueNumber
+                    };
+                    AOChannels.Add(channel);
 
-                // 通知UI更新
-                RaisePropertyChanged(nameof(AIChannels));
-                RaisePropertyChanged(nameof(AOChannels));
-                RaisePropertyChanged(nameof(DIChannels));
-                RaisePropertyChanged(nameof(DOChannels));
+                    // 创建对应的测试结果
+                    var result = new TestResult
+                    {
+                        TestId = TestResults.Count + 1,
+                        VariableName = point.VariableName,
+                        PointType = point.ModuleType,
+                        ValueType = point.DataType,
+                        TargetPlcChannel = point.ChannelTag,
+                        RangeMin = point.LowLowLimit,
+                        RangeMax = point.HighHighLimit,
+                        Value0Percent = point.LowLowLimit,
+                        Value25Percent = point.LowLowLimit + (point.HighHighLimit - point.LowLowLimit) * 0.25,
+                        Value50Percent = point.LowLowLimit + (point.HighHighLimit - point.LowLowLimit) * 0.5,
+                        Value75Percent = point.LowLowLimit + (point.HighHighLimit - point.LowLowLimit) * 0.75,
+                        Value100Percent = point.HighHighLimit,
+                        //BatchName = newBatch.BatchName,
+                        //BatchId = newBatch.BatchId,
+                        TestResultStatus = 0, // 未测试
+                        ResultText = "未测试"
+                    };
+                    TestResults.Add(result);
+                }
+
+                // 添加DI通道
+                foreach (var point in diPoints)
+                {
+                    var channel = new ChannelMapping
+                    {
+                        ChannelTag = point.ChannelTag,
+                        //TestBatch = newBatch.BatchName,
+                        VariableName = point.VariableName,
+                        ModuleType = point.ModuleType
+                    };
+                    DIChannels.Add(channel);
+
+                    // 创建对应的测试结果
+                    var result = new TestResult
+                    {
+                        TestId = TestResults.Count + 1,
+                        VariableName = point.VariableName,
+                        PointType = point.ModuleType,
+                        ValueType = point.DataType,
+                        TargetPlcChannel = point.ChannelTag,
+                        //BatchName = newBatch.BatchName,
+                        //BatchId = newBatch.BatchId,
+                        TestResultStatus = 0, // 未测试
+                        ResultText = "未测试",
+                        // 为DI和DO点位设置NaN值，使其在UI中显示为"/"
+                        RangeMin = double.NaN,
+                        RangeMax = double.NaN, 
+                        Value0Percent = double.NaN,
+                        Value25Percent = double.NaN,
+                        Value50Percent = double.NaN,
+                        Value75Percent = double.NaN,
+                        Value100Percent = double.NaN
+                    };
+                    TestResults.Add(result);
+                }
+
+                // 添加DO通道
+                foreach (var point in doPoints)
+                {
+                    var channel = new ChannelMapping
+                    {
+                        ChannelTag = point.ChannelTag,
+                        //TestBatch = newBatch.BatchName,
+                        VariableName = point.VariableName,
+                        ModuleType = point.ModuleType
+                    };
+                    DOChannels.Add(channel);
+
+                    // 创建对应的测试结果
+                    var result = new TestResult
+                    {
+                        TestId = TestResults.Count + 1,
+                        VariableName = point.VariableName,
+                        PointType = point.ModuleType,
+                        ValueType = point.DataType,
+                        TargetPlcChannel = point.ChannelTag,
+                        //BatchName = newBatch.BatchName,
+                        //BatchId = newBatch.BatchId,
+                        TestResultStatus = 0, // 未测试
+                        ResultText = "未测试",
+                        // 为DI和DO点位设置NaN值，使其在UI中显示为"/"
+                        RangeMin = double.NaN,
+                        RangeMax = double.NaN, 
+                        Value0Percent = double.NaN,
+                        Value25Percent = double.NaN,
+                        Value50Percent = double.NaN,
+                        Value75Percent = double.NaN,
+                        Value100Percent = double.NaN
+                    };
+                    TestResults.Add(result);
+                }
+                //当Excel中点位解析完成后并且已经初始化完ChannelMapping后调用自动分配程序分配点位
+                var channelsMappingResult = await _channelMappingService.AllocateChannelsTestAsync(AIChannels, AOChannels, DIChannels, DOChannels);
+                //通道分配完成之后同步更新结果表位中的对应数据
+                _channelMappingService.AllocateResult(channelsMappingResult.AI, channelsMappingResult.AO, channelsMappingResult.DI,
+                    channelsMappingResult.DO, TestResults);
+                //通知前端页面更新数据
                 RaisePropertyChanged(nameof(TestResults));
+
+                // 更新当前显示的通道
+                UpdateCurrentChannels();
+
+                // 更新点位统计数据
+                UpdatePointStatistics();
+
+                Message = $"已导入 {importedData.Count()} 条数据";
+                StatusMessage = string.Empty;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"处理导入数据失败: {ex.Message}", "导入失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusMessage = string.Empty;
+                Message = $"导入数据处理错误: {ex.Message}";
+            }
+            finally
+            {
+                IsLoading = false;
             }
         }
-
-        private void SelectBatch()
+        /// <summary>
+        /// 点击批次选择窗口后执行的逻辑
+        /// </summary>
+        private async void SelectBatch()
         {
-            // 显示批次选择窗口
-            IsBatchSelectionOpen = true;
+            try
+            {
+                // 使用原始通道集合来更新批次信息，确保批次列表完整
+                if (_originalAIChannels != null && _originalAOChannels != null && 
+                    _originalDIChannels != null && _originalDOChannels != null)
+                {
+                    // 使用通道映射服务提取批次信息
+                    Batches = new ObservableCollection<BatchInfo>(
+                        await _channelMappingService.ExtractBatchInfoAsync(
+                            _originalAIChannels, 
+                            _originalAOChannels, 
+                            _originalDIChannels, 
+                            _originalDOChannels, 
+                            TestResults));
+                }
+                else
+                {
+                    // 首次使用当前通道集合
+                    await UpdateBatchInfoAsync();
+                }
+                
+                // 显示批次选择窗口
+                IsBatchSelectionOpen = true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"获取批次信息失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
-
+        /// <summary>
+        /// 确认选择批次信息，同步更新下方的当前批次的通道对应关系
+        /// </summary>
         private void ConfirmBatchSelection()
         {
             if (SelectedBatch != null)
             {
+                // 关闭批次选择窗口
+                IsBatchSelectionOpen = false;
+
+                // 首次保存原始通道集合
+                if (_originalAIChannels == null)
+                {
+                    _originalAIChannels = new ObservableCollection<ChannelMapping>(AIChannels);
+                    _originalAOChannels = new ObservableCollection<ChannelMapping>(AOChannels);
+                    _originalDIChannels = new ObservableCollection<ChannelMapping>(DIChannels);
+                    _originalDOChannels = new ObservableCollection<ChannelMapping>(DOChannels);
+                }
+
+                // 根据选择的批次筛选相关的测试结果
+                var batchResults = TestResults.Where(r => r.BatchName == SelectedBatch.BatchName).ToList();
+                
+                // 获取当前批次中的所有通道ID
+                var batchChannelVariableNames = batchResults.Select(r => r.VariableName).ToHashSet();
+                
+                // 筛选和更新当前显示的通道
+                AIChannels = new ObservableCollection<ChannelMapping>(
+                    _originalAIChannels.Where(c => batchChannelVariableNames.Contains(c.VariableName)));
+                
+                AOChannels = new ObservableCollection<ChannelMapping>(
+                    _originalAOChannels.Where(c => batchChannelVariableNames.Contains(c.VariableName)));
+                
+                DIChannels = new ObservableCollection<ChannelMapping>(
+                    _originalDIChannels.Where(c => batchChannelVariableNames.Contains(c.VariableName)));
+                
+                DOChannels = new ObservableCollection<ChannelMapping>(
+                    _originalDOChannels.Where(c => batchChannelVariableNames.Contains(c.VariableName)));
+                
+                // 更新当前显示的通道
+                UpdateCurrentChannels();
+                
                 Message = $"已选择批次: {SelectedBatch.BatchName}";
-                // 这里可以加载选定批次的数据
             }
-            IsBatchSelectionOpen = false;
+            else
+            {
+                MessageBox.Show("请先选择一个批次", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
         }
 
         private void CancelBatchSelection()
@@ -518,10 +785,13 @@ namespace FatFullVersion.ViewModels
             Message = "通道连接完成";
         }
 
-        private void StartTest()
+        private async void StartTest()
         {
             // 开始测试的实现
             Message = "开始测试";
+
+            // 收集当前批次名称
+            HashSet<string> affectedBatchNames = new HashSet<string>();
 
             // 模拟测试，随机生成一些测试结果状态
             Random random = new Random();
@@ -530,7 +800,16 @@ namespace FatFullVersion.ViewModels
                 result.TestResultStatus = random.Next(0, 3); // 0:未测试, 1:通过, 2:失败
                 result.TestTime = DateTime.Now;
                 result.ResultText = result.TestResultStatus == 1 ? "通过" : (result.TestResultStatus == 2 ? "失败" : "未测试");
+                
+                // 记录受影响的批次
+                if (!string.IsNullOrEmpty(result.BatchName))
+                {
+                    affectedBatchNames.Add(result.BatchName);
+                }
             }
+
+            // 更新批次信息
+            await UpdateBatchInfoAsync();
 
             RaisePropertyChanged(nameof(TestResults));
             
@@ -538,7 +817,7 @@ namespace FatFullVersion.ViewModels
             UpdatePointStatistics();
         }
 
-        private void Retest(TestResult result)
+        private async void Retest(TestResult result)
         {
             if (result == null) return;
 
@@ -551,198 +830,60 @@ namespace FatFullVersion.ViewModels
             result.TestTime = DateTime.Now;
             result.ResultText = result.TestResultStatus == 1 ? "通过" : "失败";
 
+            // 更新批次信息
+            await UpdateBatchInfoAsync();
+
             RaisePropertyChanged(nameof(TestResults));
             
             // 更新点位统计数据
             UpdatePointStatistics();
         }
-
-        private void MoveUp(ChannelMapping channel)
-        {
-            if (channel == null) return;
-
-            // 获取当前显示的通道集合
-            int index = CurrentChannels.IndexOf(channel);
-
-            if (index > 0)
-            {
-                CurrentChannels.Move(index, index - 1);
-            }
-        }
-
-        private void MoveDown(ChannelMapping channel)
-        {
-            if (channel == null) return;
-
-            // 获取当前显示的通道集合
-            int index = CurrentChannels.IndexOf(channel);
-
-            if (index < CurrentChannels.Count - 1)
-            {
-                CurrentChannels.Move(index, index + 1);
-            }
-        }
-
-        private ObservableCollection<ChannelMapping> GetCollectionByChannel(ChannelMapping channel)
-        {
-            switch (channel.ModuleType?.ToLower())
-            {
-                case "ai": return AIChannels;
-                case "ao": return AOChannels;
-                case "di": return DIChannels;
-                case "do": return DOChannels;
-                default: return null;
-            }
-        }
-
-        #endregion
+        #endregion        
 
         #region 测试数据初始化
-
-        //private void InitializeTestData()
-        //{
-        //    // 初始化通道映射数据
-        //    AIChannels = new ObservableCollection<ChannelMapping>();
-        //    for (int i = 0; i < 1000; i++)
-        //    {
-        //        AIChannels.Add(new ChannelMapping() { TestChannel = $"AI-00{i}", TargetChannel = $"AI-10{i}", ChannelType = "AI", SignalType = "4-20mA" });
-        //    }
-        //    AOChannels = new ObservableCollection<ChannelMapping>();
-        //    for (int i = 0; i < 1000; i++)
-        //    {
-        //        AOChannels.Add(new ChannelMapping() { TestChannel = $"AO-00{i}", TargetChannel = $"AO-10{i}", ChannelType = "AO", SignalType = "4-20mA" });
-        //    }
-        //    DIChannels = new ObservableCollection<ChannelMapping>();
-        //    for (int i = 0; i < 1000; i++)
-        //    {
-        //        DIChannels.Add(new ChannelMapping() { TestChannel = $"DI-00{i}", TargetChannel = $"DI-10{i}", ChannelType = "DI", SignalType = "4-20mA" });
-        //    }
-
-        //    DOChannels = new ObservableCollection<ChannelMapping>();
-        //    for (int i = 0; i < 1000; i++)
-        //    {
-        //        DOChannels.Add(new ChannelMapping() { TestChannel = $"DO-00{i}", TargetChannel = $"DO-10{i}", ChannelType = "DO", SignalType = "4-20mA" });
-        //    }
-
-        //    // 初始化测试结果数据（为所有4类各5个通道创建测试项）
-        //    TestResults = new ObservableCollection<TestResult>();
-            
-        //    // 添加基本测试结果
-        //    InitializeBasicTestResults();
-        //}
-        
-        //private void InitializeBasicTestResults()
-        //{
-        //    int id = 1;
-        //    Random random = new Random();
-            
-        //    // 为每个通道添加测试结果项
-        //    foreach (var channel in AIChannels.Concat(AOChannels).Concat(DIChannels).Concat(DOChannels))
-        //    {
-        //        // 根据通道类型设置不同数值范围
-        //        double minRange = 0;
-        //        double maxRange = 100;
-                
-        //        if (channel.ChannelType == "AI" || channel.ChannelType == "AO")
-        //        {
-        //            if (channel.SignalType == "4-20mA")
-        //            {
-        //                minRange = 4;
-        //                maxRange = 20;
-        //            }
-        //            else if (channel.SignalType == "0-10V")
-        //            {
-        //                minRange = 0;
-        //                maxRange = 10;
-        //            }
-        //        }
-                
-        //        // 创建测试结果对象并添加到集合
-        //        TestResults.Add(new TestResult
-        //        {
-        //            TestId = id++,
-        //            ResultText = "未测试",
-        //            TestResultStatus = 0, // 0:未测试
-        //            TestTime = null,
-                    
-        //            // 新增字段赋值
-        //            BatchName = "2023年第一批次",
-        //            VariableName = $"VAR_{channel.ChannelType}_{id:D3}",
-        //            PointType = channel.ChannelType,
-        //            TestPlcChannel = channel.TestChannel,
-        //            TargetPlcChannel = channel.TargetChannel,
-        //            RangeMin = minRange,
-        //            RangeMax = maxRange,
-        //            Value0Percent = Math.Round(minRange, 2),
-        //            Value25Percent = Math.Round(minRange + (maxRange - minRange) * 0.25, 2),
-        //            Value50Percent = Math.Round(minRange + (maxRange - minRange) * 0.5, 2),
-        //            Value75Percent = Math.Round(minRange + (maxRange - minRange) * 0.75, 2),
-        //            Value100Percent = Math.Round(maxRange, 2),
-        //            LowLowAlarmStatus = channel.ChannelType.StartsWith("D") ? "正常" : "N/A",
-        //            LowAlarmStatus = channel.ChannelType.StartsWith("D") ? "正常" : "N/A",
-        //            HighAlarmStatus = channel.ChannelType.StartsWith("D") ? "正常" : "N/A",
-        //            HighHighAlarmStatus = channel.ChannelType.StartsWith("D") ? "正常" : "N/A",
-        //            MaintenanceFunction = "已检测"
-        //        });
-        //    }
-            
-        //    // 更新点位统计数据
-        //    UpdatePointStatistics();
-        //}
-        
-        private void InitializeBatchData()
+        /// <summary>
+        /// 从测试分配服务中的ChannelMapping提取相关信息形成批次相关信息
+        /// </summary>
+        /// <returns></returns>
+        private async Task UpdateBatchInfoAsync()
         {
-            // 初始化批次数据（5个批次，每个批次20条数据）
-            Batches = new ObservableCollection<BatchInfo>
+            try
             {
-                new BatchInfo
-                {
-                    BatchId = "B001",
-                    BatchName = "2023年第一批次",
-                    CreationDate = new DateTime(2023, 1, 15),
-                    ItemCount = 20,
-                    Status = "完成"
-                },
-                new BatchInfo
-                {
-                    BatchId = "B002",
-                    BatchName = "2023年第二批次",
-                    CreationDate = new DateTime(2023, 3, 20),
-                    ItemCount = 20,
-                    Status = "完成"
-                },
-                new BatchInfo
-                {
-                    BatchId = "B003",
-                    BatchName = "2023年第三批次",
-                    CreationDate = new DateTime(2023, 6, 5),
-                    ItemCount = 20,
-                    Status = "已取消"
-                },
-                new BatchInfo
-                {
-                    BatchId = "B004",
-                    BatchName = "2023年第四批次",
-                    CreationDate = new DateTime(2023, 9, 12),
-                    ItemCount = 20,
-                    Status = "进行中"
-                },
-                new BatchInfo
-                {
-                    BatchId = "B005",
-                    BatchName = "2023年第五批次",
-                    CreationDate = new DateTime(2023, 12, 1),
-                    ItemCount = 20,
-                    Status = "未开始"
-                }
-            };
-            
-            // 默认选择第一个批次
-            if (Batches.Count > 0)
-                SelectedBatch = Batches[0];
+                IsLoading = true;
+                StatusMessage = "正在更新批次信息...";
+
+                // 使用通道映射服务提取批次信息
+                Batches = new ObservableCollection<BatchInfo>(
+                    await _channelMappingService.ExtractBatchInfoAsync(
+                        AIChannels, 
+                        AOChannels, 
+                        DIChannels, 
+                        DOChannels, 
+                        TestResults));
+
+                // 通知UI更新
+                RaisePropertyChanged(nameof(Batches));
                 
-            // 为了满足100条数据的需求，我们已经创建了20个通道（4类*5个），
-            // 每个批次20条，共5个批次，所以已经有100条测试数据
+                StatusMessage = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = string.Empty;
+                Message = $"更新批次信息失败: {ex.Message}";
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
+
+        private async void InitializeBatchData()
+        {
+            // 初始化批次数据
+            Batches = new ObservableCollection<BatchInfo>();
+            
+            // 尝试从通道映射信息中提取批次信息
+            await UpdateBatchInfoAsync();
         }
 
         // 计算并更新点位统计数据
@@ -788,85 +929,9 @@ namespace FatFullVersion.ViewModels
             // 更新统计数据
             UpdatePointStatistics();
         }
-
         #endregion
 
-        /// <summary>
-        /// 通道自动分配的方法，根据测试PLC配置为被测PLC通道分配测试PLC通道和批次
-        /// </summary>
-        private async void AllocateChannelsAsync()
-        {
-            try
-            {
-                IsLoading = true;
-                StatusMessage = "正在分配通道...";
-
-                // 获取测试PLC配置
-                var testPlcConfig = await _channelMappingService.GetTestPlcConfigAsync();
-
-                // 如果配置为空，则创建默认配置
-                if (testPlcConfig == null)
-                {
-                    testPlcConfig = new TestPlcConfig
-                    {
-                        BrandType = PlcBrandTypeEnum.Micro850,
-                        IpAddress = "192.168.1.1",
-                        CommentsTables = new List<ComparisonTable>()
-                    };
-                }
-
-                // 执行通道分配
-                var result = await _channelMappingService.AllocateChannelsAsync(
-                    AIChannels, AOChannels, DIChannels, DOChannels, testPlcConfig);
-
-                // 更新通道数据
-                AIChannels = new ObservableCollection<ChannelMapping>(result.AI);
-                AOChannels = new ObservableCollection<ChannelMapping>(result.AO);
-                DIChannels = new ObservableCollection<ChannelMapping>(result.DI);
-                DOChannels = new ObservableCollection<ChannelMapping>(result.DO);
-
-                // 更新当前显示的通道集合
-                UpdateCurrentChannels();
-
-                // 更新测试结果中的通道信息
-                UpdateTestResultChannels(result.AI,result.AO,result.DI,result.DO);
-
-                Message = "通道分配完成";
-                StatusMessage = string.Empty;
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = string.Empty;
-                MessageBox.Show($"通道分配失败: {ex.Message}", "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                IsLoading = false;
-            }
-        }
-
-        /// <summary>
-        /// 更新测试结果中的通道信息，与通道映射保持一致
-        /// </summary>
-        private void UpdateTestResultChannels(IEnumerable<ChannelMapping> AI, IEnumerable<ChannelMapping> AO, IEnumerable<ChannelMapping> DI, IEnumerable<ChannelMapping> DO)
-        {
-            // 将所有类型的通道合并为一个列表
-            var allChannels = AI.Concat(AO).Concat(DI).Concat(DO).ToList();
-            // 更新测试结果中的通道信息
-            foreach (var result in TestResults)
-            {
-                // 查找对应的通道映射
-                var mapping = allChannels.FirstOrDefault(c=>c.VariableName.Equals(result.VariableName));
-                if (mapping != null)
-                {
-                    result.TestPlcChannel = mapping.TestPLCChannelTag;
-                    result.BatchName = mapping.TestBatch;
-                }
-            }
-
-            // 通知UI更新
-            RaisePropertyChanged(nameof(TestResults));
-        }
+        #region 手动测试相关按钮
 
         /// <summary>
         /// 清除所有通道分配信息
@@ -877,6 +942,12 @@ namespace FatFullVersion.ViewModels
             {
                 IsLoading = true;
                 StatusMessage = "正在清除通道分配信息...";
+
+                // 清空原始通道集合引用
+                _originalAIChannels = null;
+                _originalAOChannels = null;
+                _originalDIChannels = null;
+                _originalDOChannels = null;
 
                 // 清除AI通道分配
                 AIChannels = new ObservableCollection<ChannelMapping>(
@@ -922,54 +993,240 @@ namespace FatFullVersion.ViewModels
         }
 
         /// <summary>
-        /// 更新单个通道的映射关系
+        /// 执行打开手动测试窗口
         /// </summary>
-        /// <param name="targetChannel">目标通道</param>
-        /// <param name="newTestPlcChannel">新的测试PLC通道标识</param>
-        /// <param name="newTestPlcCommAddress">新的测试PLC通讯地址</param>
-        /// <returns>更新操作是否成功</returns>
-        public async Task<bool> UpdateChannelMappingAsync(ChannelMapping targetChannel, string newTestPlcChannel, string newTestPlcCommAddress)
+        private void ExecuteOpenManualTest(ChannelMapping channel)
         {
-            try
+            if (channel == null) return;
+
+            SelectedChannel = channel;
+            switch (channel.ModuleType)
             {
-                if (targetChannel == null)
-                    return false;
-
-                IsLoading = true;
-                StatusMessage = "正在更新通道映射...";
-
-                // 获取所有通道
-                var allChannels = AIChannels.Concat(AOChannels).Concat(DIChannels).Concat(DOChannels);
-
-                // 调用服务更新通道映射
-                await _channelMappingService.UpdateChannelMappingAsync(targetChannel, newTestPlcChannel, newTestPlcCommAddress, allChannels);
-
-                // 更新测试结果中的通道信息
-                UpdateTestResultChannels(AIChannels, AOChannels,DIChannels,DOChannels);
-
-                StatusMessage = string.Empty;
-                return true;
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = string.Empty;
-                MessageBox.Show($"更新通道映射失败: {ex.Message}", "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
-                return false;
-            }
-            finally
-            {
-                IsLoading = false;
+                case "AI":
+                    IsAIManualTestOpen = true;
+                    break;
+                case "DI":
+                    IsDIManualTestOpen = true;
+                    break;
             }
         }
+
+        /// <summary>
+        /// 执行关闭AI手动测试窗口
+        /// </summary>
+        private void ExecuteCloseAIManualTest()
+        {
+            IsAIManualTestOpen = false;
+        }
+
+        /// <summary>
+        /// 执行关闭DI手动测试窗口
+        /// </summary>
+        private void ExecuteCloseDIManualTest()
+        {
+            IsDIManualTestOpen = false;
+        }
+
+        /// <summary>
+        /// 执行发送AI测试值
+        /// </summary>
+        private void ExecuteSendAITestValue()
+        {
+            // TODO: 实现发送AI测试值的逻辑
+        }
+
+        /// <summary>
+        /// 执行确认AI值
+        /// </summary>
+        private void ExecuteConfirmAIValue()
+        {
+            // TODO: 实现确认AI值的逻辑
+        }
+
+        /// <summary>
+        /// 执行发送AI高报
+        /// </summary>
+        private void ExecuteSendAIHighAlarm()
+        {
+            // TODO: 实现发送AI高报的逻辑
+        }
+
+        /// <summary>
+        /// 执行复位AI高报
+        /// </summary>
+        private void ExecuteResetAIHighAlarm()
+        {
+            // TODO: 实现复位AI高报的逻辑
+        }
+
+        /// <summary>
+        /// 执行确认AI高报
+        /// </summary>
+        private void ExecuteConfirmAIHighAlarm()
+        {
+            // TODO: 实现确认AI高报的逻辑
+        }
+
+        /// <summary>
+        /// 执行发送AI低报
+        /// </summary>
+        private void ExecuteSendAILowAlarm()
+        {
+            // TODO: 实现发送AI低报的逻辑
+        }
+
+        /// <summary>
+        /// 执行复位AI低报
+        /// </summary>
+        private void ExecuteResetAILowAlarm()
+        {
+            // TODO: 实现复位AI低报的逻辑
+        }
+
+        /// <summary>
+        /// 执行确认AI低报
+        /// </summary>
+        private void ExecuteConfirmAILowAlarm()
+        {
+            // TODO: 实现确认AI低报的逻辑
+        }
+
+        /// <summary>
+        /// 执行发送AI维护功能
+        /// </summary>
+        private void ExecuteSendAIMaintenance()
+        {
+            // TODO: 实现发送AI维护功能的逻辑
+        }
+
+        /// <summary>
+        /// 执行复位AI维护功能
+        /// </summary>
+        private void ExecuteResetAIMaintenance()
+        {
+            // TODO: 实现复位AI维护功能的逻辑
+        }
+
+        /// <summary>
+        /// 执行确认AI维护功能
+        /// </summary>
+        private void ExecuteConfirmAIMaintenance()
+        {
+            // TODO: 实现确认AI维护功能的逻辑
+        }
+
+        /// <summary>
+        /// 执行发送DI测试
+        /// </summary>
+        private void ExecuteSendDITest()
+        {
+            // TODO: 实现发送DI测试的逻辑
+        }
+
+        /// <summary>
+        /// 执行复位DI
+        /// </summary>
+        private void ExecuteResetDI()
+        {
+            // TODO: 实现复位DI的逻辑
+        }
+
+        /// <summary>
+        /// 执行确认DI
+        /// </summary>
+        private void ExecuteConfirmDI()
+        {
+            // TODO: 实现确认DI的逻辑
+        }
+
+        /// <summary>
+        /// 用新的测试数据更新或创建测试结果
+        /// </summary>
+        private TestResult CreateOrUpdateTestResult(ChannelMapping point, bool isSuccess, string resultText)
+        {
+            var testResult = new TestResult
+            {
+                TestId = TestResults.Count + 1,
+                VariableName = point.VariableName,
+                PointType = point.ModuleType,
+                ValueType = GetValueTypeForModule(point.ModuleType),
+                TestPlcChannel = point.TestPLCChannelTag,
+                TargetPlcChannel = point.ChannelTag,
+                TestResultStatus = isSuccess ? 1 : 2,
+                ResultText = resultText,
+                TestTime = DateTime.Now,
+                Status = isSuccess ? "通过" : "失败",
+                BatchName = SelectedBatch?.BatchName
+            };
+
+            // 为DI和DO点位设置特殊显示值
+            if (point.ModuleType?.ToLower() == "di" || point.ModuleType?.ToLower() == "do")
+            {
+                // 使用字符串"/"表示不适用的数据
+                testResult.RangeMin = double.NaN;
+                testResult.RangeMax = double.NaN;
+                testResult.Value0Percent = double.NaN;
+                testResult.Value25Percent = double.NaN;
+                testResult.Value50Percent = double.NaN;
+                testResult.Value75Percent = double.NaN;
+                testResult.Value100Percent = double.NaN;
+            }
+
+            // 如果是更新现有结果，则替换原结果
+            var existingResult = TestResults.FirstOrDefault(r => r.VariableName == point.VariableName);
+            if (existingResult != null)
+            {
+                int index = TestResults.IndexOf(existingResult);
+                TestResults[index] = testResult;
+            }
+            else
+            {
+                TestResults.Add(testResult);
+            }
+
+            return testResult;
+        }
+
+        /// <summary>
+        /// 获取模块类型对应的数据类型
+        /// </summary>
+        private string GetValueTypeForModule(string moduleType)
+        {
+            if (string.IsNullOrEmpty(moduleType))
+                return "Unknown";
+
+            switch (moduleType.ToLower())
+            {
+                case "ai":
+                case "ao":
+                    return "Real";
+                case "di":
+                case "do":
+                    return "Bool";
+                default:
+                    return "Unknown";
+            }
+        }
+
+        #endregion
     }
     
     // 批次信息类
     public class BatchInfo
     {
-        public string BatchId { get; set; }
         public string BatchName { get; set; }
         public DateTime CreationDate { get; set; }
         public int ItemCount { get; set; }
         public string Status { get; set; }
+        public DateTime? FirstTestTime { get; set; }
+        public DateTime? LastTestTime { get; set; }
+
+        public BatchInfo(string batchName, int itemCount)
+        {
+            BatchName = batchName;
+            ItemCount = itemCount;
+            CreationDate = DateTime.Now;
+            Status = "未开始";
+        }
     }
 }
