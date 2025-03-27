@@ -43,7 +43,7 @@ namespace FatFullVersion.Models
         /// <summary>
         /// 测试结果
         /// </summary>
-        public TestResult Result { get; protected set; }
+        public ChannelMapping Result { get; protected set; }
 
         /// <summary>
         /// 是否已完成
@@ -98,10 +98,10 @@ namespace FatFullVersion.Models
             TargetPlcCommunication = targetPlcCommunication ?? throw new ArgumentNullException(nameof(targetPlcCommunication));
 
             Status = TestTaskStatus.Created;
-            Result = new TestResult
+            Result = new ChannelMapping
             {
                 VariableName = channelMapping.VariableName,
-                TestPlcChannel = channelMapping.TestPLCChannelTag,
+                TestPLCChannelTag = channelMapping.TestPLCChannelTag,
                 StartTime = DateTime.Now
             };
 

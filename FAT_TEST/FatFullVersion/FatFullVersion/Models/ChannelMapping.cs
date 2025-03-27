@@ -660,5 +660,274 @@ namespace FatFullVersion.Models
         public float HighHighLimit => SHHSetValueNumber;
         
         #endregion
+
+        public string MonitorStatus { get; set; } = "未检测";
+
+        #region 测试相关字段
+
+        private int _testId;
+        /// <summary>
+        /// 测试序号
+        /// </summary>
+        public int TestId
+        {
+            get { return _testId; }
+            set { SetProperty(ref _testId, value); }
+        }
+
+        private int _testResultStatus;
+        /// <summary>
+        /// 测试状态(0:未测试, 1:通过, 2:失败)
+        /// </summary>
+        public int TestResultStatus
+        {
+            get { return _testResultStatus; }
+            set { SetProperty(ref _testResultStatus, value); }
+        }
+
+        private string _resultText;
+        /// <summary>
+        /// 测试结果信息
+        /// </summary>
+        public string ResultText
+        {
+            get { return _resultText; }
+            set { SetProperty(ref _resultText, value); }
+        }
+
+        private string _hardPointTestResult;
+        /// <summary>
+        /// 硬点通道测试结果
+        /// </summary>
+        public string HardPointTestResult
+        {
+            get { return _hardPointTestResult; }
+            set { SetProperty(ref _hardPointTestResult, value); }
+        }
+
+        private DateTime? _testTime;
+        /// <summary>
+        /// 测试时间
+        /// </summary>
+        public DateTime? TestTime
+        {
+            get { return _testTime; }
+            set { SetProperty(ref _testTime, value); }
+        }
+
+        private string _status;
+        /// <summary>
+        /// 当前测试状态（通过/失败/取消等）
+        /// </summary>
+        public string Status
+        {
+            get { return _status; }
+            set { SetProperty(ref _status, value); }
+        }
+
+        private DateTime _startTime;
+        /// <summary>
+        /// 测试开始时间
+        /// </summary>
+        public DateTime StartTime
+        {
+            get { return _startTime; }
+            set { SetProperty(ref _startTime, value); }
+        }
+
+        private DateTime _endTime;
+        /// <summary>
+        /// 测试结束时间
+        /// </summary>
+        public DateTime EndTime
+        {
+            get { return _endTime; }
+            set 
+            { 
+                SetProperty(ref _endTime, value);
+                // 当结束时间设置时，自动计算测试持续时间
+                RaisePropertyChanged(nameof(TestDuration));
+            }
+        }
+
+        /// <summary>
+        /// 测试持续时间（秒）
+        /// </summary>
+        public double TestDuration
+        {
+            get
+            {
+                if (_endTime > DateTime.MinValue && _startTime > DateTime.MinValue)
+                {
+                    return (_endTime - _startTime).TotalSeconds;
+                }
+                return 0;
+            }
+        }
+
+        // RangeLowerLimitValue和RangeUpperLimitValue已经存在，作为量程低限和高限
+
+        private double _expectedValue;
+        /// <summary>
+        /// 期望值
+        /// </summary>
+        public double ExpectedValue
+        {
+            get { return _expectedValue; }
+            set { SetProperty(ref _expectedValue, value); }
+        }
+
+        private double _actualValue;
+        /// <summary>
+        /// 实际值
+        /// </summary>
+        public double ActualValue
+        {
+            get { return _actualValue; }
+            set 
+            { 
+                SetProperty(ref _actualValue, value);
+                // 当实际值设置时，自动计算偏差值
+                RaisePropertyChanged(nameof(Deviation));
+                RaisePropertyChanged(nameof(DeviationPercent));
+            }
+        }
+
+        /// <summary>
+        /// 偏差值
+        /// </summary>
+        public double Deviation
+        {
+            get { return ActualValue - ExpectedValue; }
+        }
+
+        /// <summary>
+        /// 偏差百分比
+        /// </summary>
+        public double DeviationPercent
+        {
+            get
+            {
+                if (ExpectedValue != 0)
+                {
+                    return (Deviation / ExpectedValue) * 100;
+                }
+                return 0;
+            }
+        }
+
+        private double _value0Percent;
+        /// <summary>
+        /// 0%对比值
+        /// </summary>
+        public double Value0Percent
+        {
+            get { return _value0Percent; }
+            set { SetProperty(ref _value0Percent, value); }
+        }
+
+        private double _value25Percent;
+        /// <summary>
+        /// 25%对比值
+        /// </summary>
+        public double Value25Percent
+        {
+            get { return _value25Percent; }
+            set { SetProperty(ref _value25Percent, value); }
+        }
+
+        private double _value50Percent;
+        /// <summary>
+        /// 50%对比值
+        /// </summary>
+        public double Value50Percent
+        {
+            get { return _value50Percent; }
+            set { SetProperty(ref _value50Percent, value); }
+        }
+
+        private double _value75Percent;
+        /// <summary>
+        /// 75%对比值
+        /// </summary>
+        public double Value75Percent
+        {
+            get { return _value75Percent; }
+            set { SetProperty(ref _value75Percent, value); }
+        }
+
+        private double _value100Percent;
+        /// <summary>
+        /// 100%对比值
+        /// </summary>
+        public double Value100Percent
+        {
+            get { return _value100Percent; }
+            set { SetProperty(ref _value100Percent, value); }
+        }
+
+        private string _lowLowAlarmStatus;
+        /// <summary>
+        /// 低低报状态
+        /// </summary>
+        public string LowLowAlarmStatus
+        {
+            get { return _lowLowAlarmStatus; }
+            set { SetProperty(ref _lowLowAlarmStatus, value); }
+        }
+
+        private string _lowAlarmStatus;
+        /// <summary>
+        /// 低报状态
+        /// </summary>
+        public string LowAlarmStatus
+        {
+            get { return _lowAlarmStatus; }
+            set { SetProperty(ref _lowAlarmStatus, value); }
+        }
+
+        private string _highAlarmStatus;
+        /// <summary>
+        /// 高报状态
+        /// </summary>
+        public string HighAlarmStatus
+        {
+            get { return _highAlarmStatus; }
+            set { SetProperty(ref _highAlarmStatus, value); }
+        }
+
+        private string _highHighAlarmStatus;
+        /// <summary>
+        /// 高高报状态
+        /// </summary>
+        public string HighHighAlarmStatus
+        {
+            get { return _highHighAlarmStatus; }
+            set { SetProperty(ref _highHighAlarmStatus, value); }
+        }
+
+        private string _maintenanceFunction;
+        /// <summary>
+        /// 维护功能结果
+        /// </summary>
+        public string MaintenanceFunction
+        {
+            get { return _maintenanceFunction; }
+            set { SetProperty(ref _maintenanceFunction, value); }
+        }
+
+        private string _errorMessage;
+        /// <summary>
+        /// 错误信息
+        /// </summary>
+        public string ErrorMessage
+        {
+            get { return _errorMessage; }
+            set { SetProperty(ref _errorMessage, value); }
+        }
+
+        #endregion
+
+        public string CurrentValue { get; set; } = "--";
     }
-} 
+}

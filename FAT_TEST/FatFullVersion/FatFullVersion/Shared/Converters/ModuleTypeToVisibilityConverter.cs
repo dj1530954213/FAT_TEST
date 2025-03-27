@@ -22,11 +22,13 @@ namespace FatFullVersion.Shared.Converters
         {
             if (value is string moduleType)
             {
-                // 只有AI和DI通道显示手动测试按钮
+                // 所有通道类型都显示手动测试按钮
                 return moduleType?.ToLower() switch
                 {
                     "ai" => Visibility.Visible,
                     "di" => Visibility.Visible,
+                    "do" => Visibility.Visible,
+                    "ao" => Visibility.Visible,
                     _ => Visibility.Collapsed
                 };
             }

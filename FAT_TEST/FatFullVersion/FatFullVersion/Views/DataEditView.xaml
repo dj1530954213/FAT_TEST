@@ -18,8 +18,11 @@
         <converter:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
         <converter:BatchStatusToColorConverter x:Key="BatchStatusToColorConverter" />
         <converter:ModuleTypeToVisibilityConverter x:Key="ModuleTypeToVisibilityConverter" />
+        <converter:ModuleTypeToCommandConverter x:Key="ModuleTypeToCommandConverter" />
         <converter:NotApplicableValueConverter x:Key="NotApplicableValueConverter" />
         <converter:DoubleToSlashConverter x:Key="DoubleToSlashConverter" />
+        <converter:MonitorStatusToColorConverter x:Key="MonitorStatusToColorConverter" />
+        <converter:AlarmStatusToColorConverter x:Key="AlarmStatusToColorConverter" />
 
         <!--  公共DataGrid样式  -->
         <Style x:Key="DataGridCellStyle" TargetType="{x:Type DataGridCell}">
@@ -416,12 +419,20 @@
                                         Margin="4"
                                         Padding="10,4"
                                         Background="#5B9BD5"
-                                        Command="{Binding DataContext.OpenManualTestCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                                        CommandParameter="{Binding DataContext, RelativeSource={RelativeSource Self}}"
                                         Content="打开手动测试窗口"
                                         FontSize="18"
                                         Foreground="White"
-                                        Visibility="{Binding ModuleType, Converter={StaticResource ModuleTypeToVisibilityConverter}}" />
+                                        Visibility="{Binding ModuleType, Converter={StaticResource ModuleTypeToVisibilityConverter}}">
+                                        <Button.Command>
+                                            <MultiBinding Converter="{StaticResource ModuleTypeToCommandConverter}">
+                                                <Binding Path="ModuleType" />
+                                                <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType={x:Type DataGrid}}" />
+                                            </MultiBinding>
+                                        </Button.Command>
+                                        <Button.CommandParameter>
+                                            <Binding Path="." />
+                                        </Button.CommandParameter>
+                                    </Button>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
@@ -550,7 +561,7 @@
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding BatchName}"
+                            Binding="{Binding TestBatch}"
                             Header="测试批次" />
                         <DataGridTextColumn
                             Width="Auto"
@@ -560,32 +571,32 @@
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding PointType}"
+                            Binding="{Binding ModuleType}"
                             Header="点表类型" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding ValueType}"
+                            Binding="{Binding DataType}"
                             Header="数据类型" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="200"
-                            Binding="{Binding TestPlcChannel}"
+                            Binding="{Binding TestPLCChannelTag}"
                             Header="测试PLC通道位号" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="200"
-                            Binding="{Binding TargetPlcChannel}"
+                            Binding="{Binding ChannelTag}"
                             Header="被测PLC通道位号" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding RangeMin, Converter={StaticResource DoubleToSlashConverter}}"
+                            Binding="{Binding RangeLowerLimitValue, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="行程最小值" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding RangeMax, Converter={StaticResource DoubleToSlashConverter}}"
+                            Binding="{Binding RangeUpperLimitValue, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="行程最大值" />
                         <DataGridTextColumn
                             Width="Auto"
@@ -868,8 +879,9 @@
                                     Grid.Column="0"
                                     Grid.ColumnSpan="2"
                                     Padding="16,8"
-                                    Background="#4472C4"
+                                    Background="{Binding CurrentTestResult.HardPointTestResult, Converter={StaticResource AlarmStatusToColorConverter}}"
                                     Command="{Binding ConfirmAIValueCommand}"
+                                    CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
                                     Foreground="White" />
                             </Grid>
@@ -889,7 +901,14 @@
                                         Padding="12,8"
                                         Background="#5B9BD5"
                                         Command="{Binding SendAIHighAlarmCommand}"
-                                        Content="下发测试命令"
+                                        Content="下发高报测试命令"
+                                        Foreground="White" />
+                                    <Button
+                                        Margin="0,0,8,0"
+                                        Padding="12,8"
+                                        Background="#5B9BD5"
+                                        Command="{Binding SendAIHighHighAlarmCommand}"
+                                        Content="下发高高报测试命令"
                                         Foreground="White" />
                                     <Button
                                         Width="100"
@@ -904,8 +923,9 @@
                                 <Button
                                     Grid.Row="1"
                                     Padding="16,8"
-                                    Background="#4472C4"
+                                    Background="{Binding CurrentTestResult.HighAlarmStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
                                     Command="{Binding ConfirmAIHighAlarmCommand}"
+                                    CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
                                     Foreground="White" />
                             </Grid>
@@ -925,9 +945,16 @@
                                         Padding="12,8"
                                         Background="#5B9BD5"
                                         Command="{Binding SendAILowAlarmCommand}"
-                                        Content="下发测试命令"
+                                        Content="下发低报测试命令"
                                         Foreground="White" />
 
+                                    <Button
+                                        Margin="0,0,8,0"
+                                        Padding="12,8"
+                                        Background="#5B9BD5"
+                                        Command="{Binding SendAILowLowAlarmCommand}"
+                                        Content="下发低低报测试命令"
+                                        Foreground="White" />
                                     <Button
                                         Width="100"
                                         Padding="12,8"
@@ -941,8 +968,9 @@
                                 <Button
                                     Grid.Row="1"
                                     Padding="16,8"
-                                    Background="#4472C4"
+                                    Background="{Binding CurrentTestResult.LowAlarmStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
                                     Command="{Binding ConfirmAILowAlarmCommand}"
+                                    CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
                                     Foreground="White" />
                             </Grid>
@@ -978,8 +1006,9 @@
                                 <Button
                                     Grid.Row="1"
                                     Padding="16,8"
-                                    Background="#4472C4"
+                                    Background="{Binding CurrentTestResult.MaintenanceFunction, Converter={StaticResource AlarmStatusToColorConverter}}"
                                     Command="{Binding ConfirmAIMaintenanceCommand}"
+                                    CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
                                     Foreground="White" />
                             </Grid>
@@ -1062,8 +1091,9 @@
                                 <Button
                                     Grid.Row="1"
                                     Padding="16,8"
-                                    Background="#4472C4"
+                                    Background="{Binding CurrentTestResult.HardPointTestResult, Converter={StaticResource AlarmStatusToColorConverter}}"
                                     Command="{Binding ConfirmDICommand}"
+                                    CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
                                     Foreground="White" />
                             </Grid>
@@ -1080,6 +1110,178 @@
                             Padding="16,8"
                             Background="#4472C4"
                             Command="{Binding CloseDIManualTestCommand}"
+                            Content="关闭"
+                            Foreground="White" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Popup>
+
+        <!--  DO手动测试窗口  -->
+        <Popup
+            x:Name="DOManualTestPopup"
+            Width="380"
+            Height="300"
+            IsOpen="{Binding IsDOManualTestOpen, Mode=TwoWay}"
+            Placement="Center"
+            StaysOpen="True">
+            <Border
+                Padding="16"
+                Background="White"
+                BorderBrush="#AAAAAA"
+                BorderThickness="1"
+                CornerRadius="6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock
+                        Grid.Row="0"
+                        Margin="0,0,0,12"
+                        FontSize="20"
+                        FontWeight="Bold"
+                        Text="DO手动测试窗口" />
+
+                    <StackPanel Grid.Row="1" Margin="0,12">
+                        <!--  监测状态提示  -->
+                        <TextBlock
+                            Margin="0,0,0,8"
+                            FontSize="16"
+                            FontWeight="Bold"
+                            Foreground="{Binding DOMonitorStatus, Converter={StaticResource MonitorStatusToColorConverter}}"
+                            Text="{Binding DOMonitorStatus}" />
+
+                        <!--  检测值显示区域  -->
+                        <Border
+                            Margin="0,0,0,12"
+                            Padding="8"
+                            Background="#F5F5F5"
+                            BorderBrush="#CCCCCC"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <TextBlock FontSize="18" Text="{Binding DOCurrentValue}" />
+                        </Border>
+
+                        <!--  操作按钮区域  -->
+                        <StackPanel Margin="0,8">
+                            <Button
+                                Margin="0,0,0,8"
+                                Padding="12,8"
+                                Background="#5B9BD5"
+                                Command="{Binding StartDOMonitorCommand}"
+                                CommandParameter="{Binding CurrentChannel}"
+                                Content="开始检测"
+                                Foreground="White" />
+
+                            <Button
+                                Padding="16,8"
+                                Background="{Binding CurrentTestResult.HardPointTestResult, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                Command="{Binding ConfirmDOCommand}"
+                                CommandParameter="{Binding CurrentChannel}"
+                                Content="确认通过"
+                                Foreground="White" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel
+                        Grid.Row="2"
+                        Margin="0,12,0,0"
+                        HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                        <Button
+                            Margin="8,0"
+                            Padding="16,8"
+                            Background="#4472C4"
+                            Command="{Binding CloseDOManualTestCommand}"
+                            Content="关闭"
+                            Foreground="White" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Popup>
+
+        <!--  AO手动测试窗口  -->
+        <Popup
+            x:Name="AOManualTestPopup"
+            Width="380"
+            Height="300"
+            IsOpen="{Binding IsAOManualTestOpen, Mode=TwoWay}"
+            Placement="Center"
+            StaysOpen="True">
+            <Border
+                Padding="16"
+                Background="White"
+                BorderBrush="#AAAAAA"
+                BorderThickness="1"
+                CornerRadius="6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock
+                        Grid.Row="0"
+                        Margin="0,0,0,12"
+                        FontSize="20"
+                        FontWeight="Bold"
+                        Text="AO手动测试窗口" />
+
+                    <StackPanel Grid.Row="1" Margin="0,12">
+                        <!--  监测状态提示  -->
+                        <TextBlock
+                            Margin="0,0,0,8"
+                            FontSize="16"
+                            FontWeight="Bold"
+                            Foreground="{Binding AOMonitorStatus, Converter={StaticResource MonitorStatusToColorConverter}}"
+                            Text="{Binding AOMonitorStatus}" />
+
+                        <!--  检测值显示区域  -->
+                        <Border
+                            Margin="0,0,0,12"
+                            Padding="8"
+                            Background="#F5F5F5"
+                            BorderBrush="#CCCCCC"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <TextBlock FontSize="18" Text="{Binding AOCurrentValue}" />
+                        </Border>
+
+                        <!--  操作按钮区域  -->
+                        <StackPanel Margin="0,8">
+                            <Button
+                                Margin="0,0,0,8"
+                                Padding="12,8"
+                                Background="#5B9BD5"
+                                Command="{Binding StartAOMonitorCommand}"
+                                CommandParameter="{Binding CurrentChannel}"
+                                Content="开始检测"
+                                Foreground="White" />
+
+                            <Button
+                                Padding="16,8"
+                                Background="{Binding CurrentTestResult.HardPointTestResult, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                Command="{Binding ConfirmAOCommand}"
+                                CommandParameter="{Binding CurrentChannel}"
+                                Content="确认通过"
+                                Foreground="White" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel
+                        Grid.Row="2"
+                        Margin="0,12,0,0"
+                        HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                        <Button
+                            Margin="8,0"
+                            Padding="16,8"
+                            Background="#4472C4"
+                            Command="{Binding CloseAOManualTestCommand}"
                             Content="关闭"
                             Foreground="White" />
                     </StackPanel>

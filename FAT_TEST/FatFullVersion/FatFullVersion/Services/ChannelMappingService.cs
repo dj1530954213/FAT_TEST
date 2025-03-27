@@ -170,14 +170,15 @@ namespace FatFullVersion.Services
         /// <param name="aoChannels">被测PLC的AO通道列表</param>
         /// <param name="diChannels">被测PLC的DI通道列表</param>
         /// <param name="doChannels">被测PLC的DO通道列表</param>
-        /// <param name="testPlcConfig">测试PLC配置信息</param>
+        /// <param name="testResults">测试结果集合，用于同步更新</param>
         /// <returns>分配通道后的通道映射信息</returns>
         public async Task<(IEnumerable<ChannelMapping> AI, IEnumerable<ChannelMapping> AO, IEnumerable<ChannelMapping> DI, IEnumerable<ChannelMapping> DO)>
             AllocateChannelsTestAsync(
                 IEnumerable<ChannelMapping> aiChannels,
                 IEnumerable<ChannelMapping> aoChannels,
                 IEnumerable<ChannelMapping> diChannels,
-                IEnumerable<ChannelMapping> doChannels)
+                IEnumerable<ChannelMapping> doChannels,
+                IEnumerable<ChannelMapping> testResults = null)
         {
             // 设置当前使用的配置
             await SetTestPlcConfigAsync(_testPlcConfig);
@@ -220,37 +221,139 @@ namespace FatFullVersion.Services
                 // 4. 为DO通道分配批次和测试PLC的DI通道(DO-DI)
                 AllocateChannelsWithConfig(doList, diMappings, channelCounts.totalDiChannels);
             });
+
+            // 如果提供了测试结果集合，则同步更新对应的测试结果
+            if (testResults != null)
+            {
+                SyncChannelAllocation(aiList, aoList, diList, doList, testResults);
+            }
+
             return (aiList, aoList, diList, doList);
         }
 
         /// <summary>
-        /// 自动分配测试PLC于被测PLC的对应关系后同步更新结果表
+        /// 同步更新测试结果中通道分配的信息
         /// </summary>
-        /// <param name="aiChannels"></param>
-        /// <param name="aoChannels"></param>
-        /// <param name="diChannels"></param>
-        /// <param name="doChannels"></param>
-        /// <param name="testResults"></param>
-        /// <returns></returns>
-        public void AllocateResult(IEnumerable<ChannelMapping> aiChannels,
+        /// <param name="aiChannels">AI通道列表</param>
+        /// <param name="aoChannels">AO通道列表</param>
+        /// <param name="diChannels">DI通道列表</param>
+        /// <param name="doChannels">DO通道列表</param>
+        /// <param name="testResults">测试结果集合，用于同步更新</param>
+        public void SyncChannelAllocation(
+            IEnumerable<ChannelMapping> aiChannels,
             IEnumerable<ChannelMapping> aoChannels,
             IEnumerable<ChannelMapping> diChannels,
             IEnumerable<ChannelMapping> doChannels,
-            IEnumerable<TestResult> testResults)
+            IEnumerable<ChannelMapping> testResults = null)
         {
-            // 将所有类型的通道合并为一个列表
-            var allChannels = aiChannels.Concat(aoChannels).Concat(diChannels).Concat(doChannels).ToList();
-            // 更新测试结果中的通道信息
-            foreach (var result in testResults)
+            // 获取所有通道
+            var allChannels = aiChannels.Concat(aoChannels).Concat(diChannels).Concat(doChannels);
+            
+            // 遍历所有通道，确保TestBatch和TestPLCChannelTag已正确设置
+            foreach (var channel in allChannels)
             {
-                // 查找对应的通道映射
-                var mapping = allChannels.FirstOrDefault(c => c.VariableName.Equals(result.VariableName));
-                if (mapping != null)
+                // 确保通道映射对象的属性已正确设置，并与对应的测试结果保持同步
+                if (!string.IsNullOrEmpty(channel.TestPLCChannelTag))
                 {
-                    result.TestPlcChannel = mapping.TestPLCChannelTag;
-                    result.BatchName = mapping.TestBatch;
+                    System.Diagnostics.Debug.WriteLine($"同步通道 {channel.VariableName} 的测试PLC通道标签: {channel.TestPLCChannelTag}");
+                    
+                    // 如果提供了测试结果集合，则同步更新对应的测试结果
+                    if (testResults != null)
+                    {
+                        var matchingResult = testResults.FirstOrDefault(r => 
+                            r.VariableName == channel.VariableName && 
+                            r.ChannelTag == channel.ChannelTag);
+                            
+                        if (matchingResult != null)
+                        {
+                            // 同步批次和测试PLC通道标签
+                            matchingResult.TestBatch = channel.TestBatch;
+                            matchingResult.TestPLCChannelTag = channel.TestPLCChannelTag;
+                            matchingResult.TestPLCCommunicationAddress = channel.TestPLCCommunicationAddress;
+                            
+                            System.Diagnostics.Debug.WriteLine($"已同步测试结果 {matchingResult.VariableName} 的批次 {matchingResult.TestBatch} 和通道标签 {matchingResult.TestPLCChannelTag}");
+                        }
+                    }
                 }
             }
+        }
+        
+        /// <summary>
+        /// 从通道映射信息中提取批次信息并管理批次状态
+        /// </summary>
+        /// <param name="aiChannels">AI通道列表</param>
+        /// <param name="aoChannels">AO通道列表</param>
+        /// <param name="diChannels">DI通道列表</param>
+        /// <param name="doChannels">DO通道列表</param>
+        /// <returns>提取的批次信息集合</returns>
+        public async Task<IEnumerable<ViewModels.BatchInfo>> ExtractBatchInfoAsync(
+            IEnumerable<ChannelMapping> aiChannels,
+            IEnumerable<ChannelMapping> aoChannels,
+            IEnumerable<ChannelMapping> diChannels,
+            IEnumerable<ChannelMapping> doChannels)
+        {
+            return await Task.Run(() =>
+            {
+                // 合并所有通道列表
+                var allChannels = aiChannels.Concat(aoChannels).Concat(diChannels).Concat(doChannels).ToList();
+                
+                // 从通道列表中提取批次信息
+                var batchGroups = allChannels
+                    .Where(c => !string.IsNullOrEmpty(c.TestBatch))
+                    .GroupBy(c => c.TestBatch)
+                    .Select(g => new
+                    {
+                        BatchName = g.Key,
+                        Channels = g.ToList()
+                    })
+                    .ToList();
+                
+                // 创建批次信息对象列表
+                var batchInfoList = new List<ViewModels.BatchInfo>();
+                
+                foreach (var batch in batchGroups)
+                {
+                    // 获取该批次中的通道列表
+                    var batchChannels = batch.Channels;
+                    
+                    // 统计测试状态
+                    int notTestedCount = batchChannels.Count(c => c.TestResultStatus == 0);
+                    int testedCount = batchChannels.Count(c => c.TestResultStatus > 0);
+                    int successCount = batchChannels.Count(c => c.TestResultStatus == 1);
+                    int failureCount = batchChannels.Count(c => c.TestResultStatus == 2);
+                    
+                    // 确定批次的测试状态
+                    string status = "未开始";
+                    if (testedCount > 0)
+                    {
+                        if (notTestedCount == 0)
+                        {
+                            status = failureCount > 0 ? "完成(有失败)" : "全部通过";
+                        }
+                        else
+                        {
+                            status = "测试中";
+                        }
+                    }
+                    
+                    // 获取测试时间信息
+                    var testedChannels = batchChannels.Where(c => c.TestTime.HasValue).ToList();
+                    var firstTestTime = testedChannels.Any() ? testedChannels.Min(c => c.TestTime) : null;
+                    var lastTestTime = testedChannels.Any() ? testedChannels.Max(c => c.TestTime) : null;
+                    
+                    // 创建批次信息对象
+                    var batchInfo = new ViewModels.BatchInfo(batch.BatchName, batchChannels.Count)
+                    {
+                        Status = status,
+                        FirstTestTime = firstTestTime,
+                        LastTestTime = lastTestTime
+                    };
+                    
+                    batchInfoList.Add(batchInfo);
+                }
+                
+                return batchInfoList;
+            });
         }
 
         /// <summary>
@@ -675,104 +778,6 @@ namespace FatFullVersion.Services
                 
                 return updatedChannels;
             });
-        }
-
-        /// <summary>
-        /// 从通道映射信息中提取批次信息并管理批次状态
-        /// </summary>
-        /// <param name="aiChannels">AI通道列表</param>
-        /// <param name="aoChannels">AO通道列表</param>
-        /// <param name="diChannels">DI通道列表</param>
-        /// <param name="doChannels">DO通道列表</param>
-        /// <param name="testResults">测试结果列表</param>
-        /// <returns>提取的批次信息集合</returns>
-        public async Task<IEnumerable<ViewModels.BatchInfo>> ExtractBatchInfoAsync(
-            IEnumerable<ChannelMapping> aiChannels,
-            IEnumerable<ChannelMapping> aoChannels,
-            IEnumerable<ChannelMapping> diChannels,
-            IEnumerable<ChannelMapping> doChannels,
-            IEnumerable<TestResult> testResults)
-        {
-            // 合并所有通道
-            var allChannels = aiChannels
-                .Concat(aoChannels)
-                .Concat(diChannels)
-                .Concat(doChannels)
-                .ToList();
-
-            // 提取不同的批次名称
-            var batchNames = allChannels
-                .Where(c => !string.IsNullOrEmpty(c.TestBatch))
-                .Select(c => c.TestBatch)
-                .Distinct()
-                .ToList();
-
-            List<ViewModels.BatchInfo> batches = new List<ViewModels.BatchInfo>();
-
-            // 处理每个批次
-            foreach (var batchName in batchNames)
-            {
-                // 获取该批次下的所有通道
-                var batchChannels = allChannels.Where(c => c.TestBatch == batchName).ToList();
-                
-                // 获取该批次下的所有测试结果
-                var batchResults = testResults
-                    .Where(r => r.BatchName == batchName)
-                    .ToList();
-
-                // 计算各种统计信息
-                int itemCount = batchChannels.Count;
-                
-                // 获取测试时间
-                DateTime? firstTestTime = null;
-                DateTime? lastTestTime = null;
-                
-                if (batchResults.Any(r => r.TestTime.HasValue))
-                {
-                    firstTestTime = batchResults
-                        .Where(r => r.TestTime.HasValue)
-                        .Min(r => r.TestTime);
-                        
-                    lastTestTime = batchResults
-                        .Where(r => r.TestTime.HasValue)
-                        .Max(r => r.TestTime);
-                }
-                
-                // 确定批次状态
-                string status = "未开始";
-                
-                int notTestedCount = batchResults.Count(r => r.TestResultStatus == 0);
-                int testedCount = batchResults.Count(r => r.TestResultStatus > 0);
-                
-                if (batchResults.Count > 0)
-                {
-                    if (notTestedCount == batchResults.Count)
-                    {
-                        status = "未开始";
-                    }
-                    else if (notTestedCount > 0)
-                    {
-                        status = "测试中";
-                    }
-                    else
-                    {
-                        status = "测试完成";
-                    }
-                }
-                
-                // 创建批次信息对象
-                ViewModels.BatchInfo batchInfo = new ViewModels.BatchInfo(batchName, itemCount)
-                {
-                    CreationDate = DateTime.Now, // 可以考虑使用通道中最早的创建时间
-                    FirstTestTime = firstTestTime,
-                    LastTestTime = lastTestTime,
-                    Status = status
-                };
-                
-                batches.Add(batchInfo);
-            }
-
-            return batches;
         }
     }
 }
