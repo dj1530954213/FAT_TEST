@@ -49,38 +49,6 @@ namespace FatFullVersion.ViewModels
             set { SetProperty(ref _isLoading, value); }
         }
 
-        // AI通道数据
-        private ObservableCollection<ChannelMapping> _aiChannels;
-        public ObservableCollection<ChannelMapping> AIChannels
-        {
-            get { return _aiChannels; }
-            set { SetProperty(ref _aiChannels, value); }
-        }
-
-        // AO通道数据
-        private ObservableCollection<ChannelMapping> _aoChannels;
-        public ObservableCollection<ChannelMapping> AOChannels
-        {
-            get { return _aoChannels; }
-            set { SetProperty(ref _aoChannels, value); }
-        }
-
-        // DI通道数据
-        private ObservableCollection<ChannelMapping> _diChannels;
-        public ObservableCollection<ChannelMapping> DIChannels
-        {
-            get { return _diChannels; }
-            set { SetProperty(ref _diChannels, value); }
-        }
-
-        // DO通道数据
-        private ObservableCollection<ChannelMapping> _doChannels;
-        public ObservableCollection<ChannelMapping> DOChannels
-        {
-            get { return _doChannels; }
-            set { SetProperty(ref _doChannels, value); }
-        }
-
         // 当前选择的通道类型（用于统一DataGrid）
         private string _selectedChannelType;
         public string SelectedChannelType
@@ -95,21 +63,61 @@ namespace FatFullVersion.ViewModels
             }
         }
 
-        // 当前显示的通道列表
+        // 当前显示的通道列表（用于UI展示）
         private ObservableCollection<ChannelMapping> _currentChannels;
         public ObservableCollection<ChannelMapping> CurrentChannels
         {
             get { return _currentChannels; }
-            set { SetProperty(ref _currentChannels, value); }
+            private set { SetProperty(ref _currentChannels, value); }
         }
 
-        // 所有通道的合并集合，用于内部操作
+        // 所有通道的数据源
         private ObservableCollection<ChannelMapping> _allChannels;
+        /// <summary>
+        /// 所有通道数据的主数据源
+        /// </summary>
         public ObservableCollection<ChannelMapping> AllChannels
         {
             get { return _allChannels; }
-            set { SetProperty(ref _allChannels, value); }
+            set 
+            { 
+                if (SetProperty(ref _allChannels, value))
+                {
+                    // 当AllChannels更新时，同步更新当前显示的通道
+                    UpdateCurrentChannels();
+                }
+            }
         }
+
+        /// <summary>
+        /// 原始通道数据（用于批次选择）
+        /// </summary>
+        private ObservableCollection<ChannelMapping> _originalAllChannels;
+        private ObservableCollection<ChannelMapping> OriginalAllChannels
+        {
+            get { return _originalAllChannels; }
+            set { SetProperty(ref _originalAllChannels, value); }
+        }
+
+        /// <summary>
+        /// 获取所有AI类型的通道
+        /// </summary>
+        public IEnumerable<ChannelMapping> GetAIChannels() => AllChannels?.Where(c => c.ModuleType?.ToLower() == "ai");
+
+        /// <summary>
+        /// 获取所有AO类型的通道
+        /// </summary>
+        public IEnumerable<ChannelMapping> GetAOChannels() => AllChannels?.Where(c => c.ModuleType?.ToLower() == "ao");
+
+        /// <summary>
+        /// 获取所有DI类型的通道
+        /// </summary>
+        public IEnumerable<ChannelMapping> GetDIChannels() => AllChannels?.Where(c => c.ModuleType?.ToLower() == "di");
+
+        /// <summary>
+        /// 获取所有DO类型的通道
+        /// </summary>
+        public IEnumerable<ChannelMapping> GetDOChannels() => AllChannels?.Where(c => c.ModuleType?.ToLower() == "do");
 
         // 测试结果数据
         private ObservableCollection<ChannelMapping> _testResults;
@@ -234,49 +242,7 @@ namespace FatFullVersion.ViewModels
         private ObservableCollection<ChannelMapping> _originalDIChannels;
         private ObservableCollection<ChannelMapping> _originalDOChannels;
 
-        /// <summary>
-        /// AI手动测试窗口是否打开
-        /// </summary>
-        private bool _isAIManualTestOpen;
-        public bool IsAIManualTestOpen
-        {
-            get => _isAIManualTestOpen;
-            set => SetProperty(ref _isAIManualTestOpen, value);
-        }
-
-        /// <summary>
-        /// DI手动测试窗口是否打开
-        /// </summary>
-        private bool _isDIManualTestOpen;
-        public bool IsDIManualTestOpen
-        {
-            get => _isDIManualTestOpen;
-            set => SetProperty(ref _isDIManualTestOpen, value);
-        }
-
-        /// <summary>
-        /// AI设定值
-        /// </summary>
-        private string _aiSetValue;
-        public string AISetValue
-        {
-            get => _aiSetValue;
-            set => SetProperty(ref _aiSetValue, value);
-        }
-
-        /// <summary>
-        /// 当前选中的通道
-        /// </summary>
-        private ChannelMapping _selectedChannel;
-        public ChannelMapping SelectedChannel
-        {
-            get => _selectedChannel;
-            set => SetProperty(ref _selectedChannel, value);
-        }
-
-        /// <summary>
-        /// 打开手动测试窗口命令
-        /// </summary>
+        // 命令
         public DelegateCommand<ChannelMapping> OpenAIManualTestCommand { get; private set; }
         public DelegateCommand<ChannelMapping> OpenDIManualTestCommand { get; private set; }
         public DelegateCommand<ChannelMapping> OpenDOManualTestCommand { get; private set; }
@@ -359,15 +325,15 @@ namespace FatFullVersion.ViewModels
         private bool _isDOManualTestOpen;
         public bool IsDOManualTestOpen
         {
-            get { return _isDOManualTestOpen; }
-            set { SetProperty(ref _isDOManualTestOpen, value); }
+            get => _isDOManualTestOpen;
+            set => SetProperty(ref _isDOManualTestOpen, value);
         }
 
         private bool _isAOManualTestOpen;
         public bool IsAOManualTestOpen
         {
-            get { return _isAOManualTestOpen; }
-            set { SetProperty(ref _isAOManualTestOpen, value); }
+            get => _isAOManualTestOpen;
+            set => SetProperty(ref _isAOManualTestOpen, value);
         }
 
         // 监测状态
@@ -428,8 +394,45 @@ namespace FatFullVersion.ViewModels
             set => SetProperty(ref _currentChannel, value);
         }
 
-        // 添加原始通道集合属性
-        private ObservableCollection<ChannelMapping> _originalAllChannels;
+        /// <summary>
+        /// AI手动测试窗口是否打开
+        /// </summary>
+        private bool _isAIManualTestOpen;
+        public bool IsAIManualTestOpen
+        {
+            get => _isAIManualTestOpen;
+            set => SetProperty(ref _isAIManualTestOpen, value);
+        }
+
+        /// <summary>
+        /// DI手动测试窗口是否打开
+        /// </summary>
+        private bool _isDIManualTestOpen;
+        public bool IsDIManualTestOpen
+        {
+            get => _isDIManualTestOpen;
+            set => SetProperty(ref _isDIManualTestOpen, value);
+        }
+
+        /// <summary>
+        /// AI设定值
+        /// </summary>
+        private string _aiSetValue;
+        public string AISetValue
+        {
+            get => _aiSetValue;
+            set => SetProperty(ref _aiSetValue, value);
+        }
+
+        /// <summary>
+        /// 当前选中的通道
+        /// </summary>
+        private ChannelMapping _selectedChannel;
+        public ChannelMapping SelectedChannel
+        {
+            get => _selectedChannel;
+            set => SetProperty(ref _selectedChannel, value);
+        }
 
         #endregion
 
@@ -440,7 +443,7 @@ namespace FatFullVersion.ViewModels
 
             // 初始化命令
             ImportConfigCommand = new DelegateCommand(ImportConfig);
-            SelectBatchCommand = new DelegateCommand(SelectBatch);
+            SelectBatchCommand = new DelegateCommand(ExecuteSelectBatch);
             FinishWiringCommand = new DelegateCommand(FinishWiring);
             StartTestCommand = new DelegateCommand(StartTest);
             RetestCommand = new DelegateCommand<ChannelMapping>(Retest);
@@ -488,10 +491,6 @@ namespace FatFullVersion.ViewModels
             ConfirmAOCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAO);
 
             // 初始化集合
-            AIChannels = new ObservableCollection<ChannelMapping>();
-            AOChannels = new ObservableCollection<ChannelMapping>();
-            DIChannels = new ObservableCollection<ChannelMapping>();
-            DOChannels = new ObservableCollection<ChannelMapping>();
             AllChannels = new ObservableCollection<ChannelMapping>();
             CurrentChannels = new ObservableCollection<ChannelMapping>();
             TestResults = new ObservableCollection<ChannelMapping>();
@@ -508,34 +507,29 @@ namespace FatFullVersion.ViewModels
             FailurePointCount = "0";
         }
         /// <summary>
-        /// 选择批次后将选择的批次信息放置在当前的显示区域中
+        /// 根据选择的通道类型更新当前显示的通道集合
         /// </summary>
         private void UpdateCurrentChannels()
         {
             if (string.IsNullOrEmpty(SelectedChannelType) || AllChannels == null)
                 return;
 
-            switch (SelectedChannelType)
+            try
             {
-                case "AI通道":
-                    CurrentChannels = new ObservableCollection<ChannelMapping>(
-                        AllChannels.Where(c => c.ModuleType?.ToLower() == "ai"));
-                    break;
-                case "AO通道":
-                    CurrentChannels = new ObservableCollection<ChannelMapping>(
-                        AllChannels.Where(c => c.ModuleType?.ToLower() == "ao"));
-                    break;
-                case "DI通道":
-                    CurrentChannels = new ObservableCollection<ChannelMapping>(
-                        AllChannels.Where(c => c.ModuleType?.ToLower() == "di"));
-                    break;
-                case "DO通道":
-                    CurrentChannels = new ObservableCollection<ChannelMapping>(
-                        AllChannels.Where(c => c.ModuleType?.ToLower() == "do"));
-                    break;
-                default:
-                    CurrentChannels = new ObservableCollection<ChannelMapping>();
-                    break;
+                var filteredChannels = SelectedChannelType switch
+                {
+                    "AI通道" => AllChannels.Where(c => c.ModuleType?.ToLower() == "ai"),
+                    "AO通道" => AllChannels.Where(c => c.ModuleType?.ToLower() == "ao"),
+                    "DI通道" => AllChannels.Where(c => c.ModuleType?.ToLower() == "di"),
+                    "DO通道" => AllChannels.Where(c => c.ModuleType?.ToLower() == "do"),
+                    _ => Enumerable.Empty<ChannelMapping>()
+                };
+
+                CurrentChannels = new ObservableCollection<ChannelMapping>(filteredChannels);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"更新当前通道失败: {ex.Message}");
             }
         }
 
@@ -567,10 +561,7 @@ namespace FatFullVersion.ViewModels
                     var importedData = await tcs.Task;
                     
                     // 清空原始通道集合引用
-                    _originalAIChannels = null;
-                    _originalAOChannels = null;
-                    _originalDIChannels = null;
-                    _originalDOChannels = null;
+                    OriginalAllChannels = null;
                     
                     // 处理导入的数据
                     if (importedData != null)
@@ -612,10 +603,7 @@ namespace FatFullVersion.ViewModels
                 var doPoints = importedData.Where(p => p.ModuleType?.ToLower() == "do").ToList();
 
                 // 清空现有通道数据
-                AIChannels.Clear();
-                AOChannels.Clear();
-                DIChannels.Clear();
-                DOChannels.Clear();
+                AllChannels.Clear();
                 TestResults.Clear();
 
                 // 添加AI通道
@@ -636,7 +624,6 @@ namespace FatFullVersion.ViewModels
                         SHHSetValue = point.SHHSetValue,
                         SHHSetValueNumber = point.SHHSetValueNumber
                     };
-                    AIChannels.Add(channel);
                     AllChannels.Add(channel);
 
                     // 创建对应的测试结果
@@ -674,7 +661,6 @@ namespace FatFullVersion.ViewModels
                         SHHSetValue = point.SHHSetValue,
                         SHHSetValueNumber = point.SHHSetValueNumber
                     };
-                    AOChannels.Add(channel);
                     AllChannels.Add(channel);
 
                     // 创建对应的测试结果
@@ -703,7 +689,6 @@ namespace FatFullVersion.ViewModels
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType
                     };
-                    DIChannels.Add(channel);
                     AllChannels.Add(channel);
 
                     // 创建对应的测试结果
@@ -742,7 +727,6 @@ namespace FatFullVersion.ViewModels
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType
                     };
-                    DOChannels.Add(channel);
                     AllChannels.Add(channel);
 
                     // 创建对应的测试结果
@@ -772,10 +756,15 @@ namespace FatFullVersion.ViewModels
                     TestResults.Add(result);
                 }
                 //当Excel中点位解析完成后并且已经初始化完ChannelMapping后调用自动分配程序分配点位
-                var channelsMappingResult = await _channelMappingService.AllocateChannelsTestAsync(AIChannels, AOChannels, DIChannels, DOChannels, TestResults);
+                var channelsMappingResult = await _channelMappingService.AllocateChannelsTestAsync(
+                    AllChannels,
+                    TestResults);
+                
                 //通道分配完成之后同步更新结果表位中的对应数据
-                _channelMappingService.SyncChannelAllocation(channelsMappingResult.AI, channelsMappingResult.AO, channelsMappingResult.DI,
-                    channelsMappingResult.DO, TestResults);
+                _channelMappingService.SyncChannelAllocation(
+                    channelsMappingResult, 
+                    TestResults);
+                
                 //通知前端页面更新数据
                 RaisePropertyChanged(nameof(TestResults));
 
@@ -801,21 +790,23 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 点击批次选择窗口后执行的逻辑
         /// </summary>
-        private async void SelectBatch()
+        private async void ExecuteSelectBatch()
         {
             try
             {
-                // 使用原始通道集合来更新批次信息，确保批次列表完整
-                if (_originalAIChannels != null && _originalAOChannels != null && 
-                    _originalDIChannels != null && _originalDOChannels != null)
+                IsLoading = true;
+                StatusMessage = "正在获取批次信息...";
+
+                // 使用原始通道数据更新批次信息，确保批次列表完整
+                if (OriginalAllChannels != null)
                 {
                     // 使用通道映射服务提取批次信息
                     Batches = new ObservableCollection<BatchInfo>(
                         await _channelMappingService.ExtractBatchInfoAsync(
-                            _originalAIChannels, 
-                            _originalAOChannels, 
-                            _originalDIChannels, 
-                            _originalDOChannels));
+                            _channelMappingService.GetAIChannels(OriginalAllChannels).ToList(),
+                            _channelMappingService.GetAOChannels(OriginalAllChannels).ToList(), 
+                            _channelMappingService.GetDIChannels(OriginalAllChannels).ToList(), 
+                            _channelMappingService.GetDOChannels(OriginalAllChannels).ToList()));
                 }
                 else
                 {
@@ -830,41 +821,39 @@ namespace FatFullVersion.ViewModels
             {
                 MessageBox.Show($"获取批次信息失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            finally
+            {
+                IsLoading = false;
+                StatusMessage = string.Empty;
+            }
         }
-        /// <summary>
-        /// 确认选择批次信息，同步更新下方的当前批次的通道对应关系
-        /// </summary>
+
         private void ConfirmBatchSelection()
         {
-            if (SelectedBatch != null)
+            if (SelectedBatch == null)
             {
+                MessageBox.Show("请先选择一个批次", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                IsLoading = true;
+                StatusMessage = "正在更新批次信息...";
+
                 // 关闭批次选择窗口
                 IsBatchSelectionOpen = false;
 
                 // 首次保存原始通道集合
-                if (_originalAIChannels == null)
+                if (OriginalAllChannels == null)
                 {
-                    _originalAIChannels = new ObservableCollection<ChannelMapping>(AIChannels);
-                    _originalAOChannels = new ObservableCollection<ChannelMapping>(AOChannels);
-                    _originalDIChannels = new ObservableCollection<ChannelMapping>(DIChannels);
-                    _originalDOChannels = new ObservableCollection<ChannelMapping>(DOChannels);
-                    
-                    // 保存原始的合并集合
-                    _originalAllChannels = new ObservableCollection<ChannelMapping>(AllChannels);
+                    OriginalAllChannels = new ObservableCollection<ChannelMapping>(AllChannels);
                 }
 
-                // 根据选择的批次筛选相关的测试结果
-                var batchResults = TestResults.Where(r => r.TestBatch == SelectedBatch.BatchName).ToList();
-                
-                // 如果当前批次没有测试结果，可能是因为TestResults中的TestBatch未同步
-                // 手动从通道映射中同步一次
-                if (batchResults.Count == 0)
+                // 同步所有通道的批次信息到测试结果
+                foreach (var channel in OriginalAllChannels)
                 {
-                    // 查找匹配批次的通道
-                    var batchChannels = AllChannels.Where(c => c.TestBatch == SelectedBatch.BatchName).ToList();
-                    
-                    // 同步TestBatch到TestResults
-                    foreach (var channel in batchChannels)
+                    if (!string.IsNullOrEmpty(channel.TestBatch))
                     {
                         var result = TestResults.FirstOrDefault(r => 
                             r.VariableName == channel.VariableName && 
@@ -874,44 +863,37 @@ namespace FatFullVersion.ViewModels
                         {
                             result.TestBatch = channel.TestBatch;
                             result.TestPLCChannelTag = channel.TestPLCChannelTag;
+                            result.TestPLCCommunicationAddress = channel.TestPLCCommunicationAddress;
                         }
                     }
-                    
-                    // 重新获取批次结果
-                    batchResults = TestResults.Where(r => r.TestBatch == SelectedBatch.BatchName).ToList();
                 }
+
+                // 获取当前批次的所有通道
+                var batchChannels = OriginalAllChannels.Where(c => c.TestBatch == SelectedBatch.BatchName).ToList();
                 
-                // 获取当前批次中的所有通道ID
-                var batchChannelVariableNames = batchResults.Select(r => r.VariableName).ToHashSet();
+                if (batchChannels.Count == 0)
+                {
+                    MessageBox.Show($"未找到批次 {SelectedBatch.BatchName} 的通道信息", "警告", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // 获取当前批次的所有通道ID
+                var batchChannelVariableNames = batchChannels.Select(c => c.VariableName).ToHashSet();
                 
-                // 筛选合并集合中的通道
+                // 筛选当前显示的通道集合，只显示当前批次的通道
                 AllChannels = new ObservableCollection<ChannelMapping>(
-                    _originalAllChannels.Where(c => batchChannelVariableNames.Contains(c.VariableName)));
-                
-                // 同时更新分类集合，保持UI显示与内部数据一致
-                AIChannels = new ObservableCollection<ChannelMapping>(
-                    AllChannels.Where(c => c.ModuleType?.ToLower() == "ai"));
-                
-                AOChannels = new ObservableCollection<ChannelMapping>(
-                    AllChannels.Where(c => c.ModuleType?.ToLower() == "ao"));
-                
-                DIChannels = new ObservableCollection<ChannelMapping>(
-                    AllChannels.Where(c => c.ModuleType?.ToLower() == "di"));
-                
-                DOChannels = new ObservableCollection<ChannelMapping>(
-                    AllChannels.Where(c => c.ModuleType?.ToLower() == "do"));
-                
-                // 更新当前显示的通道
-                UpdateCurrentChannels();
-                
-                // 触发测试结果的更新显示
-                RaisePropertyChanged(nameof(TestResults));
+                    OriginalAllChannels.Where(c => batchChannelVariableNames.Contains(c.VariableName)));
                 
                 Message = $"已选择批次: {SelectedBatch.BatchName}";
             }
-            else
+            catch (Exception ex)
             {
-                MessageBox.Show("请先选择一个批次", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show($"选择批次时发生错误: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsLoading = false;
+                StatusMessage = string.Empty;
             }
         }
 
@@ -1013,10 +995,10 @@ namespace FatFullVersion.ViewModels
                 // 使用通道映射服务提取批次信息
                 Batches = new ObservableCollection<BatchInfo>(
                     await _channelMappingService.ExtractBatchInfoAsync(
-                        AIChannels, 
-                        AOChannels, 
-                        DIChannels, 
-                        DOChannels));
+                        GetAIChannels().ToList(), 
+                        GetAOChannels().ToList(), 
+                        GetDIChannels().ToList(), 
+                        GetDOChannels().ToList()));
 
                 // 通知UI更新
                 RaisePropertyChanged(nameof(Batches));
@@ -1102,36 +1084,22 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = "正在清除通道分配信息...";
 
                 // 清空原始通道集合引用
-                _originalAIChannels = null;
-                _originalAOChannels = null;
-                _originalDIChannels = null;
-                _originalDOChannels = null;
+                OriginalAllChannels = null;
 
-                // 清除AI通道分配
-                AIChannels = new ObservableCollection<ChannelMapping>(
-                    await _channelMappingService.ClearAllChannelAllocationsAsync(AIChannels));
-
-                // 清除AO通道分配
-                AOChannels = new ObservableCollection<ChannelMapping>(
-                    await _channelMappingService.ClearAllChannelAllocationsAsync(AOChannels));
-
-                // 清除DI通道分配
-                DIChannels = new ObservableCollection<ChannelMapping>(
-                    await _channelMappingService.ClearAllChannelAllocationsAsync(DIChannels));
-
-                // 清除DO通道分配
-                DOChannels = new ObservableCollection<ChannelMapping>(
-                    await _channelMappingService.ClearAllChannelAllocationsAsync(DOChannels));
+                // 清除所有通道分配信息
+                AllChannels = new ObservableCollection<ChannelMapping>(
+                    await _channelMappingService.ClearAllChannelAllocationsAsync(AllChannels));
 
                 // 更新当前显示的通道集合
                 UpdateCurrentChannels();
 
-                // 更新测试结果中的通道信息
-                //foreach (var result in TestResults)
-                //{
-                //    result.TestPlcChannel = string.Empty;
-                //    result.BatchName = string.Empty;
-                //}
+                // 同步更新测试结果中的通道信息
+                foreach (var result in TestResults)
+                {
+                    result.TestBatch = string.Empty;
+                    result.TestPLCChannelTag = string.Empty;
+                    result.TestPLCCommunicationAddress = string.Empty;
+                }
 
                 // 通知UI更新
                 RaisePropertyChanged(nameof(TestResults));

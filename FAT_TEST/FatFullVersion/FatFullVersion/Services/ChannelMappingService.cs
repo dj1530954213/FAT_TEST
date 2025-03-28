@@ -102,13 +102,20 @@ namespace FatFullVersion.Services
         }
 
         /// <summary>
-        /// 使用新的测试PLC配置进行通道分配
+        /// 原有的通道分配方法，兼容旧版本
         /// </summary>
         /// <param name="aiChannels">被测PLC的AI通道列表</param>
         /// <param name="aoChannels">被测PLC的AO通道列表</param>
         /// <param name="diChannels">被测PLC的DI通道列表</param>
         /// <param name="doChannels">被测PLC的DO通道列表</param>
-        /// <param name="testPlcConfig">测试PLC配置信息</param>
+        /// <param name="testAoModuleCount">测试PLC的AO模块数量</param>
+        /// <param name="testAoChannelPerModule">每个AO模块的通道数</param>
+        /// <param name="testAiModuleCount">测试PLC的AI模块数量</param>
+        /// <param name="testAiChannelPerModule">每个AI模块的通道数</param>
+        /// <param name="testDoModuleCount">测试PLC的DO模块数量</param>
+        /// <param name="testDoChannelPerModule">每个DO模块的通道数</param>
+        /// <param name="testDiModuleCount">测试PLC的DI模块数量</param>
+        /// <param name="testDiChannelPerModule">每个DI模块的通道数</param>
         /// <returns>分配通道后的通道映射信息</returns>
         public async Task<(IEnumerable<ChannelMapping> AI, IEnumerable<ChannelMapping> AO, IEnumerable<ChannelMapping> DI, IEnumerable<ChannelMapping> DO)> 
             AllocateChannelsAsync(
@@ -116,51 +123,78 @@ namespace FatFullVersion.Services
                 IEnumerable<ChannelMapping> aoChannels,
                 IEnumerable<ChannelMapping> diChannels,
                 IEnumerable<ChannelMapping> doChannels,
-                TestPlcConfig testPlcConfig)
+                int testAoModuleCount, int testAoChannelPerModule,
+                int testAiModuleCount, int testAiChannelPerModule,
+                int testDoModuleCount, int testDoChannelPerModule,
+                int testDiModuleCount, int testDiChannelPerModule)
         {
-            // 设置当前使用的配置
-            await SetTestPlcConfigAsync(testPlcConfig);
-
-            // 获取各类型测试通道数量
-            var channelCounts = GetChannelCountsFromConfig();
-
-            // 转换为列表以便修改
-            var aiList = aiChannels.ToList();
-            var aoList = aoChannels.ToList();
-            var diList = diChannels.ToList();
-            var doList = doChannels.ToList();
-
-            // 使用配置中的通道信息进行分配
-            await Task.Run(() =>
+            // 为避免阻塞UI线程，异步执行分配操作
+            return await Task.Run(() =>
             {
-                // 获取通道映射
-                var aoMappings = testPlcConfig.CommentsTables
-                    .Where(t => t.ChannelType == TestPlcChannelType.AO)
-                    .ToList();
-                var aiMappings = testPlcConfig.CommentsTables
-                    .Where(t => t.ChannelType == TestPlcChannelType.AI)
-                    .ToList();
-                var doMappings = testPlcConfig.CommentsTables
-                    .Where(t => t.ChannelType == TestPlcChannelType.DO)
-                    .ToList();
-                var diMappings = testPlcConfig.CommentsTables
-                    .Where(t => t.ChannelType == TestPlcChannelType.DI)
-                    .ToList();
+                // 计算测试PLC各类型通道的总数量
+                int totalTestAoChannels = testAoModuleCount * testAoChannelPerModule;
+                int totalTestAiChannels = testAiModuleCount * testAiChannelPerModule;
+                int totalTestDoChannels = testDoModuleCount * testDoChannelPerModule;
+                int totalTestDiChannels = testDiModuleCount * testDiChannelPerModule;
+
+                // 转换为列表以便修改
+                var aiList = aiChannels.ToList();
+                var aoList = aoChannels.ToList();
+                var diList = diChannels.ToList();
+                var doList = doChannels.ToList();
 
                 // 1. 为AI通道分配批次和测试PLC的AO通道(AI-AO)
-                AllocateChannelsWithConfig(aiList, aoMappings, channelCounts.totalAoChannels);
+                AllocateChannels(aiList, totalTestAoChannels, "AO", testAoModuleCount, testAoChannelPerModule);
 
                 // 2. 为AO通道分配批次和测试PLC的AI通道(AO-AI)
-                AllocateChannelsWithConfig(aoList, aiMappings, channelCounts.totalAiChannels);
+                AllocateChannels(aoList, totalTestAiChannels, "AI", testAiModuleCount, testAiChannelPerModule);
 
                 // 3. 为DI通道分配批次和测试PLC的DO通道(DI-DO)
-                AllocateChannelsWithConfig(diList, doMappings, channelCounts.totalDoChannels);
+                AllocateChannels(diList, totalTestDoChannels, "DO", testDoModuleCount, testDoChannelPerModule);
 
                 // 4. 为DO通道分配批次和测试PLC的DI通道(DO-DI)
-                AllocateChannelsWithConfig(doList, diMappings, channelCounts.totalDiChannels);
-            });
+                AllocateChannels(doList, totalTestDiChannels, "DI", testDiModuleCount, testDiChannelPerModule);
 
-            return (aiList, aoList, diList, doList);
+                return (aiList, aoList, diList, doList);
+            });
+        }
+
+        /// <summary>
+        /// 为指定类型的通道分配测试PLC通道和批次
+        /// </summary>
+        /// <param name="channels">通道列表</param>
+        /// <param name="totalTestChannels">测试PLC通道总数</param>
+        /// <param name="testChannelType">测试PLC通道类型</param>
+        /// <param name="moduleCount">模块数量</param>
+        /// <param name="channelsPerModule">每个模块的通道数</param>
+        private void AllocateChannels(List<ChannelMapping> channels, int totalTestChannels, string testChannelType, int moduleCount, int channelsPerModule)
+        {
+            if (channels == null || channels.Count == 0)
+                return;
+
+            // 计算需要分配的批次数
+            int batchCount = (int)Math.Ceiling((double)channels.Count / totalTestChannels);
+            
+            // 为每个通道分配批次和测试PLC通道
+            for (int i = 0; i < channels.Count; i++)
+            {
+                // 计算批次号（从1开始）
+                int batchNumber = i / totalTestChannels + 1;
+                
+                // 计算在当前批次中的索引位置
+                int indexInBatch = i % totalTestChannels;
+                
+                // 计算模块号（从1开始）
+                int moduleNumber = indexInBatch / channelsPerModule + 1;
+                
+                // 计算在当前模块中的通道号（从1开始）
+                int channelNumberInModule = indexInBatch % channelsPerModule + 1;
+                
+                // 更新通道信息
+                channels[i].TestBatch = $"批次{batchNumber}";
+                channels[i].TestPLCChannelTag = $"{testChannelType}{moduleNumber}_{channelNumberInModule}";
+                channels[i].TestPLCCommunicationAddress = $"{testChannelType}{moduleNumber}.{channelNumberInModule}";
+            }
         }
 
         /// <summary>
@@ -384,7 +418,11 @@ namespace FatFullVersion.Services
                 
                 // 如果索引超出了测试通道的范围，则跳过
                 if (indexInBatch >= testChannelMappings.Count)
+                {
+                    // 记录错误信息
+                    System.Diagnostics.Debug.WriteLine($"警告：通道 {channels[i].VariableName} 无法分配测试PLC通道，因为超出了可用通道范围");
                     continue;
+                }
                 
                 // 获取对应的测试通道映射
                 var testChannelMapping = testChannelMappings[indexInBatch];
@@ -397,99 +435,181 @@ namespace FatFullVersion.Services
         }
 
         /// <summary>
-        /// 默认通道分批功能：根据测试PLC的配置信息获取可用测试通道数，对应被测PLC进行通道自动分配
+        /// 使用测试PLC配置进行通道分配
         /// </summary>
-        /// <param name="aiChannels">被测PLC的AI通道列表</param>
-        /// <param name="aoChannels">被测PLC的AO通道列表</param>
-        /// <param name="diChannels">被测PLC的DI通道列表</param>
-        /// <param name="doChannels">被测PLC的DO通道列表</param>
-        /// <param name="testAoModuleCount">测试PLC的AO模块数量</param>
-        /// <param name="testAoChannelPerModule">每个AO模块的通道数</param>
-        /// <param name="testAiModuleCount">测试PLC的AI模块数量</param>
-        /// <param name="testAiChannelPerModule">每个AI模块的通道数</param>
-        /// <param name="testDoModuleCount">测试PLC的DO模块数量</param>
-        /// <param name="testDoChannelPerModule">每个DO模块的通道数</param>
-        /// <param name="testDiModuleCount">测试PLC的DI模块数量</param>
-        /// <param name="testDiChannelPerModule">每个DI模块的通道数</param>
-        /// <returns>分配通道后的通道映射信息</returns>
+        /// <param name="aiChannels">AI通道列表</param>
+        /// <param name="aoChannels">AO通道列表</param>
+        /// <param name="diChannels">DI通道列表</param>
+        /// <param name="doChannels">DO通道列表</param>
+        /// <param name="testPlcConfig">测试PLC配置</param>
+        /// <returns>分配后的通道映射信息</returns>
         public async Task<(IEnumerable<ChannelMapping> AI, IEnumerable<ChannelMapping> AO, IEnumerable<ChannelMapping> DI, IEnumerable<ChannelMapping> DO)> 
             AllocateChannelsAsync(
                 IEnumerable<ChannelMapping> aiChannels,
                 IEnumerable<ChannelMapping> aoChannels,
                 IEnumerable<ChannelMapping> diChannels,
-                IEnumerable<ChannelMapping> doChannels,
-                int testAoModuleCount, int testAoChannelPerModule,
-                int testAiModuleCount, int testAiChannelPerModule,
-                int testDoModuleCount, int testDoChannelPerModule,
-                int testDiModuleCount, int testDiChannelPerModule)
+                IEnumerable<ChannelMapping> doChannels, 
+                TestPlcConfig testPlcConfig)
         {
-            // 为避免阻塞UI线程，异步执行分配操作
-            return await Task.Run(() =>
-            {
-                // 计算测试PLC各类型通道的总数量
-                int totalTestAoChannels = testAoModuleCount * testAoChannelPerModule;
-                int totalTestAiChannels = testAiModuleCount * testAiChannelPerModule;
-                int totalTestDoChannels = testDoModuleCount * testDoChannelPerModule;
-                int totalTestDiChannels = testDiModuleCount * testDiChannelPerModule;
+            // 设置当前使用的配置
+            await SetTestPlcConfigAsync(testPlcConfig);
 
-                // 转换为列表以便修改
-                var aiList = aiChannels.ToList();
-                var aoList = aoChannels.ToList();
-                var diList = diChannels.ToList();
-                var doList = doChannels.ToList();
+            // 获取各类型测试通道数量
+            var channelCounts = GetChannelCountsFromConfig();
+
+            // 转换为列表以便修改
+            var aiList = aiChannels.ToList();
+            var aoList = aoChannels.ToList();
+            var diList = diChannels.ToList();
+            var doList = doChannels.ToList();
+
+            // 使用配置中的通道信息进行分配
+            await Task.Run(() =>
+            {
+                // 获取通道映射
+                var aoMappings = _testPlcConfig.CommentsTables
+                    .Where(t => t.ChannelType == TestPlcChannelType.AO)
+                    .ToList();
+                var aiMappings = _testPlcConfig.CommentsTables
+                    .Where(t => t.ChannelType == TestPlcChannelType.AI)
+                    .ToList();
+                var doMappings = _testPlcConfig.CommentsTables
+                    .Where(t => t.ChannelType == TestPlcChannelType.DO)
+                    .ToList();
+                var diMappings = _testPlcConfig.CommentsTables
+                    .Where(t => t.ChannelType == TestPlcChannelType.DI)
+                    .ToList();
 
                 // 1. 为AI通道分配批次和测试PLC的AO通道(AI-AO)
-                AllocateChannels(aiList, totalTestAoChannels, "AO", testAoModuleCount, testAoChannelPerModule);
+                AllocateChannelsWithConfig(aiList, aoMappings, channelCounts.totalAoChannels);
 
                 // 2. 为AO通道分配批次和测试PLC的AI通道(AO-AI)
-                AllocateChannels(aoList, totalTestAiChannels, "AI", testAiModuleCount, testAiChannelPerModule);
+                AllocateChannelsWithConfig(aoList, aiMappings, channelCounts.totalAiChannels);
 
                 // 3. 为DI通道分配批次和测试PLC的DO通道(DI-DO)
-                AllocateChannels(diList, totalTestDoChannels, "DO", testDoModuleCount, testDoChannelPerModule);
+                AllocateChannelsWithConfig(diList, doMappings, channelCounts.totalDoChannels);
 
                 // 4. 为DO通道分配批次和测试PLC的DI通道(DO-DI)
-                AllocateChannels(doList, totalTestDiChannels, "DI", testDiModuleCount, testDiChannelPerModule);
-
-                return (aiList, aoList, diList, doList);
+                AllocateChannelsWithConfig(doList, diMappings, channelCounts.totalDiChannels);
             });
+
+            return (aiList, aoList, diList, doList);
         }
 
         /// <summary>
-        /// 为指定类型的通道分配测试PLC通道和批次
+        /// 测试使用的分配方法，后续替换为AllocateChannelsAsync
         /// </summary>
-        /// <param name="channels">通道列表</param>
-        /// <param name="totalTestChannels">测试PLC通道总数</param>
-        /// <param name="testChannelType">测试PLC通道类型</param>
-        /// <param name="moduleCount">模块数量</param>
-        /// <param name="channelsPerModule">每个模块的通道数</param>
-        private void AllocateChannels(List<ChannelMapping> channels, int totalTestChannels, string testChannelType, int moduleCount, int channelsPerModule)
+        /// <param name="allChannels">所有通道集合</param>
+        /// <param name="testResults">测试结果集合，用于同步更新</param>
+        /// <returns>分配通道后的通道映射信息</returns>
+        public async Task<IEnumerable<ChannelMapping>> AllocateChannelsTestAsync(
+            IEnumerable<ChannelMapping> allChannels,
+            IEnumerable<ChannelMapping> testResults = null)
         {
-            if (channels == null || channels.Count == 0)
-                return;
+            // 获取各类型通道集合
+            var aiChannels = GetAIChannels(allChannels).ToList();
+            var aoChannels = GetAOChannels(allChannels).ToList();
+            var diChannels = GetDIChannels(allChannels).ToList();
+            var doChannels = GetDOChannels(allChannels).ToList();
 
-            // 计算需要分配的批次数
-            int batchCount = (int)Math.Ceiling((double)channels.Count / totalTestChannels);
+            // 使用现有方法进行分配
+            var result = await AllocateChannelsTestAsync(
+                aiChannels, aoChannels, diChannels, doChannels, testResults);
             
-            // 为每个通道分配批次和测试PLC通道
-            for (int i = 0; i < channels.Count; i++)
-            {
-                // 计算批次号（从1开始）
-                int batchNumber = i / totalTestChannels + 1;
-                
-                // 计算在当前批次中的索引位置
-                int indexInBatch = i % totalTestChannels;
-                
-                // 计算模块号（从1开始）
-                int moduleNumber = indexInBatch / channelsPerModule + 1;
-                
-                // 计算在当前模块中的通道号（从1开始）
-                int channelNumberInModule = indexInBatch % channelsPerModule + 1;
-                
-                // 更新通道信息
-                channels[i].TestBatch = $"批次{batchNumber}";
-                channels[i].TestPLCChannelTag = $"{testChannelType}{moduleNumber}_{channelNumberInModule}";
-                channels[i].TestPLCCommunicationAddress = $"{testChannelType}{moduleNumber}.{channelNumberInModule}";
-            }
+            // 合并结果并返回
+            return result.AI.Concat(result.AO).Concat(result.DI).Concat(result.DO);
+        }
+
+        /// <summary>
+        /// 同步更新测试结果中通道分配的信息
+        /// </summary>
+        /// <param name="allChannels">所有通道集合</param>
+        /// <param name="testResults">测试结果集合，用于同步更新</param>
+        public void SyncChannelAllocation(
+            IEnumerable<ChannelMapping> allChannels,
+            IEnumerable<ChannelMapping> testResults = null)
+        {
+            // 获取各类型通道集合
+            var aiChannels = GetAIChannels(allChannels);
+            var aoChannels = GetAOChannels(allChannels);
+            var diChannels = GetDIChannels(allChannels);
+            var doChannels = GetDOChannels(allChannels);
+
+            // 使用现有方法同步更新
+            SyncChannelAllocation(aiChannels, aoChannels, diChannels, doChannels, testResults);
+        }
+
+        /// <summary>
+        /// 从通道映射集合中提取批次信息
+        /// </summary>
+        /// <param name="allChannels">所有通道集合</param>
+        /// <returns>批次信息列表</returns>
+        public async Task<IEnumerable<ViewModels.BatchInfo>> ExtractBatchInfoAsync(
+            IEnumerable<ChannelMapping> allChannels)
+        {
+            // 获取各类型通道集合
+            var aiChannels = GetAIChannels(allChannels);
+            var aoChannels = GetAOChannels(allChannels);
+            var diChannels = GetDIChannels(allChannels);
+            var doChannels = GetDOChannels(allChannels);
+
+            // 使用现有方法提取批次信息
+            return await ExtractBatchInfoAsync(aiChannels, aoChannels, diChannels, doChannels);
+        }
+
+        /// <summary>
+        /// 获取特定类型的通道列表
+        /// </summary>
+        /// <param name="allChannels">所有通道集合</param>
+        /// <param name="channelType">通道类型</param>
+        /// <returns>特定类型的通道列表</returns>
+        public IEnumerable<ChannelMapping> GetChannelsByType(
+            IEnumerable<ChannelMapping> allChannels, 
+            TestPlcChannelType channelType)
+        {
+            // 根据模块类型筛选通道
+            string typeString = channelType.ToString().ToUpper();
+            return allChannels?.Where(c => c.ModuleType?.ToUpper() == typeString) ?? Enumerable.Empty<ChannelMapping>();
+        }
+
+        /// <summary>
+        /// 获取AI类型的通道列表
+        /// </summary>
+        /// <param name="allChannels">所有通道集合</param>
+        /// <returns>AI类型的通道列表</returns>
+        public IEnumerable<ChannelMapping> GetAIChannels(IEnumerable<ChannelMapping> allChannels)
+        {
+            return GetChannelsByType(allChannels, TestPlcChannelType.AI);
+        }
+
+        /// <summary>
+        /// 获取AO类型的通道列表
+        /// </summary>
+        /// <param name="allChannels">所有通道集合</param>
+        /// <returns>AO类型的通道列表</returns>
+        public IEnumerable<ChannelMapping> GetAOChannels(IEnumerable<ChannelMapping> allChannels)
+        {
+            return GetChannelsByType(allChannels, TestPlcChannelType.AO);
+        }
+
+        /// <summary>
+        /// 获取DI类型的通道列表
+        /// </summary>
+        /// <param name="allChannels">所有通道集合</param>
+        /// <returns>DI类型的通道列表</returns>
+        public IEnumerable<ChannelMapping> GetDIChannels(IEnumerable<ChannelMapping> allChannels)
+        {
+            return GetChannelsByType(allChannels, TestPlcChannelType.DI);
+        }
+
+        /// <summary>
+        /// 获取DO类型的通道列表
+        /// </summary>
+        /// <param name="allChannels">所有通道集合</param>
+        /// <returns>DO类型的通道列表</returns>
+        public IEnumerable<ChannelMapping> GetDOChannels(IEnumerable<ChannelMapping> allChannels)
+        {
+            return GetChannelsByType(allChannels, TestPlcChannelType.DO);
         }
 
         /// <summary>
@@ -778,6 +898,30 @@ namespace FatFullVersion.Services
                 
                 return updatedChannels;
             });
+        }
+
+        /// <summary>
+        /// 默认通道分批功能：根据测试PLC的配置信息获取可用测试通道数，对应被测PLC进行通道自动分配
+        /// </summary>
+        /// <param name="allChannels">所有通道集合</param>
+        /// <param name="testPlcConfig">测试PLC配置信息</param>
+        /// <returns>分配通道后的通道映射信息</returns>
+        public async Task<IEnumerable<ChannelMapping>> AllocateChannelsAsync(
+            IEnumerable<ChannelMapping> allChannels,
+            TestPlcConfig testPlcConfig)
+        {
+            // 获取各类型通道集合
+            var aiChannels = GetAIChannels(allChannels).ToList();
+            var aoChannels = GetAOChannels(allChannels).ToList();
+            var diChannels = GetDIChannels(allChannels).ToList();
+            var doChannels = GetDOChannels(allChannels).ToList();
+
+            // 使用现有方法进行分配
+            var result = await AllocateChannelsAsync(
+                aiChannels, aoChannels, diChannels, doChannels, testPlcConfig);
+            
+            // 合并结果并返回
+            return result.AI.Concat(result.AO).Concat(result.DI).Concat(result.DO);
         }
     }
 }
