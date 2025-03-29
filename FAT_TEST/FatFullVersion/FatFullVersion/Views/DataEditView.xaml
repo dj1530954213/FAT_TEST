@@ -255,7 +255,8 @@
                     Command="{Binding FinishWiringCommand}"
                     Content="完成接线确认"
                     FontSize="18"
-                    Foreground="White" />
+                    Foreground="White"
+                    IsEnabled="{Binding IsWiringCompleteBtnEnabled}" />
 
                 <Button
                     Grid.Column="3"
@@ -266,7 +267,8 @@
                     Content="通道硬点自动测试"
                     FontSize="18"
                     FontWeight="Bold"
-                    Foreground="White" />
+                    Foreground="White"
+                    IsEnabled="{Binding IsStartTestButtonEnabled}" />
 
                 <!--<Button
                     Grid.Column="4"
@@ -1288,6 +1290,7 @@
                 </Grid>
             </Border>
         </Popup>
+
     </Grid>
 </UserControl>
 

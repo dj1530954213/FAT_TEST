@@ -158,6 +158,16 @@ namespace FatFullVersion.IServices
             IEnumerable<ChannelMapping> doChannels);
 
         /// <summary>
+        /// 更新批次状态信息，根据测试结果更新批次的状态
+        /// </summary>
+        /// <param name="batches">批次信息集合</param>
+        /// <param name="testResults">测试结果集合</param>
+        /// <returns>更新后的批次信息集合</returns>
+        Task<IEnumerable<ViewModels.BatchInfo>> UpdateBatchStatusAsync(
+            IEnumerable<ViewModels.BatchInfo> batches,
+            IEnumerable<ChannelMapping> testResults);
+
+        /// <summary>
         /// 获取特定类型的通道列表
         /// </summary>
         /// <param name="allChannels">所有通道集合</param>
@@ -194,5 +204,12 @@ namespace FatFullVersion.IServices
         /// <param name="allChannels">所有通道集合</param>
         /// <returns>DO类型的通道列表</returns>
         IEnumerable<ChannelMapping> GetDOChannels(IEnumerable<ChannelMapping> allChannels);
+
+        /// <summary>
+        /// 根据批次名称获取相关的通道映射数据
+        /// </summary>
+        /// <param name="batchName">批次名称</param>
+        /// <returns>属于该批次的通道映射集合</returns>
+        Task<IEnumerable<ChannelMapping>> GetChannelMappingsByBatchNameAsync(string batchName);
     }
 }

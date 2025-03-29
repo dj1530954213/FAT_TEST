@@ -72,7 +72,7 @@ namespace FatFullVersion.Models
                     float testValue = minValue + (range * percentage / 100);
                     
                     // 写入测试值到测试PLC
-                    var writeResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress, testValue);
+                    var writeResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress.Substring(1), testValue);
                     if (!writeResult.IsSuccess)
                     {
                         Result.Status = $"写入测试值失败：{writeResult.ErrorMessage}";
@@ -83,7 +83,7 @@ namespace FatFullVersion.Models
                     await Task.Delay(3000, cancellationToken);
                     
                     // 读取被测PLC的值
-                    var readResult = await TargetPlcCommunication.ReadAnalogValueAsync(ChannelMapping.VariableName);
+                    var readResult = await TargetPlcCommunication.ReadAnalogValueAsync(ChannelMapping.PlcCommunicationAddress.Substring(1));
                     if (!readResult.IsSuccess)
                     {
                         Result.Status = $"读取被测PLC值失败：{readResult.ErrorMessage}";
@@ -111,7 +111,7 @@ namespace FatFullVersion.Models
                     else
                     {
                         Result.Status = $"{percentage}%测试失败：偏差{deviationPercent:F2}%超出范围";
-                        break; // 如果测试失败，则结束后续测试
+                        //break; // 如果测试失败，则结束后续测试
                     }
                     
                     // 短暂延时再进行下一个测试点
@@ -141,7 +141,7 @@ namespace FatFullVersion.Models
                 // 结束测试时，将测试PLC输出复位到0%
                 try
                 {
-                    var resetResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress, ChannelMapping.LowLowLimit);
+                    var resetResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress.Substring(1), ChannelMapping.LowLowLimit);
                     if (!resetResult.IsSuccess)
                     {
                         // 记录复位失败但不影响测试结果

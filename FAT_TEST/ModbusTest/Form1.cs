@@ -2,6 +2,7 @@ namespace ModbusTest
 {
     public partial class Form1 : Form
     {
+        private static bool run = false;
         private ModbusTcpCommunication modbusTcpCommunication;
         public Form1()
         {
@@ -30,16 +31,39 @@ namespace ModbusTest
             }
         }
 
-        private async void button_write_Click(object sender, EventArgs e)
+        private async void button_start_Click(object sender, EventArgs e)
         {
-            richTextBox_result.Text += (await modbusTcpCommunication.WriteAnalogValueAsync(textBox_address.Text, Convert.ToSingle(textBox_write.Text))).ToString();
-            richTextBox_result.Text += "\n";
+            float pc = Convert.ToSingle(textBox_pc.Text);
+            bool sd = Convert.ToBoolean(textBox_sd.Text);
+            MessageBox.Show("开始执行");
+            Task.Run(async () =>
+            {
+                run = true;
+                while (run)
+                {
+                    float value1 = await modbusTcpCommunication.ReadAnalogValueAsync("17");
+                    await modbusTcpCommunication.WriteAnalogValueAsync("101", value1 * (1 - pc));
+
+                    float value2 = await modbusTcpCommunication.ReadAnalogValueAsync("103");
+                    await modbusTcpCommunication.WriteAnalogValueAsync("1", value2 * (1 - pc));
+
+                    if (!sd)
+                    {
+                        bool value3 = await modbusTcpCommunication.ReadDigitalValueAsync("17");
+                        await modbusTcpCommunication.WriteDigitalValueAsync("101", value3);
+
+                        bool value4 = await modbusTcpCommunication.ReadDigitalValueAsync("102");
+                        await modbusTcpCommunication.WriteDigitalValueAsync("1", value4);
+                    }
+                    await Task.Delay(1000);
+                }
+            });
         }
 
-        private async void button_read_Click(object sender, EventArgs e)
+        private void button_stop_Click(object sender, EventArgs e)
         {
-            richTextBox_result.Text += (await modbusTcpCommunication.ReadAnalogValueAsync(textBox_read_address.Text)).ToString();
-            richTextBox_result.Text += "\n";
+            MessageBox.Show("停止执行");
+            run = false;
         }
     }
 }

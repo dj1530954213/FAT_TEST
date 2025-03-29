@@ -71,7 +71,7 @@ namespace FatFullVersion.Services.ChannelTask
                 await Task.Delay(2000, cancellationToken);
 
                 // 读取被测PLC的值
-                var readOffResult = await TargetPlcCommunication.ReadDigitalValueAsync(ChannelMapping.VariableName);
+                var readOffResult = await TargetPlcCommunication.ReadDigitalValueAsync(ChannelMapping.PlcCommunicationAddress);
                 if (!readOffResult.IsSuccess)
                 {
                     Result.Status = $"读取OFF状态失败：{readOffResult.ErrorMessage}";
@@ -106,7 +106,7 @@ namespace FatFullVersion.Services.ChannelTask
                 await Task.Delay(2000, cancellationToken);
 
                 // 读取被测PLC的值
-                var readOnResult = await TargetPlcCommunication.ReadDigitalValueAsync(ChannelMapping.VariableName);
+                var readOnResult = await TargetPlcCommunication.ReadDigitalValueAsync(ChannelMapping.PlcCommunicationAddress);
                 if (!readOnResult.IsSuccess)
                 {
                     Result.Status = $"读取ON状态失败：{readOnResult.ErrorMessage}";
@@ -157,7 +157,7 @@ namespace FatFullVersion.Services.ChannelTask
                 // 结束测试时，将测试PLC输出复位到OFF
                 try
                 {
-                    var resetResult = await TestPlcCommunication.WriteDigitalValueAsync(ChannelMapping.TestPLCCommunicationAddress, false);
+                    var resetResult = await TestPlcCommunication.WriteDigitalValueAsync(ChannelMapping.PlcCommunicationAddress, false);
                     if (!resetResult.IsSuccess)
                     {
                         // 记录复位失败但不影响测试结果

@@ -312,7 +312,6 @@ namespace FatFullVersion.Models
 
         #endregion
     }
-
     /// <summary>
     /// 测试任务状态枚举
     /// </summary>

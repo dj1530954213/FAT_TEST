@@ -60,7 +60,7 @@ namespace FatFullVersion.Services.ChannelTask
                 await CheckAndWaitForResumeAsync(cancellationToken);
 
                 // 写入OFF状态到被测PLC
-                var writeOffResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.VariableName, false);
+                var writeOffResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.PlcCommunicationAddress, false);
                 if (!writeOffResult.IsSuccess)
                 {
                     Result.Status = $"写入OFF状态失败：{writeOffResult.ErrorMessage}";
@@ -95,7 +95,7 @@ namespace FatFullVersion.Services.ChannelTask
                 await CheckAndWaitForResumeAsync(cancellationToken);
 
                 // 写入ON状态到被测PLC
-                var writeOnResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.VariableName, true);
+                var writeOnResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.PlcCommunicationAddress, true);
                 if (!writeOnResult.IsSuccess)
                 {
                     Result.Status = $"写入ON状态失败：{writeOnResult.ErrorMessage}";
@@ -157,7 +157,7 @@ namespace FatFullVersion.Services.ChannelTask
                 // 结束测试时，将被测PLC输出复位到OFF
                 try
                 {
-                    var resetResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.VariableName, false);
+                    var resetResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.PlcCommunicationAddress, false);
                     if (!resetResult.IsSuccess)
                     {
                         // 记录复位失败但不影响测试结果

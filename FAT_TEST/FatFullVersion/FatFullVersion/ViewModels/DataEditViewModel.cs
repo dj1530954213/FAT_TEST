@@ -16,6 +16,7 @@ using FatFullVersion.Entities;
 using FatFullVersion.Entities.ValueObject;
 using FatFullVersion.Entities.EntitiesEnum;
 using FatFullVersion.Services;
+using Prism.Events;
 
 namespace FatFullVersion.ViewModels
 {
@@ -25,6 +26,8 @@ namespace FatFullVersion.ViewModels
 
         private readonly IPointDataService _pointDataService;
         private readonly IChannelMappingService _channelMappingService;
+        private readonly ITestTaskManager _testTaskManager;
+        private readonly IEventAggregator _eventAggregator;
 
         private string _message;
         public string Message
@@ -123,13 +126,8 @@ namespace FatFullVersion.ViewModels
         private ObservableCollection<ChannelMapping> _testResults;
         public ObservableCollection<ChannelMapping> TestResults
         {
-            get { return _testResults; }
-            set
-            {
-                SetProperty(ref _testResults, value);
-                //修改测试结果数据集时调用此方法更新统计数据
-                UpdatePointStatistics();
-            }
+            get => _testResults;
+            set => SetProperty(ref _testResults, value);
         }
 
         private ChannelMapping _currentTestResult;
@@ -162,8 +160,12 @@ namespace FatFullVersion.ViewModels
         private BatchInfo _selectedBatch;
         public BatchInfo SelectedBatch
         {
-            get { return _selectedBatch; }
-            set { SetProperty(ref _selectedBatch, value); }
+            get => _selectedBatch;
+            set 
+            { 
+                SetProperty(ref _selectedBatch, value);
+                OnBatchSelected();
+            }
         }
 
         private bool _isBatchSelectionOpen;
@@ -221,6 +223,47 @@ namespace FatFullVersion.ViewModels
         {
             get { return _failurePointCount; }
             set { SetProperty(ref _failurePointCount, value); }
+        }
+
+        // 测试队列相关属性
+        private ObservableCollection<ChannelMapping> _testQueue;
+        /// <summary>
+        /// 测试队列，存储待测试的通道列表
+        /// </summary>
+        public ObservableCollection<ChannelMapping> TestQueue
+        {
+            get { return _testQueue; }
+            set { SetProperty(ref _testQueue, value); }
+        }
+
+        private int _testQueuePosition;
+        /// <summary>
+        /// 当前测试队列位置
+        /// </summary>
+        public int TestQueuePosition
+        {
+            get { return _testQueuePosition; }
+            set { SetProperty(ref _testQueuePosition, value); }
+        }
+
+        private string _testQueueStatus;
+        /// <summary>
+        /// 测试队列状态描述
+        /// </summary>
+        public string TestQueueStatus
+        {
+            get { return _testQueueStatus; }
+            set { SetProperty(ref _testQueueStatus, value); }
+        }
+
+        private ChannelMapping _currentQueueItem;
+        /// <summary>
+        /// 当前队列中的测试项
+        /// </summary>
+        public ChannelMapping CurrentQueueItem
+        {
+            get { return _currentQueueItem; }
+            set { SetProperty(ref _currentQueueItem, value); }
         }
 
         // 命令
@@ -434,12 +477,53 @@ namespace FatFullVersion.ViewModels
             set => SetProperty(ref _selectedChannel, value);
         }
 
+        // 添加字段和属性
+        private bool _isWiringCompleteBtnEnabled = true;
+
+        /// <summary>
+        /// 表示"完成接线确认"按钮是否可用
+        /// </summary>
+        public bool IsWiringCompleteBtnEnabled
+        {
+            get => _isWiringCompleteBtnEnabled;
+            set => SetProperty(ref _isWiringCompleteBtnEnabled, value);
+        }
+
+        // 添加命令属性
+        private DelegateCommand _confirmWiringCompleteCommand;
+        /// <summary>
+        /// 确认接线完成命令
+        /// </summary>
+        public DelegateCommand ConfirmWiringCompleteCommand => 
+            _confirmWiringCompleteCommand ??= new DelegateCommand(ExecuteConfirmWiringComplete, CanExecuteConfirmWiringComplete);
+
+        // 添加控制通道硬点自动测试按钮的启用属性
+        private bool _isStartTestButtonEnabled = false;
+
+        /// <summary>
+        /// 表示"通道硬点自动测试"按钮是否可用
+        /// </summary>
+        public bool IsStartTestButtonEnabled
+        {
+            get => _isStartTestButtonEnabled;
+            set => SetProperty(ref _isStartTestButtonEnabled, value);
+        }
+
         #endregion
 
-        public DataEditViewModel(IPointDataService pointDataService, IChannelMappingService channelMappingService)
+        public DataEditViewModel(
+            IEventAggregator eventAggregator,
+            IChannelMappingService channelMappingService,
+            IPointDataService pointDataService,
+            ITestTaskManager testTaskManager)
         {
-            _pointDataService = pointDataService;
+            _eventAggregator = eventAggregator;
             _channelMappingService = channelMappingService;
+            _pointDataService = pointDataService;
+            _testTaskManager = testTaskManager;
+            
+            // 初始化按钮状态
+            IsStartTestButtonEnabled = false;
 
             // 初始化命令
             ImportConfigCommand = new DelegateCommand(ImportConfig);
@@ -495,6 +579,11 @@ namespace FatFullVersion.ViewModels
             CurrentChannels = new ObservableCollection<ChannelMapping>();
             TestResults = new ObservableCollection<ChannelMapping>();
             Batches = new ObservableCollection<BatchInfo>();
+            TestQueue = new ObservableCollection<ChannelMapping>();
+
+            // 初始化测试队列相关属性
+            TestQueuePosition = 0;
+            TestQueueStatus = "队列为空";
 
             // 初始化其他属性
             SelectedChannelType = "AI通道";
@@ -622,7 +711,8 @@ namespace FatFullVersion.ViewModels
                         SHSetValue = point.SHSetValue,
                         SHSetValueNumber = point.SHSetValueNumber,
                         SHHSetValue = point.SHHSetValue,
-                        SHHSetValueNumber = point.SHHSetValueNumber
+                        SHHSetValueNumber = point.SHHSetValueNumber,
+                        PlcCommunicationAddress = point.CommunicationAddress
                     };
                     AllChannels.Add(channel);
 
@@ -659,7 +749,8 @@ namespace FatFullVersion.ViewModels
                         SHSetValue = point.SHSetValue,
                         SHSetValueNumber = point.SHSetValueNumber,
                         SHHSetValue = point.SHHSetValue,
-                        SHHSetValueNumber = point.SHHSetValueNumber
+                        SHHSetValueNumber = point.SHHSetValueNumber,
+                        PlcCommunicationAddress = point.CommunicationAddress
                     };
                     AllChannels.Add(channel);
 
@@ -673,9 +764,14 @@ namespace FatFullVersion.ViewModels
                         ChannelTag = point.ChannelTag,
                         RangeLowerLimitValue = (float)point.LowLowLimit,
                         RangeUpperLimitValue = (float)point.HighHighLimit,
-                        // AO点位不初始化百分比值，这些值将在测试过程中填充
+                        // AO点位相关设置
                         TestResultStatus = 0, // 未测试
-                        ResultText = "未测试"
+                        ResultText = "未测试",
+                        // AO点位的低低报、低报、高报、高高报设置为N/A
+                        LowLowAlarmStatus = "N/A",
+                        LowAlarmStatus = "N/A",
+                        HighAlarmStatus = "N/A",
+                        HighHighAlarmStatus = "N/A"
                     };
                     TestResults.Add(result);
                 }
@@ -687,7 +783,8 @@ namespace FatFullVersion.ViewModels
                     {
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
-                        ModuleType = point.ModuleType
+                        ModuleType = point.ModuleType,
+                        PlcCommunicationAddress = point.CommunicationAddress
                     };
                     AllChannels.Add(channel);
 
@@ -725,7 +822,8 @@ namespace FatFullVersion.ViewModels
                     {
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
-                        ModuleType = point.ModuleType
+                        ModuleType = point.ModuleType,
+                        PlcCommunicationAddress = point.CommunicationAddress
                     };
                     AllChannels.Add(channel);
 
@@ -902,42 +1000,104 @@ namespace FatFullVersion.ViewModels
             IsBatchSelectionOpen = false;
         }
 
-        private void FinishWiring()
+        private async void FinishWiring()
         {
-            // 通道连接完成的实现
-            Message = "通道连接完成";
+            if (SelectedBatch == null)
+            {
+                MessageBox.Show("请先选择一个测试批次", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            IsLoading = true;
+            StatusMessage = "正在确认接线完成...";
+
+            try
+            {
+                // 将ViewModel中的BatchInfo转换为Model中的BatchInfo
+                var batchInfo = new Models.BatchInfo
+                {
+                    BatchId = SelectedBatch.BatchId,
+                    BatchName = SelectedBatch.BatchName,
+                    CreationDate = SelectedBatch.CreationDate,
+                    ItemCount = SelectedBatch.ItemCount,
+                    Status = SelectedBatch.Status
+                };
+
+                // 调用TestTaskManager的接线确认方法，但不显示等待对话框，不开始测试
+                var result = await _testTaskManager.ConfirmWiringCompleteAsync(batchInfo, false,AllChannels);
+                if (result)
+                {
+                    // 确认接线成功后，禁用接线确认按钮，启用通道硬点自动测试按钮
+                    IsWiringCompleteBtnEnabled = false;
+                    IsStartTestButtonEnabled = true;
+                    Message = "接线确认完成，可以开始测试";
+                    
+                    // 刷新批次状态
+                    await RefreshBatchStatus();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"接线确认失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsLoading = false;
+                StatusMessage = string.Empty;
+            }
         }
 
         private async void StartTest()
         {
+            // 检查是否可以开始测试
+            if (SelectedBatch == null)
+            {
+                MessageBox.Show("请先选择一个测试批次", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            
             // 开始测试的实现
             Message = "开始测试";
+            IsLoading = true;
+            StatusMessage = "正在准备测试...";
 
-            // 收集当前批次名称
-            HashSet<string> affectedBatchNames = new HashSet<string>();
-
-            // 模拟测试，随机生成一些测试结果状态
-            Random random = new Random();
-            foreach (var result in TestResults)
+            try
             {
-                result.TestResultStatus = random.Next(0, 3); // 0:未测试, 1:通过, 2:失败
-                result.TestTime = DateTime.Now;
-                result.ResultText = result.TestResultStatus == 1 ? "通过" : (result.TestResultStatus == 2 ? "失败" : "未测试");
+                // 显示等待测试的画面
+                await _testTaskManager.ShowTestProgressDialogAsync();
                 
-                // 记录受影响的批次
-                if (!string.IsNullOrEmpty(result.TestBatch))
+                // 开始所有测试任务
+                var result = await _testTaskManager.StartAllTasksAsync();
+                if (!result)
                 {
-                    affectedBatchNames.Add(result.TestBatch);
+                    MessageBox.Show("开始测试失败，请检查设备连接", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
                 }
+                
+                // 收集当前批次名称
+                HashSet<string> affectedBatchNames = new HashSet<string>();
+                if (TestResults != null)
+                {
+                    foreach (var item in TestResults)
+                    {
+                        if (!string.IsNullOrEmpty(item.TestBatch))
+                        {
+                            affectedBatchNames.Add(item.TestBatch);
+                        }
+                    }
+                }
+
+                Message = $"测试已启动，批次: {string.Join(", ", affectedBatchNames)}";
             }
-
-            // 更新批次信息
-            await UpdateBatchInfoAsync();
-
-            RaisePropertyChanged(nameof(TestResults));
-            
-            // 更新点位统计数据
-            UpdatePointStatistics();
+            catch (Exception ex)
+            {
+                MessageBox.Show($"开始测试失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsLoading = false;
+                StatusMessage = string.Empty;
+            }
         }
 
         private async void Retest(ChannelMapping result)
@@ -993,27 +1153,50 @@ namespace FatFullVersion.ViewModels
                 }
 
                 // 使用通道映射服务提取批次信息
-                Batches = new ObservableCollection<BatchInfo>(
-                    await _channelMappingService.ExtractBatchInfoAsync(
-                        GetAIChannels().ToList(), 
-                        GetAOChannels().ToList(), 
-                        GetDIChannels().ToList(), 
-                        GetDOChannels().ToList()));
+                var batches = await _channelMappingService.ExtractBatchInfoAsync(
+                    GetAIChannels().ToList(), 
+                    GetAOChannels().ToList(), 
+                    GetDIChannels().ToList(), 
+                    GetDOChannels().ToList());
+                
+                // 根据测试结果更新批次状态
+                var updatedBatches = await _channelMappingService.UpdateBatchStatusAsync(batches, TestResults);
+                
+                // 保存当前选中的批次ID
+                string selectedBatchId = SelectedBatch?.BatchId;
+                
+                // 更新批次集合
+                Batches = new ObservableCollection<BatchInfo>(updatedBatches);
+                
+                // 如果之前有选中的批次，尝试找回并选中
+                if (!string.IsNullOrEmpty(selectedBatchId))
+                {
+                    var updatedSelectedBatch = Batches.FirstOrDefault(b => b.BatchId == selectedBatchId);
+                    if (updatedSelectedBatch != null)
+                    {
+                        // 直接设置字段而不触发OnBatchSelected
+                        _selectedBatch = updatedSelectedBatch;
+                        RaisePropertyChanged(nameof(SelectedBatch));
+                        
+                        // 更新接线确认按钮状态
+                        IsWiringCompleteBtnEnabled = updatedSelectedBatch.Status == "未开始" || updatedSelectedBatch.Status == "进行中";
+                    }
+                }
+
+                // 更新点位统计数据
+                UpdatePointStatistics();
 
                 // 通知UI更新
-                RaisePropertyChanged(nameof(Batches));
                 RaisePropertyChanged(nameof(TestResults));
-                
-                StatusMessage = string.Empty;
             }
             catch (Exception ex)
             {
-                StatusMessage = string.Empty;
                 Message = $"更新批次信息失败: {ex.Message}";
             }
             finally
             {
                 IsLoading = false;
+                StatusMessage = string.Empty;
             }
         }
 
@@ -1196,7 +1379,17 @@ namespace FatFullVersion.ViewModels
             if (CurrentTestResult != null)
             {
                 CurrentTestResult.HardPointTestResult = "已通过";
-                CurrentTestResult.ResultText = "AI硬点测试通过";
+                
+                // 使用追加模式更新结果文本
+                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
+                {
+                    CurrentTestResult.ResultText = "AI硬点测试通过";
+                }
+                else
+                {
+                    CurrentTestResult.ResultText += ", AI硬点测试通过";
+                }
+                
                 CurrentTestResult.TestResultStatus = 1; // 成功
                 CurrentTestResult.TestTime = DateTime.Now;
                 
@@ -1258,8 +1451,20 @@ namespace FatFullVersion.ViewModels
             
             if (CurrentTestResult != null)
             {
+                // 同时设置高报和高高报状态为已通过
                 CurrentTestResult.HighAlarmStatus = "已通过";
-                CurrentTestResult.ResultText = "AI高报测试通过";
+                CurrentTestResult.HighHighAlarmStatus = "已通过";
+                
+                // 追加结果文本
+                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
+                {
+                    CurrentTestResult.ResultText = "AI高报/高高报测试通过";
+                }
+                else
+                {
+                    CurrentTestResult.ResultText += ", AI高报/高高报测试通过";
+                }
+                
                 CurrentTestResult.TestTime = DateTime.Now;
                 
                 // 通知UI更新
@@ -1320,8 +1525,20 @@ namespace FatFullVersion.ViewModels
             
             if (CurrentTestResult != null)
             {
+                // 同时设置低报和低低报状态为已通过
                 CurrentTestResult.LowAlarmStatus = "已通过";
-                CurrentTestResult.ResultText = "AI低报测试通过";
+                CurrentTestResult.LowLowAlarmStatus = "已通过";
+                
+                // 追加结果文本
+                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
+                {
+                    CurrentTestResult.ResultText = "AI低报/低低报测试通过";
+                }
+                else
+                {
+                    CurrentTestResult.ResultText += ", AI低报/低低报测试通过";
+                }
+                
                 CurrentTestResult.TestTime = DateTime.Now;
                 
                 // 通知UI更新
@@ -1386,7 +1603,17 @@ namespace FatFullVersion.ViewModels
             if (CurrentTestResult != null)
             {
                 CurrentTestResult.MaintenanceFunction = "已通过";
-                CurrentTestResult.ResultText = "AI维护功能测试通过";
+                
+                // 使用追加模式更新结果文本
+                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
+                {
+                    CurrentTestResult.ResultText = "AI维护功能测试通过";
+                }
+                else
+                {
+                    CurrentTestResult.ResultText += ", AI维护功能测试通过";
+                }
+                
                 CurrentTestResult.TestTime = DateTime.Now;
                 
                 // 通知UI更新
@@ -1448,7 +1675,17 @@ namespace FatFullVersion.ViewModels
             if (CurrentTestResult != null)
             {
                 CurrentTestResult.HardPointTestResult = "已通过";
-                CurrentTestResult.ResultText = "DI硬点测试通过";
+                
+                // 使用追加模式更新结果文本
+                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
+                {
+                    CurrentTestResult.ResultText = "DI硬点测试通过";
+                }
+                else
+                {
+                    CurrentTestResult.ResultText += ", DI硬点测试通过";
+                }
+                
                 CurrentTestResult.TestResultStatus = 1; // 成功
                 CurrentTestResult.TestTime = DateTime.Now;
                 
@@ -1647,7 +1884,17 @@ namespace FatFullVersion.ViewModels
             if (CurrentTestResult != null)
             {
                 CurrentTestResult.HardPointTestResult = "已通过";
-                CurrentTestResult.ResultText = "DO硬点测试通过";
+                
+                // 使用追加模式更新结果文本
+                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
+                {
+                    CurrentTestResult.ResultText = "DO硬点测试通过";
+                }
+                else
+                {
+                    CurrentTestResult.ResultText += ", DO硬点测试通过";
+                }
+                
                 CurrentTestResult.TestResultStatus = 1; // 成功
                 CurrentTestResult.TestTime = DateTime.Now;
                 
@@ -1693,7 +1940,17 @@ namespace FatFullVersion.ViewModels
             if (CurrentTestResult != null)
             {
                 CurrentTestResult.HardPointTestResult = "已通过";
-                CurrentTestResult.ResultText = "AO硬点测试通过";
+                
+                // 使用追加模式更新结果文本
+                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
+                {
+                    CurrentTestResult.ResultText = "AO硬点测试通过";
+                }
+                else
+                {
+                    CurrentTestResult.ResultText += ", AO硬点测试通过";
+                }
+                
                 CurrentTestResult.TestResultStatus = 1; // 成功
                 CurrentTestResult.TestTime = DateTime.Now;
                 
@@ -1822,10 +2079,298 @@ namespace FatFullVersion.ViewModels
             CurrentChannels.Move(currentIndex, currentIndex + 1);
         }
 
-        private void ExecuteAllocateChannels()
+        private async void ExecuteAllocateChannels()
         {
-            // TODO: 实现通道分配逻辑
-            Message = "通道分配功能待实现";
+            try
+            {
+                IsLoading = true;
+                StatusMessage = "正在执行通道分配...";
+
+                // 检查是否有通道数据
+                if (AllChannels == null || AllChannels.Count == 0)
+                {
+                    MessageBox.Show("没有通道数据，请先导入点表配置", "分配失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // 调用服务进行通道分配
+                var allocatedChannels = await _channelMappingService.AllocateChannelsTestAsync(AllChannels, TestResults);
+
+                // 更新通道分配结果
+                AllChannels = new ObservableCollection<ChannelMapping>(allocatedChannels);
+
+                // 同步更新测试结果中的通道信息
+                _channelMappingService.SyncChannelAllocation(AllChannels, TestResults);
+
+                // 更新通道显示
+                UpdateCurrentChannels();
+
+                // 更新批次信息
+                await UpdateBatchInfoAsync();
+
+                // 刷新测试队列
+                RefreshTestQueue();
+
+                Message = "通道分配完成";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"通道分配失败: {ex.Message}", "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsLoading = false;
+                StatusMessage = string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// 刷新测试队列，将待测试的点位添加到队列中
+        /// </summary>
+        private void RefreshTestQueue()
+        {
+            // 清空当前队列
+            TestQueue.Clear();
+
+            // 先添加所有批次中的未测试点位
+            var untested = TestResults.Where(r => 
+                r.TestResultStatus == 0 && 
+                !string.IsNullOrEmpty(r.TestBatch) &&
+                !string.IsNullOrEmpty(r.TestPLCChannelTag))
+                .OrderBy(r => r.TestBatch)
+                .ThenBy(r => r.ModuleType)
+                .ThenBy(r => r.VariableName)
+                .ToList();
+
+            foreach (var item in untested)
+            {
+                TestQueue.Add(item);
+            }
+
+            // 更新队列状态
+            if (TestQueue.Count > 0)
+            {
+                TestQueuePosition = 1;
+                CurrentQueueItem = TestQueue[0];
+                TestQueueStatus = $"队列 1/{TestQueue.Count} - {CurrentQueueItem.VariableName}";
+            }
+            else
+            {
+                TestQueuePosition = 0;
+                CurrentQueueItem = null;
+                TestQueueStatus = "队列为空";
+            }
+
+            // 通知UI更新
+            RaisePropertyChanged(nameof(TestQueue));
+            RaisePropertyChanged(nameof(TestQueuePosition));
+            RaisePropertyChanged(nameof(CurrentQueueItem));
+            RaisePropertyChanged(nameof(TestQueueStatus));
+        }
+
+        #endregion
+
+        #region 添加命令执行和判断方法
+
+        private bool CanExecuteConfirmWiringComplete()
+        {
+            // 只有当选择了批次时才能确认接线
+            return SelectedBatch != null;
+        }
+
+        private async void ExecuteConfirmWiringComplete()
+        {
+            if (SelectedBatch == null)
+                return;
+
+            // 将ViewModel中的BatchInfo转换为Model中的BatchInfo
+            var batchInfo = new Models.BatchInfo
+            {
+                BatchId = SelectedBatch.BatchId,
+                BatchName = SelectedBatch.BatchName,
+                CreationDate = SelectedBatch.CreationDate,
+                ItemCount = SelectedBatch.ItemCount,
+                Status = SelectedBatch.Status
+            };
+
+            // 调用接线确认方法，但不显示等待对话框，不开始测试
+            var result = await _testTaskManager.ConfirmWiringCompleteAsync(batchInfo, false,AllChannels);
+            if (result)
+            {
+                // 确认接线成功后，禁用接线确认按钮，启用通道硬点自动测试按钮
+                IsWiringCompleteBtnEnabled = false;
+                IsStartTestButtonEnabled = true;
+                
+                // 测试完成后，刷新批次状态
+                await RefreshBatchStatus();
+            }
+        }
+
+        // 添加批次状态刷新方法
+        private async Task RefreshBatchStatus()
+        {
+            if (Batches != null && TestResults != null)
+            {
+                try
+                {
+                    StatusMessage = "正在刷新批次状态...";
+                    
+                    // 更新批次状态
+                    var updatedBatches = await _channelMappingService.UpdateBatchStatusAsync(Batches, TestResults);
+                    
+                    // 更新UI上的批次集合
+                    Batches = new ObservableCollection<BatchInfo>(updatedBatches);
+                    
+                    // 找到并更新选中的批次
+                    if (SelectedBatch != null)
+                    {
+                        var updatedSelectedBatch = Batches.FirstOrDefault(b => b.BatchId == SelectedBatch.BatchId);
+                        if (updatedSelectedBatch != null)
+                        {
+                            // 注意这里不使用属性赋值，避免再次触发OnBatchSelected
+                            _selectedBatch = updatedSelectedBatch;
+                            RaisePropertyChanged(nameof(SelectedBatch));
+                            
+                            // 更新接线确认按钮状态
+                            IsWiringCompleteBtnEnabled = updatedSelectedBatch.Status == "未开始" || updatedSelectedBatch.Status == "进行中";
+                        }
+                    }
+                    
+                    // 更新点位统计
+                    UpdatePointStatistics();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"刷新批次状态失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                finally
+                {
+                    StatusMessage = string.Empty;
+                }
+            }
+        }
+
+        // 修改批次选择逻辑
+        private void OnBatchSelected()
+        {
+            if (SelectedBatch == null)
+                return;
+
+            // 如果批次状态为未开始或者进行中，则启用接线确认按钮
+            IsWiringCompleteBtnEnabled = SelectedBatch.Status == "未开始" || SelectedBatch.Status == "进行中";
+            // 重置通道硬点自动测试按钮状态
+            IsStartTestButtonEnabled = false;
+            
+            // 加载该批次的测试结果
+            LoadTestResults();
+        }
+
+        // 添加LoadTestResults方法
+        private async void LoadTestResults()
+        {
+            if (SelectedBatch == null)
+                return;
+        
+            try
+            {
+                IsLoading = true;
+                StatusMessage = "正在加载测试结果数据...";
+            
+                // 根据选中的批次加载对应的测试结果
+                var results = AllChannels?
+                    .Where(c => c.TestBatch == SelectedBatch.BatchName)
+                    .ToList();
+            
+                if (results != null && results.Any())
+                {
+                    // 保留现有的测试结果，只添加新的结果
+                    if (TestResults == null)
+                    {
+                        TestResults = new ObservableCollection<ChannelMapping>(results);
+                    }
+                    else
+                    {
+                        // 获取当前不存在的新结果
+                        var existingIds = TestResults.Select(r => r.VariableName).ToHashSet();
+                        var newResults = results.Where(r => !existingIds.Contains(r.VariableName)).ToList();
+                        
+                        // 添加新结果
+                        foreach (var newResult in newResults)
+                        {
+                            TestResults.Add(newResult);
+                        }
+                        
+                        // 更新现有结果的状态
+                        foreach (var result in results)
+                        {
+                            var existingResult = TestResults.FirstOrDefault(r => r.VariableName == result.VariableName);
+                            if (existingResult != null)
+                            {
+                                // 更新必要的属性，但保留测试结果
+                                existingResult.TestBatch = result.TestBatch;
+                                existingResult.ChannelTag = result.ChannelTag;
+                                existingResult.TestPLCChannelTag = result.TestPLCChannelTag;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // 如果找不到基于BatchName的结果，尝试使用BatchId
+                    results = AllChannels?
+                        .Where(c => c.TestBatch == SelectedBatch.BatchId)
+                        .ToList();
+                        
+                    if (results != null && results.Any())
+                    {
+                        // 使用相同的逻辑处理BatchId查找的结果
+                        if (TestResults == null)
+                        {
+                            TestResults = new ObservableCollection<ChannelMapping>(results);
+                        }
+                        else
+                        {
+                            var existingIds = TestResults.Select(r => r.VariableName).ToHashSet();
+                            var newResults = results.Where(r => !existingIds.Contains(r.VariableName)).ToList();
+                            
+                            foreach (var newResult in newResults)
+                            {
+                                TestResults.Add(newResult);
+                            }
+                            
+                            foreach (var result in results)
+                            {
+                                var existingResult = TestResults.FirstOrDefault(r => r.VariableName == result.VariableName);
+                                if (existingResult != null)
+                                {
+                                    existingResult.TestBatch = result.TestBatch;
+                                    existingResult.ChannelTag = result.ChannelTag;
+                                    existingResult.TestPLCChannelTag = result.TestPLCChannelTag;
+                                }
+                            }
+                        }
+                    }
+                    else if (TestResults == null)
+                    {
+                        // 只有当TestResults为null时才创建新集合
+                        TestResults = new ObservableCollection<ChannelMapping>();
+                    }
+                }
+            
+                // 刷新测试队列
+                RefreshTestQueue();
+                
+                // 更新点位统计
+                UpdatePointStatistics();
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"加载测试结果时出错: {ex.Message}";
+            }
+            finally
+            {
+                IsLoading = false;
+            }
         }
 
         #endregion
@@ -1834,6 +2379,7 @@ namespace FatFullVersion.ViewModels
     // 批次信息类
     public class BatchInfo
     {
+        public string BatchId { get; set; }
         public string BatchName { get; set; }
         public DateTime CreationDate { get; set; }
         public int ItemCount { get; set; }
@@ -1843,8 +2389,17 @@ namespace FatFullVersion.ViewModels
 
         public BatchInfo(string batchName, int itemCount)
         {
+            BatchId = Guid.NewGuid().ToString("N");
             BatchName = batchName;
             ItemCount = itemCount;
+            CreationDate = DateTime.Now;
+            Status = "未开始";
+        }
+        
+        // 添加无参构造函数
+        public BatchInfo()
+        {
+            BatchId = Guid.NewGuid().ToString("N");
             CreationDate = DateTime.Now;
             Status = "未开始";
         }

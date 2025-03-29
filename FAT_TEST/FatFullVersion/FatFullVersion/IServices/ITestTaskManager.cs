@@ -82,5 +82,26 @@ namespace FatFullVersion.IServices
         /// </summary>
         /// <returns>操作是否成功</returns>
         Task<bool> ClearAllTasksAsync();
+
+        /// <summary>
+        /// 确认接线已完成，启用测试功能
+        /// </summary>
+        /// <param name="batchInfo">批次信息</param>
+        /// <returns>确认操作是否成功</returns>
+        //Task<bool> ConfirmWiringCompleteAsync(BatchInfo batchInfo);
+
+        /// <summary>
+        /// 确认接线已完成，启用测试功能，可选择是否自动开始测试
+        /// </summary>
+        /// <param name="batchInfo">批次信息</param>
+        /// <param name="autoStart">是否自动开始测试</param>
+        /// <returns>确认操作是否成功</returns>
+        Task<bool> ConfirmWiringCompleteAsync(BatchInfo batchInfo, bool autoStart,IEnumerable<ChannelMapping> testMap);
+
+        /// <summary>
+        /// 显示测试进度对话框
+        /// </summary>
+        /// <returns>显示对话框的任务</returns>
+        Task ShowTestProgressDialogAsync();
     }
 }

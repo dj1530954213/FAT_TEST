@@ -8,6 +8,7 @@ using FatFullVersion.IServices;
 using FatFullVersion.Optimizations;
 using FatFullVersion.Services.Interfaces;
 using FatFullVersion.ViewModels;
+using Prism.Events;
 
 namespace FatFullVersion.Views
 {
@@ -18,11 +19,27 @@ namespace FatFullVersion.Views
     {
         private readonly IPointDataService _pointDataService;
         private readonly IChannelMappingService _channelMappingService;
+        private readonly IEventAggregator _eventAggregator;
+        private readonly ITestTaskManager _testTaskManager;
 
-        public DataEditView(IPointDataService pointDataService,IChannelMappingService channelMappingService)
+        /// <summary>
+        /// 构造函数
+        /// </summary>
+        /// <param name="pointDataService">点位数据服务</param>
+        /// <param name="channelMappingService">通道映射服务</param>
+        /// <param name="eventAggregator">事件聚合器</param>
+        /// <param name="testTaskManager">测试任务管理器</param>
+        public DataEditView(
+            IPointDataService pointDataService,
+            IChannelMappingService channelMappingService,
+            IEventAggregator eventAggregator,
+            ITestTaskManager testTaskManager)
         {
             _pointDataService = pointDataService;
             _channelMappingService = channelMappingService;
+            _eventAggregator = eventAggregator;
+            _testTaskManager = testTaskManager;
+            
             try
             {
                 // 初始化组件（由XAML设计器生成的方法）
@@ -31,7 +48,11 @@ namespace FatFullVersion.Views
                 // 确保ViewModel已正确初始化
                 if (this.DataContext == null)
                 {
-                    this.DataContext = new DataEditViewModel(_pointDataService, _channelMappingService);
+                    this.DataContext = new DataEditViewModel(
+                        _eventAggregator,
+                        _channelMappingService,
+                        _pointDataService,
+                        _testTaskManager);
                 }
                 
                 // 注册加载完成事件用于延迟初始化

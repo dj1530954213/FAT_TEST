@@ -580,7 +580,17 @@ namespace FatFullVersion.Models
             get { return _plcAbsoluteAddress; }
             set { SetProperty(ref _plcAbsoluteAddress, value); }
         }
-        
+
+        private string _plcCommunicationAddress;
+        /// <summary>
+        /// PLC绝对地址
+        /// </summary>
+        public string PlcCommunicationAddress
+        {
+            get { return _plcCommunicationAddress; }
+            set { SetProperty(ref _plcCommunicationAddress, value); }
+        }
+
         private DateTime _createdTime = DateTime.Now;
         /// <summary>
         /// 创建时间

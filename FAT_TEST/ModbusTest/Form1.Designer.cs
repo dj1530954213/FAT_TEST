@@ -31,14 +31,12 @@
             button_connect = new Button();
             button_disconnect = new Button();
             richTextBox_result = new RichTextBox();
-            textBox_write = new TextBox();
+            textBox_pc = new TextBox();
             label1 = new Label();
+            button_start = new Button();
             label2 = new Label();
-            textBox_address = new TextBox();
-            button_write = new Button();
-            label3 = new Label();
-            textBox_read_address = new TextBox();
-            button_read = new Button();
+            textBox_sd = new TextBox();
+            button_stop = new Button();
             SuspendLayout();
             // 
             // button_connect
@@ -69,93 +67,73 @@
             richTextBox_result.TabIndex = 3;
             richTextBox_result.Text = "";
             // 
-            // textBox_write
+            // textBox_pc
             // 
-            textBox_write.Location = new Point(237, 148);
-            textBox_write.Multiline = true;
-            textBox_write.Name = "textBox_write";
-            textBox_write.Size = new Size(218, 50);
-            textBox_write.TabIndex = 4;
+            textBox_pc.Location = new Point(240, 133);
+            textBox_pc.Multiline = true;
+            textBox_pc.Name = "textBox_pc";
+            textBox_pc.Size = new Size(200, 59);
+            textBox_pc.TabIndex = 4;
             // 
             // label1
             // 
             label1.AutoSize = true;
-            label1.Font = new Font("Microsoft YaHei UI", 12F);
-            label1.Location = new Point(92, 157);
+            label1.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 134);
+            label1.Location = new Point(27, 151);
             label1.Name = "label1";
-            label1.Size = new Size(122, 41);
+            label1.Size = new Size(178, 41);
             label1.TabIndex = 5;
-            label1.Text = "写入值:";
+            label1.Text = "偏差值设定";
+            // 
+            // button_start
+            // 
+            button_start.Location = new Point(541, 136);
+            button_start.Name = "button_start";
+            button_start.Size = new Size(177, 77);
+            button_start.TabIndex = 6;
+            button_start.Text = "开始同步";
+            button_start.UseVisualStyleBackColor = true;
+            button_start.Click += button_start_Click;
             // 
             // label2
             // 
             label2.AutoSize = true;
-            label2.Font = new Font("Microsoft YaHei UI", 12F);
-            label2.Location = new Point(78, 234);
+            label2.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 134);
+            label2.Location = new Point(27, 219);
             label2.Name = "label2";
-            label2.Size = new Size(154, 41);
-            label2.TabIndex = 7;
-            label2.Text = "写入地址:";
+            label2.Size = new Size(178, 41);
+            label2.TabIndex = 8;
+            label2.Text = "锁定状态量";
             // 
-            // textBox_address
+            // textBox_sd
             // 
-            textBox_address.Location = new Point(237, 228);
-            textBox_address.Multiline = true;
-            textBox_address.Name = "textBox_address";
-            textBox_address.Size = new Size(218, 50);
-            textBox_address.TabIndex = 6;
+            textBox_sd.Location = new Point(240, 219);
+            textBox_sd.Multiline = true;
+            textBox_sd.Name = "textBox_sd";
+            textBox_sd.Size = new Size(200, 59);
+            textBox_sd.TabIndex = 7;
             // 
-            // button_write
+            // button_stop
             // 
-            button_write.Location = new Point(536, 157);
-            button_write.Name = "button_write";
-            button_write.Size = new Size(284, 101);
-            button_write.TabIndex = 8;
-            button_write.Text = "写入";
-            button_write.UseVisualStyleBackColor = true;
-            button_write.Click += button_write_Click;
-            // 
-            // label3
-            // 
-            label3.AutoSize = true;
-            label3.Font = new Font("Microsoft YaHei UI", 12F);
-            label3.Location = new Point(959, 157);
-            label3.Name = "label3";
-            label3.Size = new Size(154, 41);
-            label3.TabIndex = 10;
-            label3.Text = "读取地址:";
-            // 
-            // textBox_read_address
-            // 
-            textBox_read_address.Location = new Point(1104, 148);
-            textBox_read_address.Multiline = true;
-            textBox_read_address.Name = "textBox_read_address";
-            textBox_read_address.Size = new Size(218, 50);
-            textBox_read_address.TabIndex = 9;
-            // 
-            // button_read
-            // 
-            button_read.Location = new Point(1038, 228);
-            button_read.Name = "button_read";
-            button_read.Size = new Size(284, 101);
-            button_read.TabIndex = 11;
-            button_read.Text = "读取";
-            button_read.UseVisualStyleBackColor = true;
-            button_read.Click += button_read_Click;
+            button_stop.Location = new Point(541, 219);
+            button_stop.Name = "button_stop";
+            button_stop.Size = new Size(177, 77);
+            button_stop.TabIndex = 9;
+            button_stop.Text = "停止同步";
+            button_stop.UseVisualStyleBackColor = true;
+            button_stop.Click += button_stop_Click;
             // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(14F, 31F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1702, 1641);
-            Controls.Add(button_read);
-            Controls.Add(label3);
-            Controls.Add(textBox_read_address);
-            Controls.Add(button_write);
+            Controls.Add(button_stop);
             Controls.Add(label2);
-            Controls.Add(textBox_address);
+            Controls.Add(textBox_sd);
+            Controls.Add(button_start);
             Controls.Add(label1);
-            Controls.Add(textBox_write);
+            Controls.Add(textBox_pc);
             Controls.Add(richTextBox_result);
             Controls.Add(button_disconnect);
             Controls.Add(button_connect);
@@ -171,13 +149,11 @@
         private Button button_connect;
         private Button button_disconnect;
         private RichTextBox richTextBox_result;
-        private TextBox textBox_write;
+        private TextBox textBox_pc;
         private Label label1;
+        private Button button_start;
         private Label label2;
-        private TextBox textBox_address;
-        private Button button_write;
-        private Label label3;
-        private TextBox textBox_read_address;
-        private Button button_read;
+        private TextBox textBox_sd;
+        private Button button_stop;
     }
 }

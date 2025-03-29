@@ -11,6 +11,11 @@ using FatFullVersion.Entities.EntitiesEnum;
 using FatFullVersion.IServices;
 using FatFullVersion.Services.ChannelTask;
 using DryIoc;
+using System.Windows;
+using System.Windows.Threading;
+using System.Windows.Controls;
+using System.Windows.Media;
+using MaterialDesignThemes.Wpf;
 
 namespace FatFullVersion.Services
 {
@@ -24,11 +29,16 @@ namespace FatFullVersion.Services
         private readonly IChannelMappingService _channelMappingService;
         private readonly IPlcCommunication _testPlcCommunication;
         private readonly IPlcCommunication _targetPlcCommunication;
+        private readonly IMessageService _messageService;
         private readonly ConcurrentDictionary<string, TestTask> _activeTasks;
         private CancellationTokenSource _masterCancellationTokenSource;
         private readonly ParallelOptions _parallelOptions;
         private bool _isRunning;
         private readonly SemaphoreSlim _semaphore;
+        private bool _isWiringCompleted;
+        private BatchInfo _currentBatch;
+        private Window _progressDialog;
+        private readonly object _dialogLock = new object();
 
         #endregion
 
@@ -39,13 +49,16 @@ namespace FatFullVersion.Services
         /// </summary>
         /// <param name="channelMappingService">通道映射服务</param>
         /// <param name="serviceLocator">服务定位器</param>
+        /// <param name="messageService">消息服务</param>
         /// <param name="maxConcurrentTasks">最大并发任务数量，默认为处理器核心数的2倍</param>
         public TestTaskManager(
             IChannelMappingService channelMappingService,
             IServiceLocator serviceLocator,
+            IMessageService messageService,
             int? maxConcurrentTasks = null)
         {
             _channelMappingService = channelMappingService ?? throw new ArgumentNullException(nameof(channelMappingService));
+            _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
             //使用ServiceLocator这个单例服务来完成在APP的注册(使用同一个接口但是通过名称来区分实例)
             _testPlcCommunication = serviceLocator.ResolveNamed<IPlcCommunication>("TestPlcCommunication");
             _targetPlcCommunication = serviceLocator.ResolveNamed<IPlcCommunication>("TargetPlcCommunication");
@@ -65,6 +78,8 @@ namespace FatFullVersion.Services
             _semaphore = new SemaphoreSlim(concurrentTasks, concurrentTasks);
             
             _isRunning = false;
+            _isWiringCompleted = false;
+            _currentBatch = null;
         }
 
         #endregion
@@ -99,6 +114,212 @@ namespace FatFullVersion.Services
         }
 
         /// <summary>
+        /// 确认接线已完成，启用测试功能
+        /// </summary>
+        /// <param name="batchInfo">批次信息</param>
+        /// <returns>确认操作是否成功</returns>
+        //public async Task<bool> ConfirmWiringCompleteAsync(BatchInfo batchInfo)
+        //{
+        //    // 默认自动开始测试
+        //    return await ConfirmWiringCompleteAsync(batchInfo, true);
+        //}
+
+        /// <summary>
+        /// 确认接线已完成，启用测试功能，可选择是否自动开始测试
+        /// </summary>
+        /// <param name="batchInfo">批次信息</param>
+        /// <param name="autoStart">是否自动开始测试</param>
+        /// <returns>确认操作是否成功</returns>
+        public async Task<bool> ConfirmWiringCompleteAsync(BatchInfo batchInfo, bool autoStart,IEnumerable<ChannelMapping> testMap)
+        {
+            if (batchInfo == null)
+                return false;
+
+            // 保存当前批次信息
+            _currentBatch = batchInfo;
+            
+            // 检查PLC连接状态
+            if (!_testPlcCommunication.IsConnected)
+            {
+                var testPlcConnectResult = await _testPlcCommunication.ConnectAsync();
+                if (!testPlcConnectResult.IsSuccess)
+                {
+                    await _messageService.ShowAsync("错误", $"无法连接测试PLC: {testPlcConnectResult.ErrorMessage}", MessageBoxButton.OK);
+                    return false;
+                }
+            }
+
+            if (!_targetPlcCommunication.IsConnected)
+            {
+                var targetPlcConnectResult = await _targetPlcCommunication.ConnectAsync();
+                if (!targetPlcConnectResult.IsSuccess)
+                {
+                    await _messageService.ShowAsync("错误", $"无法连接被测PLC: {targetPlcConnectResult.ErrorMessage}", MessageBoxButton.OK);
+                    return false;
+                }
+            }
+
+            // 向用户确认接线已完成
+            var confirmResult = await _messageService.ShowAsync("确认", "确认已完成接线？", MessageBoxButton.YesNo);
+            if (confirmResult == MessageBoxResult.Yes)
+            {
+                // 设置接线已完成的标志
+                _isWiringCompleted = true;
+                
+                // 创建测试任务
+                //var channelMappings = await GetChannelMappingsByBatchAsync(batchInfo.BatchId, batchInfo.BatchName);
+                var channelMappings = testMap.Where(c => c.TestBatch.Equals(batchInfo.BatchName));
+                await CreateTestTasksAsync(channelMappings);
+
+                // 如果需要自动开始测试
+                if (autoStart)
+                {
+                    // 显示等待对话框
+                    await ShowTestProgressDialogAsync();
+                    
+                    // 开始测试
+                    await StartAllTasksAsync();
+                }
+                
+                return true;
+            }
+
+            _isWiringCompleted = false;
+            return false;
+        }
+
+        /// <summary>
+        /// 显示测试进度对话框
+        /// </summary>
+        /// <returns>显示对话框的任务</returns>
+        public async Task ShowTestProgressDialogAsync()
+        {
+            await Task.Run(() =>
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    lock (_dialogLock)
+                    {
+                        if (_progressDialog != null && _progressDialog.IsVisible)
+                            return;
+
+                        // 创建Grid布局容器
+                        var grid = new Grid();
+                        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 0: 标题
+                        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(10) }); // 1: 间距
+                        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 2: 批次信息
+                        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(10) }); // 3: 间距
+                        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 4: 进度条
+                        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(10) }); // 5: 间距
+                        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 6: 提示文本
+
+                        // 添加标题文本
+                        var titleTextBlock = new TextBlock
+                        {
+                            Text = "测试正在进行中",
+                            FontSize = 20,
+                            FontWeight = FontWeights.Bold,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            Foreground = new SolidColorBrush(Color.FromRgb(25, 118, 210)),
+                            Margin = new Thickness(0, 15, 0, 0)
+                        };
+                        Grid.SetRow(titleTextBlock, 0);
+                        grid.Children.Add(titleTextBlock);
+
+                        // 添加批次信息
+                        var batchInfoTextBlock = new TextBlock
+                        {
+                            Text = _currentBatch != null ? $"批次: {_currentBatch.BatchName}" : "批次: 未知",
+                            FontSize = 14,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            Margin = new Thickness(0, 5, 0, 0)
+                        };
+                        Grid.SetRow(batchInfoTextBlock, 2);
+                        grid.Children.Add(batchInfoTextBlock);
+
+                        // 添加MaterialDesign进度指示器
+                        var progressBar = new ProgressBar
+                        {
+                            IsIndeterminate = true,
+                            Style = (Style)Application.Current.Resources["MaterialDesignCircularProgressBar"],
+                            Width = 60,
+                            Height = 60,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80))
+                        };
+                        Grid.SetRow(progressBar, 4);
+                        grid.Children.Add(progressBar);
+
+                        // 添加提示文本
+                        var infoTextBlock = new TextBlock
+                        {
+                            Text = "请等待测试完成...",
+                            FontSize = 14,
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            Margin = new Thickness(0, 5, 0, 15)
+                        };
+                        Grid.SetRow(infoTextBlock, 6);
+                        grid.Children.Add(infoTextBlock);
+
+                        // 创建等待对话框
+                        _progressDialog = new Window
+                        {
+                            Title = "测试进行中",
+                            Width = 350,
+                            Height = 250,
+                            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                            Content = grid,
+                            ResizeMode = ResizeMode.NoResize,
+                            WindowStyle = WindowStyle.ToolWindow,
+                            Background = new SolidColorBrush(Colors.WhiteSmoke),
+                            Topmost = true // 确保对话框始终在最前面
+                        };
+
+                        // 显示对话框（非模态）
+                        _progressDialog.Show();
+                    }
+                });
+            });
+        }
+
+        /// <summary>
+        /// 关闭测试进度对话框
+        /// </summary>
+        private void CloseProgressDialog()
+        {
+            try
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    lock (_dialogLock)
+                    {
+                        if (_progressDialog != null)
+                        {
+                            if (_progressDialog.IsVisible)
+                            {
+                                _progressDialog.Close();
+                            }
+                            _progressDialog = null;
+                        }
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"关闭进度对话框时发生错误: {ex.Message}");
+                // 尝试强制关闭
+                try
+                {
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        _progressDialog = null;
+                    });
+                }
+                catch { /* 忽略可能发生的任何错误 */ }
+            }
+        }
+
+        /// <summary>
         /// 启动所有测试任务
         /// </summary>
         /// <returns>操作是否成功</returns>
@@ -106,6 +327,12 @@ namespace FatFullVersion.Services
         {
             if (_isRunning)
                 return false;
+
+            if (!_isWiringCompleted)
+            {
+                await _messageService.ShowAsync("警告", "请先确认完成接线后再开始测试", MessageBoxButton.OK);
+                return false;
+            }
 
             _isRunning = true;
             
@@ -145,9 +372,48 @@ namespace FatFullVersion.Services
                     Console.WriteLine($"启动任务时出错: {ex.Message}");
                     //return false;
                 }
+                finally
+                {
+                    // 所有任务完成或取消后，关闭进度对话框并更新状态
+                    _isRunning = false;
+                    CloseProgressDialog();
+
+                    // 更新批次状态
+                    await UpdateBatchStatusAsync();
+
+                    // 显示测试完成消息
+                    await Application.Current.Dispatcher.InvokeAsync(async () =>
+                    {
+                        await _messageService.ShowAsync("测试完成", "所有硬点测试已完成", MessageBoxButton.OK);
+                    });
+                }
             });
 
             return true;
+        }
+
+        /// <summary>
+        /// 获取批次的整体测试状态
+        /// </summary>
+        /// <returns>批次状态</returns>
+        private BatchTestStatus GetOverallBatchStatus()
+        {
+            int totalTasks = _activeTasks.Count;
+            if (totalTasks == 0)
+                return BatchTestStatus.NotStarted;
+
+            int passedTasks = _activeTasks.Values.Count(t => t.Result?.Status == "通过");
+            int failedTasks = _activeTasks.Values.Count(t => t.Result?.Status?.Contains("失败") == true);
+            int cancelledTasks = _activeTasks.Values.Count(t => t.IsCancelled);
+
+            if (passedTasks == totalTasks)
+                return BatchTestStatus.Completed;
+            else if (failedTasks > 0)
+                return BatchTestStatus.Completed;
+            else if (cancelledTasks > 0)
+                return BatchTestStatus.Canceled;
+            else
+                return BatchTestStatus.InProgress;
         }
 
         /// <summary>
@@ -168,6 +434,10 @@ namespace FatFullVersion.Services
                 await Task.WhenAll(_activeTasks.Values.Select(t => t.StopAsync()));
                 
                 _isRunning = false;
+                
+                // 关闭进度对话框
+                CloseProgressDialog();
+                
                 return true;
             }
             catch (Exception ex)
@@ -323,6 +593,9 @@ namespace FatFullVersion.Services
             // 停止所有任务
             StopAllTasksAsync().Wait();
 
+            // 关闭进度对话框
+            CloseProgressDialog();
+
             // 释放资源
             _masterCancellationTokenSource.Dispose();
             _semaphore.Dispose();
@@ -335,6 +608,19 @@ namespace FatFullVersion.Services
             
             // 清空任务集合
             _activeTasks.Clear();
+        }
+
+        /// <summary>
+        /// 获取特定批次关联的通道映射
+        /// </summary>
+        /// <param name="batchId">批次ID</param>
+        /// <param name="batchName">批次名称</param>
+        /// <returns>通道映射集合</returns>
+        private async Task<IEnumerable<ChannelMapping>> GetChannelMappingsByBatchAsync(string batchId, string batchName)
+        {
+            // 使用新增的服务方法直接获取特定批次的通道映射数据
+            // 这样可以避免获取所有通道数据再过滤的低效方式
+            return await _channelMappingService.GetChannelMappingsByBatchNameAsync(batchName);
         }
 
         #endregion
@@ -352,6 +638,12 @@ namespace FatFullVersion.Services
 
             foreach (var channel in aiChannels)
             {
+                // 设置测试批次信息
+                if (_currentBatch != null)
+                {
+                    channel.TestBatch = _currentBatch.BatchId;
+                }
+                
                 string taskId = Guid.NewGuid().ToString();
                 var task = new AITestTask(
                     taskId,
@@ -379,6 +671,12 @@ namespace FatFullVersion.Services
 
             foreach (var channel in aoChannels)
             {
+                // 设置测试批次信息
+                if (_currentBatch != null)
+                {
+                    channel.TestBatch = _currentBatch.BatchId;
+                }
+                
                 string taskId = Guid.NewGuid().ToString();
                 var task = new AOTestTask(
                     taskId,
@@ -406,6 +704,12 @@ namespace FatFullVersion.Services
 
             foreach (var channel in diChannels)
             {
+                // 设置测试批次信息
+                if (_currentBatch != null)
+                {
+                    channel.TestBatch = _currentBatch.BatchId;
+                }
+                
                 string taskId = Guid.NewGuid().ToString();
                 var task = new DITestTask(
                     taskId,
@@ -433,6 +737,12 @@ namespace FatFullVersion.Services
 
             foreach (var channel in doChannels)
             {
+                // 设置测试批次信息
+                if (_currentBatch != null)
+                {
+                    channel.TestBatch = _currentBatch.BatchId;
+                }
+                
                 string taskId = Guid.NewGuid().ToString();
                 var task = new DOTestTask(
                     taskId,
@@ -485,6 +795,33 @@ namespace FatFullVersion.Services
             
             // 等待所有任务完成
             await Task.WhenAll(tasks);
+        }
+
+        /// <summary>
+        /// 更新批次状态逻辑
+        /// </summary>
+        private async Task UpdateBatchStatusAsync()
+        {
+            if (_currentBatch != null)
+            {
+                // 更新批次状态
+                _currentBatch.Status = GetOverallBatchStatus().ToString();
+                _currentBatch.LastTestTime = DateTime.Now;
+
+                try
+                {
+                    // 通知ViewModel更新批次状态
+                    // 这里可以使用事件聚合器发布消息，让ViewModel订阅并更新UI
+                    // 或者由ViewModel在适当的时机调用服务来刷新批次状态
+                    
+                    // 如果还有其他需要保存的操作，可以在这里进行
+                    // 例如将测试结果保存到数据库等
+                }
+                catch (Exception ex)
+                {
+                    await _messageService.ShowAsync("错误", $"更新批次状态时出错: {ex.Message}", MessageBoxButton.OK);
+                }
+            }
         }
 
         #endregion
