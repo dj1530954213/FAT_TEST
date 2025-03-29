@@ -60,8 +60,12 @@ namespace FatFullVersion.Models
                 // 依次测试不同百分比的信号值
                 float[] percentages = { 0, 25, 50, 75, 100 };
                 
-                foreach (var percentage in percentages)
+                bool allTestsPassed = true;
+                
+                for (int i = 0; i < percentages.Length; i++)
                 {
+                    var percentage = percentages[i];
+                    
                     // 取消检查
                     cancellationToken.ThrowIfCancellationRequested();
                     
@@ -76,6 +80,7 @@ namespace FatFullVersion.Models
                     if (!writeResult.IsSuccess)
                     {
                         Result.Status = $"写入测试值失败：{writeResult.ErrorMessage}";
+                        allTestsPassed = false;
                         break;
                     }
                     
@@ -87,10 +92,36 @@ namespace FatFullVersion.Models
                     if (!readResult.IsSuccess)
                     {
                         Result.Status = $"读取被测PLC值失败：{readResult.ErrorMessage}";
+                        allTestsPassed = false;
                         break;
                     }
                     
                     float actualValue = readResult.Data;
+                    
+                    // 存储各个百分比点位的值
+                    switch (percentage)
+                    {
+                        case 0:
+                            Result.Value0Percent = actualValue;
+                            Console.WriteLine($"存储0%值: {actualValue}");
+                            break;
+                        case 25:
+                            Result.Value25Percent = actualValue;
+                            Console.WriteLine($"存储25%值: {actualValue}");
+                            break;
+                        case 50:
+                            Result.Value50Percent = actualValue;
+                            Console.WriteLine($"存储50%值: {actualValue}");
+                            break;
+                        case 75:
+                            Result.Value75Percent = actualValue;
+                            Console.WriteLine($"存储75%值: {actualValue}");
+                            break;
+                        case 100:
+                            Result.Value100Percent = actualValue;
+                            Console.WriteLine($"存储100%值: {actualValue}");
+                            break;
+                    }
                     
                     // 更新测试结果
                     Result.ExpectedValue = testValue;
@@ -111,17 +142,36 @@ namespace FatFullVersion.Models
                     else
                     {
                         Result.Status = $"{percentage}%测试失败：偏差{deviationPercent:F2}%超出范围";
-                        //break; // 如果测试失败，则结束后续测试
+                        allTestsPassed = false;
+                        // 不中断测试流程，继续测试其它点位
                     }
                     
                     // 短暂延时再进行下一个测试点
                     await Task.Delay(1000, cancellationToken);
                 }
                 
-                // 所有测试点通过后，将最终状态设置为通过
-                if (Result.Status.Contains("通过"))
+                // 确保百分比测试值能够持久化到通道映射中
+                ChannelMapping.Value0Percent = Result.Value0Percent;
+                ChannelMapping.Value25Percent = Result.Value25Percent;
+                ChannelMapping.Value50Percent = Result.Value50Percent;
+                ChannelMapping.Value75Percent = Result.Value75Percent;
+                ChannelMapping.Value100Percent = Result.Value100Percent;
+                
+                // 设置最终测试状态
+                if (allTestsPassed)
                 {
                     Result.Status = "通过";
+                    ChannelMapping.HardPointTestResult = "通过";
+                }
+                else if (Result.Status.Contains("%测试失败"))
+                {
+                    // 保持最后一个失败点位的失败信息
+                    ChannelMapping.HardPointTestResult = Result.Status;
+                }
+                else
+                {
+                    Result.Status = "失败";
+                    ChannelMapping.HardPointTestResult = "失败";
                 }
             }
             catch (OperationCanceledException)
@@ -134,6 +184,7 @@ namespace FatFullVersion.Models
                 // 其他异常，记录错误消息
                 Result.Status = "失败";
                 Result.ErrorMessage = ex.Message;
+                ChannelMapping.HardPointTestResult = "失败";
                 throw;
             }
             finally

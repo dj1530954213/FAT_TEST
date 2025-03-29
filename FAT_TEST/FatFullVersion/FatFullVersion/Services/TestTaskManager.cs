@@ -166,9 +166,17 @@ namespace FatFullVersion.Services
                 // 设置接线已完成的标志
                 _isWiringCompleted = true;
                 
+                // 选择当前批次的通道
+                var channelMappings = testMap.Where(c => c.TestBatch?.Equals(batchInfo.BatchName) == true).ToList();
+                
+                // 确保所有通道都使用批次名称而不是ID
+                foreach (var channel in channelMappings)
+                {
+                    // 明确设置TestBatch为BatchName，避免可能的误用BatchId
+                    channel.TestBatch = batchInfo.BatchName;
+                }
+                
                 // 创建测试任务
-                //var channelMappings = await GetChannelMappingsByBatchAsync(batchInfo.BatchId, batchInfo.BatchName);
-                var channelMappings = testMap.Where(c => c.TestBatch.Equals(batchInfo.BatchName));
                 await CreateTestTasksAsync(channelMappings);
 
                 // 如果需要自动开始测试
@@ -355,6 +363,9 @@ namespace FatFullVersion.Services
                         try
                         {
                             await task.StartAsync(_masterCancellationTokenSource.Token);
+                            
+                            // 测试完成后，同步更新原始通道的硬点测试结果
+                            SyncHardPointTestResult(task);
                         }
                         catch (Exception ex)
                         {
@@ -370,7 +381,6 @@ namespace FatFullVersion.Services
                 catch (Exception ex)
                 {
                     Console.WriteLine($"启动任务时出错: {ex.Message}");
-                    //return false;
                 }
                 finally
                 {
@@ -381,6 +391,9 @@ namespace FatFullVersion.Services
                     // 更新批次状态
                     await UpdateBatchStatusAsync();
 
+                    // 通知UI刷新显示
+                    NotifyTestResultsUpdated();
+
                     // 显示测试完成消息
                     await Application.Current.Dispatcher.InvokeAsync(async () =>
                     {
@@ -390,6 +403,102 @@ namespace FatFullVersion.Services
             });
 
             return true;
+        }
+
+        /// <summary>
+        /// 同步硬点测试结果到原始通道集合
+        /// </summary>
+        /// <param name="task">测试任务</param>
+        private void SyncHardPointTestResult(TestTask task)
+        {
+            if (task?.Result == null || task.ChannelMapping == null)
+                return;
+
+            try
+            {
+                // 获取任务对应的原始通道映射
+                var channelMappings = _channelMappingService.GetChannelMappingsByBatchNameAsync(task.ChannelMapping.TestBatch)
+                    .GetAwaiter().GetResult();
+                    
+                if (channelMappings == null || !channelMappings.Any())
+                {
+                    Console.WriteLine($"未找到批次 {task.ChannelMapping.TestBatch} 的通道映射");
+                    return;
+                }
+
+                var originalChannel = channelMappings.FirstOrDefault(c => 
+                    c.VariableName == task.ChannelMapping.VariableName && 
+                    c.ChannelTag == task.ChannelMapping.ChannelTag);
+
+                if (originalChannel == null)
+                {
+                    Console.WriteLine($"未找到变量名为 {task.ChannelMapping.VariableName} 的原始通道");
+                    return;
+                }
+
+                // 将测试状态（通过/失败）同步到硬点测试结果中
+                originalChannel.HardPointTestResult = task.Result.Status;
+                
+                // 同步测试完成时间
+                originalChannel.TestTime = DateTime.Now;
+                originalChannel.EndTime = task.Result.EndTime;
+                
+                // 同步测试状态
+                originalChannel.Status = task.Result.Status;
+                
+                // 同步预期值和实际值
+                originalChannel.ExpectedValue = task.Result.ExpectedValue;
+                originalChannel.ActualValue = task.Result.ActualValue;
+                
+                // 根据模块类型同步特定数据
+                switch (task.ChannelMapping.ModuleType?.ToLower())
+                {
+                    case "ai":
+                        // 同步AI测试的百分比值
+                        originalChannel.Value0Percent = task.Result.Value0Percent;
+                        originalChannel.Value25Percent = task.Result.Value25Percent;
+                        originalChannel.Value50Percent = task.Result.Value50Percent;
+                        originalChannel.Value75Percent = task.Result.Value75Percent;
+                        originalChannel.Value100Percent = task.Result.Value100Percent;
+                        break;
+                        
+                    case "ao":
+                        // 同步AO测试的值
+                        originalChannel.Value0Percent = task.Result.Value0Percent;
+                        originalChannel.Value25Percent = task.Result.Value25Percent;
+                        originalChannel.Value50Percent = task.Result.Value50Percent;
+                        originalChannel.Value75Percent = task.Result.Value75Percent;
+                        originalChannel.Value100Percent = task.Result.Value100Percent;
+                        break;
+                        
+                    case "di":
+                    case "do":
+                        // 同步DI/DO测试状态
+                        break;
+                }
+                
+                // 设置测试结果状态码
+                if (task.Result.Status == "通过")
+                {
+                    originalChannel.TestResultStatus = 1; // 成功
+                }
+                else if (task.Result.Status.Contains("失败"))
+                {
+                    originalChannel.TestResultStatus = 2; // 失败
+                }
+                
+                // 同步错误信息
+                if (!string.IsNullOrEmpty(task.Result.ErrorMessage))
+                {
+                    originalChannel.ErrorMessage = task.Result.ErrorMessage;
+                }
+                
+                Console.WriteLine($"成功同步通道 {originalChannel.VariableName} 的测试结果: {originalChannel.HardPointTestResult}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"同步测试结果时出错: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -623,6 +732,64 @@ namespace FatFullVersion.Services
             return await _channelMappingService.GetChannelMappingsByBatchNameAsync(batchName);
         }
 
+        /// <summary>
+        /// 通知测试结果已更新
+        /// </summary>
+        private void NotifyTestResultsUpdated()
+        {
+            try
+            {
+                // 使用反射获取事件聚合器
+                var eventAggregatorField = this.GetType().GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    .FirstOrDefault(f => f.FieldType.Name.Contains("EventAggregator"));
+
+                if (eventAggregatorField != null)
+                {
+                    var eventAggregator = eventAggregatorField.GetValue(this);
+                    
+                    // 发布测试结果更新事件
+                    var publishMethod = eventAggregator.GetType().GetMethod("Publish");
+                    if (publishMethod != null)
+                    {
+                        // 找一个TestResultsUpdatedEvent类型或创建一个空对象
+                        var eventInstance = Activator.CreateInstance(Type.GetType("FatFullVersion.Events.TestResultsUpdatedEvent, FatFullVersion") 
+                            ?? typeof(object));
+                            
+                        publishMethod.Invoke(eventAggregator, new[] { eventInstance });
+                        
+                        Console.WriteLine("已通知UI刷新测试结果");
+                    }
+                }
+                else
+                {
+                    // 直接通过调度器尝试刷新
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        // 尝试获取主要ViewModel
+                        var mainWindow = Application.Current.MainWindow;
+                        if (mainWindow != null)
+                        {
+                            var dataContext = mainWindow.DataContext;
+                            if (dataContext != null)
+                            {
+                                // 尝试刷新属性
+                                var propertyInfo = dataContext.GetType().GetProperty("TestResults");
+                                if (propertyInfo != null)
+                                {
+                                    propertyInfo.SetValue(dataContext, propertyInfo.GetValue(dataContext));
+                                    Console.WriteLine("已通过主窗口刷新测试结果");
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"通知UI更新失败: {ex.Message}");
+            }
+        }
+
         #endregion
 
         #region 私有辅助方法
@@ -638,10 +805,10 @@ namespace FatFullVersion.Services
 
             foreach (var channel in aiChannels)
             {
-                // 设置测试批次信息
-                if (_currentBatch != null)
+                // 确保使用批次名称而不是ID
+                if (_currentBatch != null && string.IsNullOrEmpty(channel.TestBatch))
                 {
-                    channel.TestBatch = _currentBatch.BatchId;
+                    channel.TestBatch = _currentBatch.BatchName;
                 }
                 
                 string taskId = Guid.NewGuid().ToString();
@@ -671,10 +838,10 @@ namespace FatFullVersion.Services
 
             foreach (var channel in aoChannels)
             {
-                // 设置测试批次信息
-                if (_currentBatch != null)
+                // 确保使用批次名称而不是ID
+                if (_currentBatch != null && string.IsNullOrEmpty(channel.TestBatch))
                 {
-                    channel.TestBatch = _currentBatch.BatchId;
+                    channel.TestBatch = _currentBatch.BatchName;
                 }
                 
                 string taskId = Guid.NewGuid().ToString();
@@ -704,10 +871,10 @@ namespace FatFullVersion.Services
 
             foreach (var channel in diChannels)
             {
-                // 设置测试批次信息
-                if (_currentBatch != null)
+                // 确保使用批次名称而不是ID
+                if (_currentBatch != null && string.IsNullOrEmpty(channel.TestBatch))
                 {
-                    channel.TestBatch = _currentBatch.BatchId;
+                    channel.TestBatch = _currentBatch.BatchName;
                 }
                 
                 string taskId = Guid.NewGuid().ToString();
@@ -737,10 +904,10 @@ namespace FatFullVersion.Services
 
             foreach (var channel in doChannels)
             {
-                // 设置测试批次信息
-                if (_currentBatch != null)
+                // 确保使用批次名称而不是ID
+                if (_currentBatch != null && string.IsNullOrEmpty(channel.TestBatch))
                 {
-                    channel.TestBatch = _currentBatch.BatchId;
+                    channel.TestBatch = _currentBatch.BatchName;
                 }
                 
                 string taskId = Guid.NewGuid().ToString();

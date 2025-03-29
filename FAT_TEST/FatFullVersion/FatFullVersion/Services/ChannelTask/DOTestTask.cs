@@ -50,123 +50,150 @@ namespace FatFullVersion.Services.ChannelTask
 
             try
             {
-                // DO测试流程：在被测PLC上设置输出状态，然后由测试PLC读取实际输出状态
-
-                // 测试OFF状态
+                // DO测试：由被测PLC设置数字量输出，然后测试PLC检测该信号
+                
                 // 取消检查
                 cancellationToken.ThrowIfCancellationRequested();
-
+                    
                 // 暂停检查
                 await CheckAndWaitForResumeAsync(cancellationToken);
-
-                // 写入OFF状态到被测PLC
-                var writeOffResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.PlcCommunicationAddress, false);
-                if (!writeOffResult.IsSuccess)
+                
+                bool allTestsPassed = true;
+                
+                // 测试信号为1（闭合）
+                var writeHighResult = await TargetPlcCommunication.WriteDigitalValueAsync(
+                    ChannelMapping.PlcCommunicationAddress.Substring(1), 
+                    true);
+                    
+                if (!writeHighResult.IsSuccess)
                 {
-                    Result.Status = $"写入OFF状态失败：{writeOffResult.ErrorMessage}";
-                    return;
-                }
-
-                // 等待信号稳定(大约2秒)
-                await Task.Delay(2000, cancellationToken);
-
-                // 读取测试PLC的值
-                var readOffResult = await TestPlcCommunication.ReadDigitalValueAsync(ChannelMapping.TestPLCCommunicationAddress);
-                if (!readOffResult.IsSuccess)
-                {
-                    Result.Status = $"读取OFF状态失败：{readOffResult.ErrorMessage}";
-                    return;
-                }
-
-                bool actualOffValue = readOffResult.Data;
-
-                // 更新测试结果
-                Result.ExpectedValue = 0; // OFF状态
-                Result.ActualValue = actualOffValue ? 1 : 0;
-
-                // 检查OFF状态是否正确
-                bool offTestPassed = !actualOffValue; // 预期是false
-
-                // 测试ON状态
-                // 取消检查
-                cancellationToken.ThrowIfCancellationRequested();
-
-                // 暂停检查
-                await CheckAndWaitForResumeAsync(cancellationToken);
-
-                // 写入ON状态到被测PLC
-                var writeOnResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.PlcCommunicationAddress, true);
-                if (!writeOnResult.IsSuccess)
-                {
-                    Result.Status = $"写入ON状态失败：{writeOnResult.ErrorMessage}";
-                    return;
-                }
-
-                // 等待信号稳定(大约2秒)
-                await Task.Delay(2000, cancellationToken);
-
-                // 读取测试PLC的值
-                var readOnResult = await TestPlcCommunication.ReadDigitalValueAsync(ChannelMapping.TestPLCCommunicationAddress);
-                if (!readOnResult.IsSuccess)
-                {
-                    Result.Status = $"读取ON状态失败：{readOnResult.ErrorMessage}";
-                    return;
-                }
-
-                bool actualOnValue = readOnResult.Data;
-
-                // 更新测试结果
-                Result.ExpectedValue = 1; // ON状态
-                Result.ActualValue = actualOnValue ? 1 : 0;
-
-                // 检查ON状态是否正确
-                bool onTestPassed = actualOnValue; // 预期是true
-
-                // 根据测试结果更新状态
-                if (offTestPassed && onTestPassed)
-                {
-                    Result.Status = "通过";
-                }
-                else if (!offTestPassed && onTestPassed)
-                {
-                    Result.Status = "OFF状态测试失败";
-                }
-                else if (offTestPassed && !onTestPassed)
-                {
-                    Result.Status = "ON状态测试失败";
+                    Result.Status = $"写入高信号失败: {writeHighResult.ErrorMessage}";
+                    allTestsPassed = false;
                 }
                 else
                 {
-                    Result.Status = "OFF和ON状态测试均失败";
+                    // 等待信号稳定
+                    await Task.Delay(2000, cancellationToken);
+                    
+                    // 读取测试PLC的值
+                    var readHighResult = await TestPlcCommunication.ReadDigitalValueAsync(
+                        ChannelMapping.TestPLCCommunicationAddress.Substring(1));
+                        
+                    if (!readHighResult.IsSuccess)
+                    {
+                        Result.Status = $"读取高信号失败: {readHighResult.ErrorMessage}";
+                        allTestsPassed = false;
+                    }
+                    else
+                    {
+                        bool actualHighValue = readHighResult.Data;
+                        
+                        if (actualHighValue)
+                        {
+                            Result.Status = "高信号测试通过";
+                        }
+                        else
+                        {
+                            Result.Status = "高信号测试失败: 期望值为true，实际值为false";
+                            allTestsPassed = false;
+                        }
+                        
+                        // 更新测试结果
+                        Result.ExpectedValue = 1;
+                        Result.ActualValue = actualHighValue ? 1 : 0;
+                    }
+                }
+                
+                // 测试信号为0（断开）
+                if (allTestsPassed)
+                {
+                    // 取消检查
+                    cancellationToken.ThrowIfCancellationRequested();
+                        
+                    // 暂停检查
+                    await CheckAndWaitForResumeAsync(cancellationToken);
+                    
+                    var writeLowResult = await TargetPlcCommunication.WriteDigitalValueAsync(
+                        ChannelMapping.PlcCommunicationAddress.Substring(1), 
+                        false);
+                        
+                    if (!writeLowResult.IsSuccess)
+                    {
+                        Result.Status = $"写入低信号失败: {writeLowResult.ErrorMessage}";
+                        allTestsPassed = false;
+                    }
+                    else
+                    {
+                        // 等待信号稳定
+                        await Task.Delay(2000, cancellationToken);
+                        
+                        // 读取测试PLC的值
+                        var readLowResult = await TestPlcCommunication.ReadDigitalValueAsync(
+                            ChannelMapping.TestPLCCommunicationAddress.Substring(1));
+                            
+                        if (!readLowResult.IsSuccess)
+                        {
+                            Result.Status = $"读取低信号失败: {readLowResult.ErrorMessage}";
+                            allTestsPassed = false;
+                        }
+                        else
+                        {
+                            bool actualLowValue = readLowResult.Data;
+                            
+                            if (!actualLowValue)
+                            {
+                                Result.Status = "低信号测试通过";
+                            }
+                            else
+                            {
+                                Result.Status = "低信号测试失败: 期望值为false，实际值为true";
+                                allTestsPassed = false;
+                            }
+                            
+                            // 更新测试结果
+                            Result.ExpectedValue = 0;
+                            Result.ActualValue = actualLowValue ? 1 : 0;
+                        }
+                    }
+                }
+                
+                // 设置最终测试状态
+                if (allTestsPassed)
+                {
+                    Result.Status = "通过";
+                    ChannelMapping.HardPointTestResult = "通过";
+                }
+                else
+                {
+                    // 保持最后一个失败消息
+                    ChannelMapping.HardPointTestResult = Result.Status;
                 }
             }
             catch (OperationCanceledException)
             {
-                // 任务被取消，不做特殊处理，直接向上抛出
+                // 任务被取消
                 throw;
             }
             catch (Exception ex)
             {
-                // 其他异常，记录错误消息
+                // 其他异常
                 Result.Status = "失败";
                 Result.ErrorMessage = ex.Message;
+                ChannelMapping.HardPointTestResult = "失败";
                 throw;
             }
             finally
             {
-                // 结束测试时，将被测PLC输出复位到OFF
+                // 测试完成后，将被测PLC的DO输出复位为0
                 try
                 {
-                    var resetResult = await TargetPlcCommunication.WriteDigitalValueAsync(ChannelMapping.PlcCommunicationAddress, false);
-                    if (!resetResult.IsSuccess)
-                    {
-                        // 记录复位失败但不影响测试结果
-                        Result.ErrorMessage = $"复位失败：{resetResult.ErrorMessage}";
-                    }
+                    await TargetPlcCommunication.WriteDigitalValueAsync(
+                        ChannelMapping.PlcCommunicationAddress.Substring(1), 
+                        false);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 忽略复位过程中的异常
+                    Console.WriteLine($"复位DO通道失败: {ex.Message}");
                 }
             }
         }

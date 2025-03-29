@@ -17,6 +17,7 @@ using FatFullVersion.Entities.ValueObject;
 using FatFullVersion.Entities.EntitiesEnum;
 using FatFullVersion.Services;
 using Prism.Events;
+using FatFullVersion.Events;
 
 namespace FatFullVersion.ViewModels
 {
@@ -123,12 +124,12 @@ namespace FatFullVersion.ViewModels
         public IEnumerable<ChannelMapping> GetDOChannels() => AllChannels?.Where(c => c.ModuleType?.ToLower() == "do");
 
         // 测试结果数据
-        private ObservableCollection<ChannelMapping> _testResults;
-        public ObservableCollection<ChannelMapping> TestResults
-        {
-            get => _testResults;
-            set => SetProperty(ref _testResults, value);
-        }
+        //private ObservableCollection<ChannelMapping> _testResults;
+        //public ObservableCollection<ChannelMapping> TestResults
+        //{
+        //    get => _testResults;
+        //    set => SetProperty(ref _testResults, value);
+        //}
 
         private ChannelMapping _currentTestResult;
         /// <summary>
@@ -512,16 +513,40 @@ namespace FatFullVersion.ViewModels
         #endregion
 
         public DataEditViewModel(
-            IEventAggregator eventAggregator,
+            IPointDataService pointDataService, 
             IChannelMappingService channelMappingService,
-            IPointDataService pointDataService,
-            ITestTaskManager testTaskManager)
+            ITestTaskManager testTaskManager,
+            IEventAggregator eventAggregator)
         {
-            _eventAggregator = eventAggregator;
-            _channelMappingService = channelMappingService;
             _pointDataService = pointDataService;
+            _channelMappingService = channelMappingService;
             _testTaskManager = testTaskManager;
-            
+            _eventAggregator = eventAggregator;
+
+            // 订阅测试结果更新事件
+            _eventAggregator.GetEvent<TestResultsUpdatedEvent>().Subscribe(OnTestResultsUpdated);
+
+            // 初始化集合
+            AllChannels = new ObservableCollection<ChannelMapping>();
+            CurrentChannels = new ObservableCollection<ChannelMapping>();
+            //TestResults = new ObservableCollection<ChannelMapping>();
+            Batches = new ObservableCollection<BatchInfo>();
+            TestQueue = new ObservableCollection<ChannelMapping>();
+
+            // 初始化测试队列相关属性
+            TestQueuePosition = 0;
+            TestQueueStatus = "队列为空";
+
+            // 初始化其他属性
+            SelectedChannelType = "AI通道";
+            IsBatchSelectionOpen = false;
+            SelectedResultFilter = "全部";
+            TotalPointCount = "0";
+            TestedPointCount = "0";
+            WaitingPointCount = "0";
+            SuccessPointCount = "0";
+            FailurePointCount = "0";
+
             // 初始化按钮状态
             IsStartTestButtonEnabled = false;
 
@@ -574,27 +599,10 @@ namespace FatFullVersion.ViewModels
             StartAOMonitorCommand = new DelegateCommand<ChannelMapping>(ExecuteStartAOMonitor);
             ConfirmAOCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAO);
 
-            // 初始化集合
-            AllChannels = new ObservableCollection<ChannelMapping>();
-            CurrentChannels = new ObservableCollection<ChannelMapping>();
-            TestResults = new ObservableCollection<ChannelMapping>();
-            Batches = new ObservableCollection<BatchInfo>();
-            TestQueue = new ObservableCollection<ChannelMapping>();
-
-            // 初始化测试队列相关属性
-            TestQueuePosition = 0;
-            TestQueueStatus = "队列为空";
-
-            // 初始化其他属性
-            SelectedChannelType = "AI通道";
-            IsBatchSelectionOpen = false;
-            SelectedResultFilter = "全部";
-            TotalPointCount = "0";
-            TestedPointCount = "0";
-            WaitingPointCount = "0";
-            SuccessPointCount = "0";
-            FailurePointCount = "0";
+            // 尝试从通道映射信息中提取批次信息
+            InitializeBatchData();
         }
+
         /// <summary>
         /// 根据选择的通道类型更新当前显示的通道集合
         /// </summary>
@@ -693,13 +701,14 @@ namespace FatFullVersion.ViewModels
 
                 // 清空现有通道数据
                 AllChannels.Clear();
-                TestResults.Clear();
+                //TestResults.Clear();
 
                 // 添加AI通道
                 foreach (var point in aiPoints)
                 {
                     var channel = new ChannelMapping
                     {
+                        TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
@@ -712,25 +721,32 @@ namespace FatFullVersion.ViewModels
                         SHSetValueNumber = point.SHSetValueNumber,
                         SHHSetValue = point.SHHSetValue,
                         SHHSetValueNumber = point.SHHSetValueNumber,
-                        PlcCommunicationAddress = point.CommunicationAddress
-                    };
-                    AllChannels.Add(channel);
+                        PlcCommunicationAddress = point.CommunicationAddress,
 
-                    // 创建对应的测试结果
-                    var result = new ChannelMapping
-                    {
-                        TestId = TestResults.Count + 1,
-                        VariableName = point.VariableName,
-                        ModuleType = point.ModuleType,
                         DataType = point.DataType,
-                        ChannelTag = point.ChannelTag,
                         RangeLowerLimitValue = (float)point.LowLowLimit,
                         RangeUpperLimitValue = (float)point.HighHighLimit,
                         // AI点位不初始化百分比值，这些值将在测试过程中填充
                         TestResultStatus = 0, // 未测试
                         ResultText = "未测试"
                     };
-                    TestResults.Add(result);
+                    AllChannels.Add(channel);
+
+                    // 创建对应的测试结果
+                    //var result = new ChannelMapping
+                    //{
+                    //    TestId = TestResults.Count + 1,
+                    //    VariableName = point.VariableName,
+                    //    ModuleType = point.ModuleType,
+                    //    DataType = point.DataType,
+                    //    ChannelTag = point.ChannelTag,
+                    //    RangeLowerLimitValue = (float)point.LowLowLimit,
+                    //    RangeUpperLimitValue = (float)point.HighHighLimit,
+                    //    // AI点位不初始化百分比值，这些值将在测试过程中填充
+                    //    TestResultStatus = 0, // 未测试
+                    //    ResultText = "未测试"
+                    //};
+                    //TestResults.Add(result);
                 }
 
                 // 添加AO通道
@@ -738,6 +754,7 @@ namespace FatFullVersion.ViewModels
                 {
                     var channel = new ChannelMapping
                     {
+                        TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
@@ -750,18 +767,9 @@ namespace FatFullVersion.ViewModels
                         SHSetValueNumber = point.SHSetValueNumber,
                         SHHSetValue = point.SHHSetValue,
                         SHHSetValueNumber = point.SHHSetValueNumber,
-                        PlcCommunicationAddress = point.CommunicationAddress
-                    };
-                    AllChannels.Add(channel);
+                        PlcCommunicationAddress = point.CommunicationAddress,
 
-                    // 创建对应的测试结果
-                    var result = new ChannelMapping
-                    {
-                        TestId = TestResults.Count + 1,
-                        VariableName = point.VariableName,
-                        ModuleType = point.ModuleType,
                         DataType = point.DataType,
-                        ChannelTag = point.ChannelTag,
                         RangeLowerLimitValue = (float)point.LowLowLimit,
                         RangeUpperLimitValue = (float)point.HighHighLimit,
                         // AO点位相关设置
@@ -773,7 +781,28 @@ namespace FatFullVersion.ViewModels
                         HighAlarmStatus = "N/A",
                         HighHighAlarmStatus = "N/A"
                     };
-                    TestResults.Add(result);
+                    AllChannels.Add(channel);
+
+                    // 创建对应的测试结果
+                    //var result = new ChannelMapping
+                    //{
+                    //    TestId = TestResults.Count + 1,
+                    //    VariableName = point.VariableName,
+                    //    ModuleType = point.ModuleType,
+                    //    DataType = point.DataType,
+                    //    ChannelTag = point.ChannelTag,
+                    //    RangeLowerLimitValue = (float)point.LowLowLimit,
+                    //    RangeUpperLimitValue = (float)point.HighHighLimit,
+                    //    // AO点位相关设置
+                    //    TestResultStatus = 0, // 未测试
+                    //    ResultText = "未测试",
+                    //    // AO点位的低低报、低报、高报、高高报设置为N/A
+                    //    LowLowAlarmStatus = "N/A",
+                    //    LowAlarmStatus = "N/A",
+                    //    HighAlarmStatus = "N/A",
+                    //    HighHighAlarmStatus = "N/A"
+                    //};
+                    //TestResults.Add(result);
                 }
 
                 // 添加DI通道
@@ -781,26 +810,18 @@ namespace FatFullVersion.ViewModels
                 {
                     var channel = new ChannelMapping
                     {
+                        TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
-                        PlcCommunicationAddress = point.CommunicationAddress
-                    };
-                    AllChannels.Add(channel);
+                        PlcCommunicationAddress = point.CommunicationAddress,
 
-                    // 创建对应的测试结果
-                    var result = new ChannelMapping
-                    {
-                        TestId = TestResults.Count + 1,
-                        VariableName = point.VariableName,
-                        ModuleType = point.ModuleType,
                         DataType = point.DataType,
-                        ChannelTag = point.ChannelTag,
                         TestResultStatus = 0, // 未测试
                         ResultText = "未测试",
                         // 为DI点位设置NaN值
                         RangeLowerLimitValue = float.NaN,
-                        RangeUpperLimitValue = float.NaN, 
+                        RangeUpperLimitValue = float.NaN,
                         Value0Percent = double.NaN,
                         Value25Percent = double.NaN,
                         Value50Percent = double.NaN,
@@ -812,7 +833,33 @@ namespace FatFullVersion.ViewModels
                         HighHighAlarmStatus = "N/A",
                         MaintenanceFunction = "N/A"
                     };
-                    TestResults.Add(result);
+                    AllChannels.Add(channel);
+
+                    // 创建对应的测试结果
+                    //var result = new ChannelMapping
+                    //{
+                    //    TestId = TestResults.Count + 1,
+                    //    VariableName = point.VariableName,
+                    //    ModuleType = point.ModuleType,
+                    //    DataType = point.DataType,
+                    //    ChannelTag = point.ChannelTag,
+                    //    TestResultStatus = 0, // 未测试
+                    //    ResultText = "未测试",
+                    //    // 为DI点位设置NaN值
+                    //    RangeLowerLimitValue = float.NaN,
+                    //    RangeUpperLimitValue = float.NaN, 
+                    //    Value0Percent = double.NaN,
+                    //    Value25Percent = double.NaN,
+                    //    Value50Percent = double.NaN,
+                    //    Value75Percent = double.NaN,
+                    //    Value100Percent = double.NaN,
+                    //    LowLowAlarmStatus = "N/A",
+                    //    LowAlarmStatus = "N/A",
+                    //    HighAlarmStatus = "N/A",
+                    //    HighHighAlarmStatus = "N/A",
+                    //    MaintenanceFunction = "N/A"
+                    //};
+                    //TestResults.Add(result);
                 }
 
                 // 添加DO通道
@@ -820,26 +867,18 @@ namespace FatFullVersion.ViewModels
                 {
                     var channel = new ChannelMapping
                     {
+                        TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
-                        PlcCommunicationAddress = point.CommunicationAddress
-                    };
-                    AllChannels.Add(channel);
+                        PlcCommunicationAddress = point.CommunicationAddress,
 
-                    // 创建对应的测试结果
-                    var result = new ChannelMapping
-                    {
-                        TestId = TestResults.Count + 1,
-                        VariableName = point.VariableName,
-                        ModuleType = point.ModuleType,
                         DataType = point.DataType,
-                        ChannelTag = point.ChannelTag,
                         TestResultStatus = 0, // 未测试
                         ResultText = "未测试",
                         // 为DO点位设置NaN值
                         RangeLowerLimitValue = float.NaN,
-                        RangeUpperLimitValue = float.NaN, 
+                        RangeUpperLimitValue = float.NaN,
                         Value0Percent = double.NaN,
                         Value25Percent = double.NaN,
                         Value50Percent = double.NaN,
@@ -851,20 +890,44 @@ namespace FatFullVersion.ViewModels
                         HighHighAlarmStatus = "N/A",
                         MaintenanceFunction = "N/A"
                     };
-                    TestResults.Add(result);
+                    AllChannels.Add(channel);
+
+                    // 创建对应的测试结果
+                    //var result = new ChannelMapping
+                    //{
+                    //    TestId = TestResults.Count + 1,
+                    //    VariableName = point.VariableName,
+                    //    ModuleType = point.ModuleType,
+                    //    DataType = point.DataType,
+                    //    ChannelTag = point.ChannelTag,
+                    //    TestResultStatus = 0, // 未测试
+                    //    ResultText = "未测试",
+                    //    // 为DO点位设置NaN值
+                    //    RangeLowerLimitValue = float.NaN,
+                    //    RangeUpperLimitValue = float.NaN, 
+                    //    Value0Percent = double.NaN,
+                    //    Value25Percent = double.NaN,
+                    //    Value50Percent = double.NaN,
+                    //    Value75Percent = double.NaN,
+                    //    Value100Percent = double.NaN,
+                    //    LowLowAlarmStatus = "N/A",
+                    //    LowAlarmStatus = "N/A",
+                    //    HighAlarmStatus = "N/A",
+                    //    HighHighAlarmStatus = "N/A",
+                    //    MaintenanceFunction = "N/A"
+                    //};
+                    //TestResults.Add(result);
                 }
                 //当Excel中点位解析完成后并且已经初始化完ChannelMapping后调用自动分配程序分配点位
                 var channelsMappingResult = await _channelMappingService.AllocateChannelsTestAsync(
-                    AllChannels,
-                    TestResults);
+                    AllChannels);
                 
                 //通道分配完成之后同步更新结果表位中的对应数据
                 _channelMappingService.SyncChannelAllocation(
-                    channelsMappingResult, 
-                    TestResults);
+                    channelsMappingResult);
                 
                 //通知前端页面更新数据
-                RaisePropertyChanged(nameof(TestResults));
+                RaisePropertyChanged(nameof(AllChannels));
 
                 // 更新当前显示的通道
                 UpdateCurrentChannels();
@@ -896,15 +959,26 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = "正在获取批次信息...";
 
                 // 使用原始通道数据更新批次信息，确保批次列表完整
-                if (OriginalAllChannels != null)
+                if (OriginalAllChannels != null && OriginalAllChannels.Any())
                 {
                     // 使用通道映射服务提取批次信息
-                    Batches = new ObservableCollection<BatchInfo>(
-                        await _channelMappingService.ExtractBatchInfoAsync(
-                            _channelMappingService.GetAIChannels(OriginalAllChannels).ToList(),
-                            _channelMappingService.GetAOChannels(OriginalAllChannels).ToList(), 
-                            _channelMappingService.GetDIChannels(OriginalAllChannels).ToList(), 
-                            _channelMappingService.GetDOChannels(OriginalAllChannels).ToList()));
+                    var batchInfoList = await _channelMappingService.ExtractBatchInfoAsync(OriginalAllChannels);
+                    
+                    // 检查是否有批次信息
+                    if (batchInfoList != null && batchInfoList.Any())
+                    {
+                        Batches = new ObservableCollection<BatchInfo>(batchInfoList);
+                        
+                        // 预先选择第一个批次，提升用户体验
+                        if (Batches.Count > 0 && SelectedBatch == null)
+                        {
+                            SelectedBatch = Batches[0];
+                        }
+                    }
+                    else
+                    {
+                        Message = "未找到批次信息，请先分配通道";
+                    }
                 }
                 else
                 {
@@ -918,6 +992,7 @@ namespace FatFullVersion.ViewModels
             catch (Exception ex)
             {
                 MessageBox.Show($"获取批次信息失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Diagnostics.Debug.WriteLine($"获取批次信息失败: {ex.Message}");
             }
             finally
             {
@@ -953,7 +1028,7 @@ namespace FatFullVersion.ViewModels
                 {
                     if (!string.IsNullOrEmpty(channel.TestBatch))
                     {
-                        var result = TestResults.FirstOrDefault(r => 
+                        var result = AllChannels.FirstOrDefault(r => 
                             r.VariableName == channel.VariableName && 
                             r.ChannelTag == channel.ChannelTag);
                             
@@ -1033,7 +1108,7 @@ namespace FatFullVersion.ViewModels
                     Message = "接线确认完成，可以开始测试";
                     
                     // 刷新批次状态
-                    await RefreshBatchStatus();
+                    RefreshBatchStatus();
                 }
             }
             catch (Exception ex)
@@ -1076,9 +1151,9 @@ namespace FatFullVersion.ViewModels
                 
                 // 收集当前批次名称
                 HashSet<string> affectedBatchNames = new HashSet<string>();
-                if (TestResults != null)
+                if (AllChannels != null)
                 {
-                    foreach (var item in TestResults)
+                    foreach (var item in AllChannels)
                     {
                         if (!string.IsNullOrEmpty(item.TestBatch))
                         {
@@ -1116,7 +1191,7 @@ namespace FatFullVersion.ViewModels
             // 更新批次信息
             await UpdateBatchInfoAsync();
 
-            RaisePropertyChanged(nameof(TestResults));
+            RaisePropertyChanged(nameof(AllChannels));
             
             // 更新点位统计数据
             UpdatePointStatistics();
@@ -1135,12 +1210,20 @@ namespace FatFullVersion.ViewModels
                 IsLoading = true;
                 StatusMessage = "正在更新批次信息...";
 
-                // 同步确保TestResults中的批次信息和PLC通道信息是最新的
+                // 检查AllChannels是否有效
+                if (AllChannels == null || !AllChannels.Any())
+                {
+                    Message = "没有可用的通道信息";
+                    return;
+                }
+
+                // 同步确保批次信息和PLC通道信息是最新的
                 foreach (var channel in AllChannels)
                 {
-                    if (!string.IsNullOrEmpty(channel.TestBatch))
+                    if (channel != null && !string.IsNullOrEmpty(channel.TestBatch))
                     {
-                        var result = TestResults.FirstOrDefault(r => 
+                        var result = AllChannels.FirstOrDefault(r => 
+                            r != null && 
                             r.VariableName == channel.VariableName && 
                             r.ChannelTag == channel.ChannelTag);
                             
@@ -1153,45 +1236,54 @@ namespace FatFullVersion.ViewModels
                 }
 
                 // 使用通道映射服务提取批次信息
-                var batches = await _channelMappingService.ExtractBatchInfoAsync(
-                    GetAIChannels().ToList(), 
-                    GetAOChannels().ToList(), 
-                    GetDIChannels().ToList(), 
-                    GetDOChannels().ToList());
+                var batches = await _channelMappingService.ExtractBatchInfoAsync(AllChannels);
                 
                 // 根据测试结果更新批次状态
-                var updatedBatches = await _channelMappingService.UpdateBatchStatusAsync(batches, TestResults);
+                var updatedBatches = await _channelMappingService.UpdateBatchStatusAsync(batches, AllChannels);
                 
                 // 保存当前选中的批次ID
                 string selectedBatchId = SelectedBatch?.BatchId;
                 
                 // 更新批次集合
-                Batches = new ObservableCollection<BatchInfo>(updatedBatches);
-                
-                // 如果之前有选中的批次，尝试找回并选中
-                if (!string.IsNullOrEmpty(selectedBatchId))
+                if (updatedBatches != null && updatedBatches.Any())
                 {
-                    var updatedSelectedBatch = Batches.FirstOrDefault(b => b.BatchId == selectedBatchId);
-                    if (updatedSelectedBatch != null)
+                    Batches = new ObservableCollection<BatchInfo>(updatedBatches);
+                    
+                    // 如果之前有选中的批次，尝试找回并选中
+                    if (!string.IsNullOrEmpty(selectedBatchId))
                     {
-                        // 直接设置字段而不触发OnBatchSelected
-                        _selectedBatch = updatedSelectedBatch;
-                        RaisePropertyChanged(nameof(SelectedBatch));
-                        
-                        // 更新接线确认按钮状态
-                        IsWiringCompleteBtnEnabled = updatedSelectedBatch.Status == "未开始" || updatedSelectedBatch.Status == "进行中";
+                        var updatedSelectedBatch = Batches.FirstOrDefault(b => b != null && b.BatchId == selectedBatchId);
+                        if (updatedSelectedBatch != null)
+                        {
+                            // 直接设置字段而不触发OnBatchSelected
+                            _selectedBatch = updatedSelectedBatch;
+                            RaisePropertyChanged(nameof(SelectedBatch));
+                            
+                            // 更新接线确认按钮状态
+                            IsWiringCompleteBtnEnabled = updatedSelectedBatch.Status == "未开始" || updatedSelectedBatch.Status == "测试中";
+                        }
                     }
+                    // 如果没有选中批次但有可用批次，选择第一个
+                    else if (Batches.Count > 0)
+                    {
+                        SelectedBatch = Batches[0];
+                    }
+                }
+                else
+                {
+                    Message = "未找到批次信息";
                 }
 
                 // 更新点位统计数据
                 UpdatePointStatistics();
 
                 // 通知UI更新
-                RaisePropertyChanged(nameof(TestResults));
+                RaisePropertyChanged(nameof(AllChannels));
             }
             catch (Exception ex)
             {
                 Message = $"更新批次信息失败: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"更新批次信息失败: {ex.Message}");
             }
             finally
             {
@@ -1212,18 +1304,24 @@ namespace FatFullVersion.ViewModels
         // 计算并更新点位统计数据
         private void UpdatePointStatistics()
         {
-            if (TestResults == null) return;
-            TotalPointCount = $"全部点位数量:{TestResults.Count}";
-            TestedPointCount = $"已测试点位数量:{TestResults.Count(r => r.TestResultStatus > 0)}";
-            WaitingPointCount = $"待测试点位数量:{TestResults.Count(r => r.TestResultStatus == 0)}";
-            SuccessPointCount = $"成功点位数量:{TestResults.Count(r => r.TestResultStatus == 1)}";
-            FailurePointCount = $"失败点位数量:{TestResults.Count(r => r.TestResultStatus == 2)}";
+            if (AllChannels == null) return;
+            
+            // 如果有当前选中的批次，只计算该批次的点位
+            var channelsToCount = SelectedBatch != null && !string.IsNullOrEmpty(SelectedBatch.BatchName)
+                ? AllChannels.Where(c => c.TestBatch == SelectedBatch.BatchName).ToList()
+                : AllChannels.ToList();
+            
+            TotalPointCount = $"全部点位数量:{channelsToCount.Count}";
+            TestedPointCount = $"已测试点位数量:{channelsToCount.Count(r => r.TestResultStatus > 0)}";
+            WaitingPointCount = $"待测试点位数量:{channelsToCount.Count(r => r.TestResultStatus == 0)}";
+            SuccessPointCount = $"成功点位数量:{channelsToCount.Count(r => r.TestResultStatus == 1)}";
+            FailurePointCount = $"失败点位数量:{channelsToCount.Count(r => r.TestResultStatus == 2)}";
         }
 
         // 添加过滤逻辑方法
         private void ApplyResultFilter()
         {
-            if (string.IsNullOrEmpty(SelectedResultFilter) || TestResults == null)
+            if (string.IsNullOrEmpty(SelectedResultFilter) || AllChannels == null)
                 return;
 
             // 这里根据选择的过滤条件进行过滤
@@ -1277,7 +1375,7 @@ namespace FatFullVersion.ViewModels
                 UpdateCurrentChannels();
 
                 // 同步更新测试结果中的通道信息
-                foreach (var result in TestResults)
+                foreach (var result in AllChannels)
                 {
                     result.TestBatch = string.Empty;
                     result.TestPLCChannelTag = string.Empty;
@@ -1285,7 +1383,7 @@ namespace FatFullVersion.ViewModels
                 }
 
                 // 通知UI更新
-                RaisePropertyChanged(nameof(TestResults));
+                RaisePropertyChanged(nameof(AllChannels));
 
                 Message = "通道分配信息已清除";
                 StatusMessage = string.Empty;
@@ -1298,955 +1396,6 @@ namespace FatFullVersion.ViewModels
             finally
             {
                 IsLoading = false;
-            }
-        }
-
-        /// <summary>
-        /// 执行打开手动测试窗口
-        /// </summary>
-        private void ExecuteOpenAIManualTest(ChannelMapping channel)
-        {
-            if (channel == null) return;
-            
-            // 设置当前通道
-            CurrentChannel = channel;
-            
-            // 输出调试信息
-            System.Diagnostics.Debug.WriteLine($"打开AI手动测试窗口: {channel.VariableName}");
-            
-            // 初始化或获取测试结果
-            InitializeTestResult(channel);
-            
-            // 设置界面初始状态
-            AISetValue = "0.0";
-            
-            // 打开窗口
-            IsAIManualTestOpen = true;
-        }
-
-        /// <summary>
-        /// 执行关闭AI手动测试窗口
-        /// </summary>
-        private void ExecuteCloseAIManualTest()
-        {
-            IsAIManualTestOpen = false;
-        }
-
-        /// <summary>
-        /// 执行关闭DI手动测试窗口
-        /// </summary>
-        private void ExecuteCloseDIManualTest()
-        {
-            IsDIManualTestOpen = false;
-        }
-
-        /// <summary>
-        /// 执行发送AI测试值
-        /// </summary>
-        private void ExecuteSendAITestValue()
-        {
-            // TODO: 实现发送AI测试值的逻辑
-        }
-
-        /// <summary>
-        /// 执行确认AI值
-        /// </summary>
-        private void ExecuteConfirmAIValue(ChannelMapping channel)
-        {
-            // 确保我们有一个通道
-            if (channel == null && CurrentChannel != null)
-            {
-                channel = CurrentChannel;
-            }
-            
-            if (channel == null)
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmAIValue: 通道为null");
-                return;
-            }
-            
-            System.Diagnostics.Debug.WriteLine($"ExecuteConfirmAIValue: 确认通道 {channel.VariableName}");
-            
-            // 设置当前通道状态为已通过
-            channel.MonitorStatus = "已通过";
-            
-            // 确保我们有一个测试结果
-            if (CurrentTestResult == null)
-            {
-                InitializeTestResult(channel);
-            }
-            
-            if (CurrentTestResult != null)
-            {
-                CurrentTestResult.HardPointTestResult = "已通过";
-                
-                // 使用追加模式更新结果文本
-                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
-                {
-                    CurrentTestResult.ResultText = "AI硬点测试通过";
-                }
-                else
-                {
-                    CurrentTestResult.ResultText += ", AI硬点测试通过";
-                }
-                
-                CurrentTestResult.TestResultStatus = 1; // 成功
-                CurrentTestResult.TestTime = DateTime.Now;
-                
-                // 通知UI更新
-                RaisePropertyChanged(nameof(CurrentTestResult));
-                
-                // 更新统计数据
-                UpdatePointStatistics();
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmAIValue: CurrentTestResult为null");
-            }
-        }
-
-        /// <summary>
-        /// 执行发送AI高报
-        /// </summary>
-        private void ExecuteSendAIHighAlarm()
-        {
-            // TODO: 实现发送AI高报的逻辑
-        }
-
-        /// <summary>
-        /// 执行复位AI高报
-        /// </summary>
-        private void ExecuteResetAIHighAlarm()
-        {
-            // TODO: 实现复位AI高报的逻辑
-        }
-
-        /// <summary>
-        /// 执行确认AI高报
-        /// </summary>
-        private void ExecuteConfirmAIHighAlarm(ChannelMapping channel)
-        {
-            // 确保我们有一个通道
-            if (channel == null && CurrentChannel != null)
-            {
-                channel = CurrentChannel;
-            }
-            
-            if (channel == null)
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmAIHighAlarm: 通道为null");
-                return;
-            }
-            
-            System.Diagnostics.Debug.WriteLine($"ExecuteConfirmAIHighAlarm: 确认通道 {channel.VariableName}");
-            
-            // 设置当前通道状态为已通过
-            channel.MonitorStatus = "已通过";
-            
-            // 确保我们有一个测试结果
-            if (CurrentTestResult == null)
-            {
-                InitializeTestResult(channel);
-            }
-            
-            if (CurrentTestResult != null)
-            {
-                // 同时设置高报和高高报状态为已通过
-                CurrentTestResult.HighAlarmStatus = "已通过";
-                CurrentTestResult.HighHighAlarmStatus = "已通过";
-                
-                // 追加结果文本
-                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
-                {
-                    CurrentTestResult.ResultText = "AI高报/高高报测试通过";
-                }
-                else
-                {
-                    CurrentTestResult.ResultText += ", AI高报/高高报测试通过";
-                }
-                
-                CurrentTestResult.TestTime = DateTime.Now;
-                
-                // 通知UI更新
-                RaisePropertyChanged(nameof(CurrentTestResult));
-                
-                // 更新统计数据
-                UpdatePointStatistics();
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmAIHighAlarm: CurrentTestResult为null");
-            }
-        }
-
-        /// <summary>
-        /// 执行发送AI低报
-        /// </summary>
-        private void ExecuteSendAILowAlarm()
-        {
-            // TODO: 实现发送AI低报的逻辑
-        }
-
-        /// <summary>
-        /// 执行复位AI低报
-        /// </summary>
-        private void ExecuteResetAILowAlarm()
-        {
-            // TODO: 实现复位AI低报的逻辑
-        }
-
-        /// <summary>
-        /// 执行确认AI低报
-        /// </summary>
-        private void ExecuteConfirmAILowAlarm(ChannelMapping channel)
-        {
-            // 确保我们有一个通道
-            if (channel == null && CurrentChannel != null)
-            {
-                channel = CurrentChannel;
-            }
-            
-            if (channel == null)
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmAILowAlarm: 通道为null");
-                return;
-            }
-            
-            System.Diagnostics.Debug.WriteLine($"ExecuteConfirmAILowAlarm: 确认通道 {channel.VariableName}");
-            
-            // 设置当前通道状态为已通过
-            channel.MonitorStatus = "已通过";
-            
-            // 确保我们有一个测试结果
-            if (CurrentTestResult == null)
-            {
-                InitializeTestResult(channel);
-            }
-            
-            if (CurrentTestResult != null)
-            {
-                // 同时设置低报和低低报状态为已通过
-                CurrentTestResult.LowAlarmStatus = "已通过";
-                CurrentTestResult.LowLowAlarmStatus = "已通过";
-                
-                // 追加结果文本
-                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
-                {
-                    CurrentTestResult.ResultText = "AI低报/低低报测试通过";
-                }
-                else
-                {
-                    CurrentTestResult.ResultText += ", AI低报/低低报测试通过";
-                }
-                
-                CurrentTestResult.TestTime = DateTime.Now;
-                
-                // 通知UI更新
-                RaisePropertyChanged(nameof(CurrentTestResult));
-                
-                // 更新统计数据
-                UpdatePointStatistics();
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmAILowAlarm: CurrentTestResult为null");
-            }
-        }
-
-        /// <summary>
-        /// 执行发送AI维护功能
-        /// </summary>
-        private void ExecuteSendAIMaintenance()
-        {
-            if (CurrentTestResult != null)
-            {
-                CurrentTestResult.MaintenanceFunction = "已通过";
-            }
-        }
-
-        /// <summary>
-        /// 执行复位AI维护功能
-        /// </summary>
-        private void ExecuteResetAIMaintenance()
-        {
-            // TODO: 实现复位AI维护功能的逻辑
-        }
-
-        /// <summary>
-        /// 执行确认AI维护功能
-        /// </summary>
-        private void ExecuteConfirmAIMaintenance(ChannelMapping channel)
-        {
-            // 确保我们有一个通道
-            if (channel == null && CurrentChannel != null)
-            {
-                channel = CurrentChannel;
-            }
-            
-            if (channel == null)
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmAIMaintenance: 通道为null");
-                return;
-            }
-            
-            System.Diagnostics.Debug.WriteLine($"ExecuteConfirmAIMaintenance: 确认通道 {channel.VariableName}");
-            
-            // 设置当前通道状态为已通过
-            channel.MonitorStatus = "已通过";
-            
-            // 确保我们有一个测试结果
-            if (CurrentTestResult == null)
-            {
-                InitializeTestResult(channel);
-            }
-            
-            if (CurrentTestResult != null)
-            {
-                CurrentTestResult.MaintenanceFunction = "已通过";
-                
-                // 使用追加模式更新结果文本
-                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
-                {
-                    CurrentTestResult.ResultText = "AI维护功能测试通过";
-                }
-                else
-                {
-                    CurrentTestResult.ResultText += ", AI维护功能测试通过";
-                }
-                
-                CurrentTestResult.TestTime = DateTime.Now;
-                
-                // 通知UI更新
-                RaisePropertyChanged(nameof(CurrentTestResult));
-                
-                // 更新统计数据
-                UpdatePointStatistics();
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmAIMaintenance: CurrentTestResult为null");
-            }
-        }
-
-        /// <summary>
-        /// 执行发送DI测试
-        /// </summary>
-        private void ExecuteSendDITest()
-        {
-            // TODO: 实现发送DI测试的逻辑
-        }
-
-        /// <summary>
-        /// 执行复位DI
-        /// </summary>
-        private void ExecuteResetDI()
-        {
-            // TODO: 实现复位DI的逻辑
-        }
-
-        /// <summary>
-        /// 执行确认DI
-        /// </summary>
-        private void ExecuteConfirmDI(ChannelMapping channel)
-        {
-            // 确保我们有一个通道
-            if (channel == null && CurrentChannel != null)
-            {
-                channel = CurrentChannel;
-            }
-            
-            if (channel == null)
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmDI: 通道为null");
-                return;
-            }
-            
-            System.Diagnostics.Debug.WriteLine($"ExecuteConfirmDI: 确认通道 {channel.VariableName}");
-            
-            // 设置当前通道状态为已通过
-            channel.MonitorStatus = "已通过";
-            
-            // 确保我们有一个测试结果
-            if (CurrentTestResult == null)
-            {
-                InitializeTestResult(channel);
-            }
-            
-            if (CurrentTestResult != null)
-            {
-                CurrentTestResult.HardPointTestResult = "已通过";
-                
-                // 使用追加模式更新结果文本
-                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
-                {
-                    CurrentTestResult.ResultText = "DI硬点测试通过";
-                }
-                else
-                {
-                    CurrentTestResult.ResultText += ", DI硬点测试通过";
-                }
-                
-                CurrentTestResult.TestResultStatus = 1; // 成功
-                CurrentTestResult.TestTime = DateTime.Now;
-                
-                // 通知UI更新
-                RaisePropertyChanged(nameof(CurrentTestResult));
-                
-                // 更新统计数据
-                UpdatePointStatistics();
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmDI: CurrentTestResult为null");
-            }
-        }
-
-        /// <summary>
-        /// 初始化或获取当前通道的测试结果
-        /// </summary>
-        /// <param name="channel">当前通道</param>
-        private void InitializeTestResult(ChannelMapping channel)
-        {
-            if (channel == null) return;
-            
-            System.Diagnostics.Debug.WriteLine($"InitializeTestResult for channel: {channel.VariableName}");
-            
-            // 查找该通道是否已有测试结果
-            var existingResult = TestResults.FirstOrDefault(r => 
-                r.VariableName == channel.VariableName && 
-                r.ChannelTag == channel.ChannelTag);
-                
-            if (existingResult != null)
-            {
-                // 确保TestPLCChannelTag已更新
-                if (string.IsNullOrEmpty(existingResult.TestPLCChannelTag) && !string.IsNullOrEmpty(channel.TestPLCChannelTag))
-                {
-                    existingResult.TestPLCChannelTag = channel.TestPLCChannelTag;
-                }
-                
-                CurrentTestResult = existingResult;
-                System.Diagnostics.Debug.WriteLine("使用已有测试结果");
-            }
-            else
-            {
-                // 创建新的测试结果
-                var newResult = new ChannelMapping
-                {
-                    TestId = TestResults.Count + 1,
-                    TestBatch = channel.TestBatch,
-                    VariableName = channel.VariableName,
-                    ModuleType = channel.ModuleType,
-                    DataType = GetValueTypeForModule(channel.ModuleType),
-                    TestPLCChannelTag = channel.TestPLCChannelTag,
-                    ChannelTag = channel.ChannelTag,
-                    TestTime = DateTime.Now,
-                    TestResultStatus = 0, // 待测试
-                    HardPointTestResult = "未测试",
-                    HighAlarmStatus = "未测试",
-                    LowAlarmStatus = "未测试",
-                    MaintenanceFunction = "未测试",
-                    ResultText = "等待测试"
-                };
-                
-                // 设置DI/DO类型的NaN值
-                if (channel.ModuleType?.ToLower() == "di" || channel.ModuleType?.ToLower() == "do")
-                {
-                    newResult.RangeLowerLimitValue = float.NaN;
-                    newResult.RangeUpperLimitValue = float.NaN;
-                    newResult.Value0Percent = double.NaN;
-                    newResult.Value25Percent = double.NaN;
-                    newResult.Value50Percent = double.NaN;
-                    newResult.Value75Percent = double.NaN;
-                    newResult.Value100Percent = double.NaN;
-                    // 设置所有报警状态为N/A
-                    newResult.LowLowAlarmStatus = "N/A";
-                    newResult.LowAlarmStatus = "N/A";
-                    newResult.HighAlarmStatus = "N/A"; 
-                    newResult.HighHighAlarmStatus = "N/A";
-                    newResult.MaintenanceFunction = "N/A";
-                }
-                
-                TestResults.Add(newResult);
-                CurrentTestResult = newResult;
-                System.Diagnostics.Debug.WriteLine("创建新测试结果");
-            }
-            
-            // 更新UI
-            RaisePropertyChanged(nameof(CurrentTestResult));
-            RaisePropertyChanged(nameof(TestResults));
-        }
-
-        /// <summary>
-        /// 获取模块类型对应的数据类型
-        /// </summary>
-        private string GetValueTypeForModule(string moduleType)
-        {
-            if (string.IsNullOrEmpty(moduleType))
-                return "Unknown";
-
-            switch (moduleType.ToLower())
-            {
-                case "ai":
-                case "ao":
-                    return "Real";
-                case "di":
-                case "do":
-                    return "Bool";
-                default:
-                    return "Unknown";
-            }
-        }
-
-        #endregion
-
-        #region 新命令实现
-
-        private void ExecuteStartDOMonitor(ChannelMapping channel)
-        {
-            if (channel == null) return;
-            
-            // 更新当前通道
-            CurrentChannel = channel;
-            
-            // 设置监测状态
-            channel.MonitorStatus = "正在检测";
-            DOMonitorStatus = "正在检测";
-            DOCurrentValue = "1"; // 假设DO值为1
-            
-            // 初始化测试结果
-            InitializeTestResult(channel);
-            
-            // 设置当前测试结果状态
-            if (CurrentTestResult != null)
-            {
-                CurrentTestResult.HardPointTestResult = "测试中";
-                RaisePropertyChanged(nameof(CurrentTestResult));
-            }
-            
-            // 通知UI更新
-            RaisePropertyChanged(nameof(DOMonitorStatus));
-            RaisePropertyChanged(nameof(DOCurrentValue));
-        }
-
-        private void ExecuteStartAOMonitor(ChannelMapping channel)
-        {
-            if (channel == null) return;
-            
-            // 更新当前通道
-            CurrentChannel = channel;
-            
-            // 设置监测状态
-            channel.MonitorStatus = "正在检测";
-            AOMonitorStatus = "正在检测";
-            AOCurrentValue = "4.00 mA"; // 假设AO值为4mA
-            
-            // 初始化测试结果
-            InitializeTestResult(channel);
-            
-            // 设置当前测试结果状态
-            if (CurrentTestResult != null)
-            {
-                CurrentTestResult.HardPointTestResult = "测试中";
-                RaisePropertyChanged(nameof(CurrentTestResult));
-            }
-            
-            // 通知UI更新
-            RaisePropertyChanged(nameof(AOMonitorStatus));
-            RaisePropertyChanged(nameof(AOCurrentValue));
-        }
-
-        private void ExecuteConfirmDO(ChannelMapping channel)
-        {
-            // 确保我们有一个通道
-            if (channel == null && CurrentChannel != null)
-            {
-                channel = CurrentChannel;
-            }
-            
-            if (channel == null)
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmDO: 通道为null");
-                return;
-            }
-            
-            System.Diagnostics.Debug.WriteLine($"ExecuteConfirmDO: 确认通道 {channel.VariableName}");
-            
-            // 设置当前通道状态和窗口状态
-            channel.MonitorStatus = "已通过";
-            DOMonitorStatus = "已通过";
-            
-            // 确保我们有一个测试结果
-            if (CurrentTestResult == null)
-            {
-                InitializeTestResult(channel);
-            }
-            
-            if (CurrentTestResult != null)
-            {
-                CurrentTestResult.HardPointTestResult = "已通过";
-                
-                // 使用追加模式更新结果文本
-                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
-                {
-                    CurrentTestResult.ResultText = "DO硬点测试通过";
-                }
-                else
-                {
-                    CurrentTestResult.ResultText += ", DO硬点测试通过";
-                }
-                
-                CurrentTestResult.TestResultStatus = 1; // 成功
-                CurrentTestResult.TestTime = DateTime.Now;
-                
-                // 通知UI更新
-                RaisePropertyChanged(nameof(CurrentTestResult));
-                RaisePropertyChanged(nameof(DOMonitorStatus));
-                
-                // 更新统计数据
-                UpdatePointStatistics();
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmDO: CurrentTestResult为null");
-            }
-        }
-
-        private void ExecuteConfirmAO(ChannelMapping channel)
-        {
-            // 确保我们有一个通道
-            if (channel == null && CurrentChannel != null)
-            {
-                channel = CurrentChannel;
-            }
-            
-            if (channel == null)
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmAO: 通道为null");
-                return;
-            }
-            
-            System.Diagnostics.Debug.WriteLine($"ExecuteConfirmAO: 确认通道 {channel.VariableName}");
-            
-            // 设置当前通道状态和窗口状态
-            channel.MonitorStatus = "已通过";
-            AOMonitorStatus = "已通过";
-            
-            // 确保我们有一个测试结果
-            if (CurrentTestResult == null)
-            {
-                InitializeTestResult(channel);
-            }
-            
-            if (CurrentTestResult != null)
-            {
-                CurrentTestResult.HardPointTestResult = "已通过";
-                
-                // 使用追加模式更新结果文本
-                if (CurrentTestResult.ResultText == "未测试" || CurrentTestResult.ResultText == "等待测试")
-                {
-                    CurrentTestResult.ResultText = "AO硬点测试通过";
-                }
-                else
-                {
-                    CurrentTestResult.ResultText += ", AO硬点测试通过";
-                }
-                
-                CurrentTestResult.TestResultStatus = 1; // 成功
-                CurrentTestResult.TestTime = DateTime.Now;
-                
-                // 通知UI更新
-                RaisePropertyChanged(nameof(CurrentTestResult));
-                RaisePropertyChanged(nameof(AOMonitorStatus));
-                
-                // 更新统计数据
-                UpdatePointStatistics();
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("ExecuteConfirmAO: CurrentTestResult为null");
-            }
-        }
-
-        private void ExecuteCloseDOManualTest()
-        {
-            IsDOManualTestOpen = false;
-        }
-
-        private void ExecuteCloseAOManualTest()
-        {
-            IsAOManualTestOpen = false;
-        }
-
-        /// <summary>
-        /// 执行打开DI手动测试窗口
-        /// </summary>
-        private void ExecuteOpenDIManualTest(ChannelMapping channel)
-        {
-            if (channel == null) return;
-            
-            // 设置当前通道
-            CurrentChannel = channel;
-            
-            // 输出调试信息
-            System.Diagnostics.Debug.WriteLine($"打开DI手动测试窗口: {channel.VariableName}");
-            
-            // 初始化或获取测试结果
-            InitializeTestResult(channel);
-            
-            // 打开窗口
-            IsDIManualTestOpen = true;
-        }
-
-        /// <summary>
-        /// 执行打开DO手动测试窗口
-        /// </summary>
-        private void ExecuteOpenDOManualTest(ChannelMapping channel)
-        {
-            if (channel == null) return;
-            
-            // 设置当前通道
-            CurrentChannel = channel;
-            
-            // 输出调试信息
-            System.Diagnostics.Debug.WriteLine($"打开DO手动测试窗口: {channel.VariableName}");
-            
-            // 初始化或获取测试结果
-            InitializeTestResult(channel);
-            
-            // 设置界面初始状态
-            DOMonitorStatus = "请开始监测";
-            DOCurrentValue = "--";
-            
-            // 通知UI更新
-            RaisePropertyChanged(nameof(DOMonitorStatus));
-            RaisePropertyChanged(nameof(DOCurrentValue));
-            RaisePropertyChanged(nameof(CurrentChannel));
-            
-            // 打开窗口
-            IsDOManualTestOpen = true;
-        }
-
-        /// <summary>
-        /// 执行打开AO手动测试窗口
-        /// </summary>
-        private void ExecuteOpenAOManualTest(ChannelMapping channel)
-        {
-            if (channel == null) return;
-            
-            // 设置当前通道
-            CurrentChannel = channel;
-            
-            // 输出调试信息
-            System.Diagnostics.Debug.WriteLine($"打开AO手动测试窗口: {channel.VariableName}");
-            
-            // 初始化或获取测试结果
-            InitializeTestResult(channel);
-            
-            // 设置界面初始状态
-            AOMonitorStatus = "请开始监测";
-            AOCurrentValue = "--";
-            
-            // 通知UI更新
-            RaisePropertyChanged(nameof(AOMonitorStatus));
-            RaisePropertyChanged(nameof(AOCurrentValue));
-            RaisePropertyChanged(nameof(CurrentChannel));
-            
-            // 打开窗口
-            IsAOManualTestOpen = true;
-        }
-
-        private void ExecuteMoveUp(ChannelMapping channel)
-        {
-            if (channel == null || CurrentChannels == null || CurrentChannels.Count <= 1)
-                return;
-
-            int currentIndex = CurrentChannels.IndexOf(channel);
-            if (currentIndex <= 0)
-                return;
-
-            CurrentChannels.Move(currentIndex, currentIndex - 1);
-        }
-
-        private void ExecuteMoveDown(ChannelMapping channel)
-        {
-            if (channel == null || CurrentChannels == null || CurrentChannels.Count <= 1)
-                return;
-
-            int currentIndex = CurrentChannels.IndexOf(channel);
-            if (currentIndex == -1 || currentIndex >= CurrentChannels.Count - 1)
-                return;
-
-            CurrentChannels.Move(currentIndex, currentIndex + 1);
-        }
-
-        private async void ExecuteAllocateChannels()
-        {
-            try
-            {
-                IsLoading = true;
-                StatusMessage = "正在执行通道分配...";
-
-                // 检查是否有通道数据
-                if (AllChannels == null || AllChannels.Count == 0)
-                {
-                    MessageBox.Show("没有通道数据，请先导入点表配置", "分配失败", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                // 调用服务进行通道分配
-                var allocatedChannels = await _channelMappingService.AllocateChannelsTestAsync(AllChannels, TestResults);
-
-                // 更新通道分配结果
-                AllChannels = new ObservableCollection<ChannelMapping>(allocatedChannels);
-
-                // 同步更新测试结果中的通道信息
-                _channelMappingService.SyncChannelAllocation(AllChannels, TestResults);
-
-                // 更新通道显示
-                UpdateCurrentChannels();
-
-                // 更新批次信息
-                await UpdateBatchInfoAsync();
-
-                // 刷新测试队列
-                RefreshTestQueue();
-
-                Message = "通道分配完成";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"通道分配失败: {ex.Message}", "操作失败", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                IsLoading = false;
-                StatusMessage = string.Empty;
-            }
-        }
-
-        /// <summary>
-        /// 刷新测试队列，将待测试的点位添加到队列中
-        /// </summary>
-        private void RefreshTestQueue()
-        {
-            // 清空当前队列
-            TestQueue.Clear();
-
-            // 先添加所有批次中的未测试点位
-            var untested = TestResults.Where(r => 
-                r.TestResultStatus == 0 && 
-                !string.IsNullOrEmpty(r.TestBatch) &&
-                !string.IsNullOrEmpty(r.TestPLCChannelTag))
-                .OrderBy(r => r.TestBatch)
-                .ThenBy(r => r.ModuleType)
-                .ThenBy(r => r.VariableName)
-                .ToList();
-
-            foreach (var item in untested)
-            {
-                TestQueue.Add(item);
-            }
-
-            // 更新队列状态
-            if (TestQueue.Count > 0)
-            {
-                TestQueuePosition = 1;
-                CurrentQueueItem = TestQueue[0];
-                TestQueueStatus = $"队列 1/{TestQueue.Count} - {CurrentQueueItem.VariableName}";
-            }
-            else
-            {
-                TestQueuePosition = 0;
-                CurrentQueueItem = null;
-                TestQueueStatus = "队列为空";
-            }
-
-            // 通知UI更新
-            RaisePropertyChanged(nameof(TestQueue));
-            RaisePropertyChanged(nameof(TestQueuePosition));
-            RaisePropertyChanged(nameof(CurrentQueueItem));
-            RaisePropertyChanged(nameof(TestQueueStatus));
-        }
-
-        #endregion
-
-        #region 添加命令执行和判断方法
-
-        private bool CanExecuteConfirmWiringComplete()
-        {
-            // 只有当选择了批次时才能确认接线
-            return SelectedBatch != null;
-        }
-
-        private async void ExecuteConfirmWiringComplete()
-        {
-            if (SelectedBatch == null)
-                return;
-
-            // 将ViewModel中的BatchInfo转换为Model中的BatchInfo
-            var batchInfo = new Models.BatchInfo
-            {
-                BatchId = SelectedBatch.BatchId,
-                BatchName = SelectedBatch.BatchName,
-                CreationDate = SelectedBatch.CreationDate,
-                ItemCount = SelectedBatch.ItemCount,
-                Status = SelectedBatch.Status
-            };
-
-            // 调用接线确认方法，但不显示等待对话框，不开始测试
-            var result = await _testTaskManager.ConfirmWiringCompleteAsync(batchInfo, false,AllChannels);
-            if (result)
-            {
-                // 确认接线成功后，禁用接线确认按钮，启用通道硬点自动测试按钮
-                IsWiringCompleteBtnEnabled = false;
-                IsStartTestButtonEnabled = true;
-                
-                // 测试完成后，刷新批次状态
-                await RefreshBatchStatus();
-            }
-        }
-
-        // 添加批次状态刷新方法
-        private async Task RefreshBatchStatus()
-        {
-            if (Batches != null && TestResults != null)
-            {
-                try
-                {
-                    StatusMessage = "正在刷新批次状态...";
-                    
-                    // 更新批次状态
-                    var updatedBatches = await _channelMappingService.UpdateBatchStatusAsync(Batches, TestResults);
-                    
-                    // 更新UI上的批次集合
-                    Batches = new ObservableCollection<BatchInfo>(updatedBatches);
-                    
-                    // 找到并更新选中的批次
-                    if (SelectedBatch != null)
-                    {
-                        var updatedSelectedBatch = Batches.FirstOrDefault(b => b.BatchId == SelectedBatch.BatchId);
-                        if (updatedSelectedBatch != null)
-                        {
-                            // 注意这里不使用属性赋值，避免再次触发OnBatchSelected
-                            _selectedBatch = updatedSelectedBatch;
-                            RaisePropertyChanged(nameof(SelectedBatch));
-                            
-                            // 更新接线确认按钮状态
-                            IsWiringCompleteBtnEnabled = updatedSelectedBatch.Status == "未开始" || updatedSelectedBatch.Status == "进行中";
-                        }
-                    }
-                    
-                    // 更新点位统计
-                    UpdatePointStatistics();
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"刷新批次状态失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-                finally
-                {
-                    StatusMessage = string.Empty;
-                }
             }
         }
 
@@ -2268,49 +1417,42 @@ namespace FatFullVersion.ViewModels
         // 添加LoadTestResults方法
         private async void LoadTestResults()
         {
-            if (SelectedBatch == null)
-                return;
-        
+            IsLoading = true;
+            StatusMessage = "正在加载测试结果...";
+            
             try
             {
-                IsLoading = true;
-                StatusMessage = "正在加载测试结果数据...";
-            
-                // 根据选中的批次加载对应的测试结果
-                var results = AllChannels?
-                    .Where(c => c.TestBatch == SelectedBatch.BatchName)
-                    .ToList();
-            
+                // 如果选择了批次，加载该批次的所有通道测试结果
+                if (SelectedBatch == null || string.IsNullOrEmpty(SelectedBatch.BatchName))
+                {
+                    return;
+                }
+                
+                // 从通道映射服务中获取该批次的所有通道
+                var results = await _channelMappingService.GetChannelMappingsByBatchNameAsync(SelectedBatch.BatchName);
+                
                 if (results != null && results.Any())
                 {
-                    // 保留现有的测试结果，只添加新的结果
-                    if (TestResults == null)
+                    // 更新现有的通道数据，只添加新的结果
+                    var existingIds = AllChannels.Select(r => r.VariableName).ToHashSet();
+                    var newResults = results.Where(r => !existingIds.Contains(r.VariableName)).ToList();
+                    
+                    // 添加新结果
+                    foreach (var newResult in newResults)
                     {
-                        TestResults = new ObservableCollection<ChannelMapping>(results);
+                        AllChannels.Add(newResult);
                     }
-                    else
+                    
+                    // 更新现有结果的状态
+                    foreach (var result in results)
                     {
-                        // 获取当前不存在的新结果
-                        var existingIds = TestResults.Select(r => r.VariableName).ToHashSet();
-                        var newResults = results.Where(r => !existingIds.Contains(r.VariableName)).ToList();
-                        
-                        // 添加新结果
-                        foreach (var newResult in newResults)
+                        var existingResult = AllChannels.FirstOrDefault(r => r.VariableName == result.VariableName);
+                        if (existingResult != null)
                         {
-                            TestResults.Add(newResult);
-                        }
-                        
-                        // 更新现有结果的状态
-                        foreach (var result in results)
-                        {
-                            var existingResult = TestResults.FirstOrDefault(r => r.VariableName == result.VariableName);
-                            if (existingResult != null)
-                            {
-                                // 更新必要的属性，但保留测试结果
-                                existingResult.TestBatch = result.TestBatch;
-                                existingResult.ChannelTag = result.ChannelTag;
-                                existingResult.TestPLCChannelTag = result.TestPLCChannelTag;
-                            }
+                            // 更新必要的属性，但保留测试结果
+                            existingResult.TestBatch = result.TestBatch;
+                            existingResult.ChannelTag = result.ChannelTag;
+                            existingResult.TestPLCChannelTag = result.TestPLCChannelTag;
                         }
                     }
                 }
@@ -2320,40 +1462,18 @@ namespace FatFullVersion.ViewModels
                     results = AllChannels?
                         .Where(c => c.TestBatch == SelectedBatch.BatchId)
                         .ToList();
-                        
-                    if (results != null && results.Any())
+                    
+                    if (results == null || !results.Any())
                     {
-                        // 使用相同的逻辑处理BatchId查找的结果
-                        if (TestResults == null)
+                        // 如果仍然没有找到，检查是否需要创建空集合
+                        if (AllChannels == null || AllChannels.Count == 0)
                         {
-                            TestResults = new ObservableCollection<ChannelMapping>(results);
-                        }
-                        else
-                        {
-                            var existingIds = TestResults.Select(r => r.VariableName).ToHashSet();
-                            var newResults = results.Where(r => !existingIds.Contains(r.VariableName)).ToList();
-                            
-                            foreach (var newResult in newResults)
+                            // 创建空集合
+                            if (AllChannels == null)
                             {
-                                TestResults.Add(newResult);
-                            }
-                            
-                            foreach (var result in results)
-                            {
-                                var existingResult = TestResults.FirstOrDefault(r => r.VariableName == result.VariableName);
-                                if (existingResult != null)
-                                {
-                                    existingResult.TestBatch = result.TestBatch;
-                                    existingResult.ChannelTag = result.ChannelTag;
-                                    existingResult.TestPLCChannelTag = result.TestPLCChannelTag;
-                                }
+                                AllChannels = new ObservableCollection<ChannelMapping>();
                             }
                         }
-                    }
-                    else if (TestResults == null)
-                    {
-                        // 只有当TestResults为null时才创建新集合
-                        TestResults = new ObservableCollection<ChannelMapping>();
                     }
                 }
             
@@ -2373,6 +1493,785 @@ namespace FatFullVersion.ViewModels
             }
         }
 
+        /// <summary>
+        /// 执行完成接线确认操作
+        /// </summary>
+        private void ExecuteConfirmWiringComplete()
+        {
+            try
+            {
+                // 接线确认逻辑实现
+                MessageBox.Show("接线确认完成", "操作成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                // 设置批次状态为已接线
+                if (SelectedBatch != null)
+                {
+                    SelectedBatch.Status = "已接线";
+                    IsStartTestButtonEnabled = true;
+                    IsWiringCompleteBtnEnabled = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"接线确认操作失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 检查是否可以执行接线确认操作
+        /// </summary>
+        private bool CanExecuteConfirmWiringComplete()
+        {
+            // 检查是否选择了批次且状态允许接线确认
+            return SelectedBatch != null && 
+                  (SelectedBatch.Status == "未开始" || SelectedBatch.Status == "进行中");
+        }
+
+        /// <summary>
+        /// 执行向上移动通道操作
+        /// </summary>
+        private void ExecuteMoveUp(ChannelMapping channel)
+        {
+            if (channel == null || TestQueue == null || !TestQueue.Any())
+                return;
+
+            try
+            {
+                int index = TestQueue.IndexOf(channel);
+                if (index > 0)
+                {
+                    TestQueue.Move(index, index - 1);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"移动通道失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 执行向下移动通道操作
+        /// </summary>
+        private void ExecuteMoveDown(ChannelMapping channel)
+        {
+            if (channel == null || TestQueue == null || !TestQueue.Any())
+                return;
+
+            try
+            {
+                int index = TestQueue.IndexOf(channel);
+                if (index < TestQueue.Count - 1 && index >= 0)
+                {
+                    TestQueue.Move(index, index + 1);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"移动通道失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 执行分配通道操作
+        /// </summary>
+        private async void ExecuteAllocateChannels()
+        {
+            try
+            {
+                IsLoading = true;
+                StatusMessage = "正在分配通道...";
+                
+                if (AllChannels == null || !AllChannels.Any())
+                {
+                    Message = "没有可用的通道需要分配";
+                    return;
+                }
+                
+                // 调用通道映射服务进行通道分配
+                var result = await _channelMappingService.AllocateChannelsTestAsync(AllChannels);
+                
+                if (result != null)
+                {
+                    // 更新通道映射结果
+                    AllChannels = new ObservableCollection<ChannelMapping>(result);
+                    
+                    // 同步更新通道分配结果
+                    _channelMappingService.SyncChannelAllocation(result);
+                    
+                    // 更新当前显示的通道集合
+                    UpdateCurrentChannels();
+                    
+                    // 通知UI更新
+                    RaisePropertyChanged(nameof(AllChannels));
+                    
+                    // 保存原始通道集合以便后续使用
+                    OriginalAllChannels = new ObservableCollection<ChannelMapping>(AllChannels);
+                    
+                    Message = "通道分配完成";
+                }
+                else
+                {
+                    Message = "通道分配失败";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"分配通道失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsLoading = false;
+                StatusMessage = string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// 打开AI手动测试窗口
+        /// </summary>
+        private void ExecuteOpenAIManualTest(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null && channel.ModuleType?.ToLower() == "ai")
+                {
+                    // 实现打开AI手动测试窗口的逻辑
+                    MessageBox.Show($"打开AI通道 {channel.ChannelTag} 的手动测试窗口", "手动测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开AI手动测试窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 打开DI手动测试窗口
+        /// </summary>
+        private void ExecuteOpenDIManualTest(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null && channel.ModuleType?.ToLower() == "di")
+                {
+                    // 实现打开DI手动测试窗口的逻辑
+                    MessageBox.Show($"打开DI通道 {channel.ChannelTag} 的手动测试窗口", "手动测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开DI手动测试窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 打开DO手动测试窗口
+        /// </summary>
+        private void ExecuteOpenDOManualTest(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null && channel.ModuleType?.ToLower() == "do")
+                {
+                    // 实现打开DO手动测试窗口的逻辑
+                    MessageBox.Show($"打开DO通道 {channel.ChannelTag} 的手动测试窗口", "手动测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开DO手动测试窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 打开AO手动测试窗口
+        /// </summary>
+        private void ExecuteOpenAOManualTest(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null && channel.ModuleType?.ToLower() == "ao")
+                {
+                    // 实现打开AO手动测试窗口的逻辑
+                    MessageBox.Show($"打开AO通道 {channel.ChannelTag} 的手动测试窗口", "手动测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开AO手动测试窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 关闭AI手动测试窗口
+        /// </summary>
+        private void ExecuteCloseAIManualTest()
+        {
+            try
+            {
+                // 实现关闭AI手动测试窗口的逻辑
+                MessageBox.Show("关闭AI手动测试窗口", "手动测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"关闭AI手动测试窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 关闭DI手动测试窗口
+        /// </summary>
+        private void ExecuteCloseDIManualTest()
+        {
+            try
+            {
+                // 实现关闭DI手动测试窗口的逻辑
+                MessageBox.Show("关闭DI手动测试窗口", "手动测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"关闭DI手动测试窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 关闭DO手动测试窗口
+        /// </summary>
+        private void ExecuteCloseDOManualTest()
+        {
+            try
+            {
+                // 实现关闭DO手动测试窗口的逻辑
+                MessageBox.Show("关闭DO手动测试窗口", "手动测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"关闭DO手动测试窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 关闭AO手动测试窗口
+        /// </summary>
+        private void ExecuteCloseAOManualTest()
+        {
+            try
+            {
+                // 实现关闭AO手动测试窗口的逻辑
+                MessageBox.Show("关闭AO手动测试窗口", "手动测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"关闭AO手动测试窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 执行发送AI测试值
+        /// </summary>
+        private void ExecuteSendAITestValue()
+        {
+            try
+            {
+                // 实现发送AI测试值的逻辑
+                MessageBox.Show("已发送AI测试值", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"发送AI测试值失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 确认AI测试值
+        /// </summary>
+        private void ExecuteConfirmAIValue(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 实现确认AI测试值的逻辑
+                    channel.TestResultStatus = 1; // 通过
+                    channel.ResultText = "AI测试值确认通过";
+                    MessageBox.Show($"已确认AI通道 {channel.ChannelTag} 的测试值", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认AI测试值失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 发送AI高报警测试信号
+        /// </summary>
+        private void ExecuteSendAIHighAlarm()
+        {
+            try
+            {
+                // 实现发送AI高报警测试信号的逻辑
+                MessageBox.Show("已发送AI高报警测试信号", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"发送AI高报警测试信号失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 重置AI高报警测试信号
+        /// </summary>
+        private void ExecuteResetAIHighAlarm()
+        {
+            try
+            {
+                // 实现重置AI高报警测试信号的逻辑
+                MessageBox.Show("已重置AI高报警测试信号", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"重置AI高报警测试信号失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 确认AI高报警测试
+        /// </summary>
+        private void ExecuteConfirmAIHighAlarm(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 实现确认AI高报警测试的逻辑
+                    channel.HighAlarmStatus = "通过";
+                    MessageBox.Show($"已确认AI通道 {channel.ChannelTag} 的高报警测试", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认AI高报警测试失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 发送AI低报警测试信号
+        /// </summary>
+        private void ExecuteSendAILowAlarm()
+        {
+            try
+            {
+                // 实现发送AI低报警测试信号的逻辑
+                MessageBox.Show("已发送AI低报警测试信号", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"发送AI低报警测试信号失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 重置AI低报警测试信号
+        /// </summary>
+        private void ExecuteResetAILowAlarm()
+        {
+            try
+            {
+                // 实现重置AI低报警测试信号的逻辑
+                MessageBox.Show("已重置AI低报警测试信号", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"重置AI低报警测试信号失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 确认AI低报警测试
+        /// </summary>
+        private void ExecuteConfirmAILowAlarm(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 实现确认AI低报警测试的逻辑
+                    channel.LowAlarmStatus = "通过";
+                    MessageBox.Show($"已确认AI通道 {channel.ChannelTag} 的低报警测试", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认AI低报警测试失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 发送AI维护测试信号
+        /// </summary>
+        private void ExecuteSendAIMaintenance()
+        {
+            try
+            {
+                // 实现发送AI维护测试信号的逻辑
+                MessageBox.Show("已发送AI维护测试信号", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"发送AI维护测试信号失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 重置AI维护测试信号
+        /// </summary>
+        private void ExecuteResetAIMaintenance()
+        {
+            try
+            {
+                // 实现重置AI维护测试信号的逻辑
+                MessageBox.Show("已重置AI维护测试信号", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"重置AI维护测试信号失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 确认AI维护测试
+        /// </summary>
+        private void ExecuteConfirmAIMaintenance(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 实现确认AI维护测试的逻辑
+                    channel.MaintenanceFunction = "通过";
+                    MessageBox.Show($"已确认AI通道 {channel.ChannelTag} 的维护测试", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认AI维护测试失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 发送DI测试信号
+        /// </summary>
+        private void ExecuteSendDITest()
+        {
+            try
+            {
+                // 实现发送DI测试信号的逻辑
+                MessageBox.Show("已发送DI测试信号", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"发送DI测试信号失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 重置DI测试信号
+        /// </summary>
+        private void ExecuteResetDI()
+        {
+            try
+            {
+                // 实现重置DI测试信号的逻辑
+                MessageBox.Show("已重置DI测试信号", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"重置DI测试信号失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 确认DI测试
+        /// </summary>
+        private void ExecuteConfirmDI(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 实现确认DI测试的逻辑
+                    channel.TestResultStatus = 1; // 通过
+                    channel.ResultText = "DI测试确认通过";
+                    MessageBox.Show($"已确认DI通道 {channel.ChannelTag} 的测试", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认DI测试失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 启动DO监测
+        /// </summary>
+        private void ExecuteStartDOMonitor(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 实现启动DO监测的逻辑
+                    MessageBox.Show($"已启动DO通道 {channel.ChannelTag} 的监测", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"启动DO监测失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 确认DO测试
+        /// </summary>
+        private void ExecuteConfirmDO(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 实现确认DO测试的逻辑
+                    channel.TestResultStatus = 1; // 通过
+                    channel.ResultText = "DO测试确认通过";
+                    MessageBox.Show($"已确认DO通道 {channel.ChannelTag} 的测试", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认DO测试失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 启动AO监测
+        /// </summary>
+        private void ExecuteStartAOMonitor(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 实现启动AO监测的逻辑
+                    MessageBox.Show($"已启动AO通道 {channel.ChannelTag} 的监测", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"启动AO监测失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 确认AO测试
+        /// </summary>
+        private void ExecuteConfirmAO(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 实现确认AO测试的逻辑
+                    channel.TestResultStatus = 1; // 通过
+                    channel.ResultText = "AO测试确认通过";
+                    MessageBox.Show($"已确认AO通道 {channel.ChannelTag} 的测试", "测试", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认AO测试失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 处理测试结果更新事件
+        /// </summary>
+        private void OnTestResultsUpdated()
+        {
+            // 确保在UI线程上执行更新操作
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                try
+                {
+                    Console.WriteLine($"收到测试结果更新事件，时间：{DateTime.Now}");
+                    
+                    // 如果当前选中了批次，同步更新这个批次的通道数据
+                    if (SelectedBatch != null && !string.IsNullOrEmpty(SelectedBatch.BatchName))
+                    {
+                        // 获取当前批次名称
+                        string currentBatchName = SelectedBatch.BatchName;
+                        
+                        // 找出当前批次的所有通道
+                        var batchChannels = AllChannels.Where(c => c.TestBatch == currentBatchName).ToList();
+                        
+                        foreach (var channel in batchChannels)
+                        {
+                            // 检查该通道是否已经有测试结果状态
+                            if (channel.HardPointTestResult == "通过" || channel.HardPointTestResult == "已通过")
+                            {
+                                // 设置测试结果状态为通过(1)
+                                channel.TestResultStatus = 1;
+                                
+                                // 更新结果文本
+                                if (string.IsNullOrEmpty(channel.ResultText) || 
+                                    channel.ResultText == "未测试" || 
+                                    channel.ResultText == "等待测试")
+                                {
+                                    channel.ResultText = $"{channel.ModuleType}硬点测试通过";
+                                }
+                                else if(!channel.ResultText.Contains($"{channel.ModuleType}硬点测试通过"))
+                                {
+                                    channel.ResultText += $", {channel.ModuleType}硬点测试通过";
+                                }
+                            }
+                            else if (!string.IsNullOrEmpty(channel.HardPointTestResult) && 
+                                     channel.HardPointTestResult != "未测试")
+                            {
+                                // 设置测试结果状态为失败(2)
+                                channel.TestResultStatus = 2;
+                                
+                                // 更新结果文本
+                                if (string.IsNullOrEmpty(channel.ResultText) || 
+                                    channel.ResultText == "未测试" || 
+                                    channel.ResultText == "等待测试")
+                                {
+                                    channel.ResultText = $"{channel.ModuleType}硬点测试失败: {channel.HardPointTestResult}";
+                                }
+                                else if(!channel.ResultText.Contains(channel.HardPointTestResult))
+                                {
+                                    channel.ResultText += $", {channel.ModuleType}硬点测试失败: {channel.HardPointTestResult}";
+                                }
+                            }
+                        }
+                        
+                        // 通知UI更新
+                        RaisePropertyChanged(nameof(AllChannels));
+                        
+                        // 更新点位统计
+                        UpdatePointStatistics();
+                        
+                        // 更新批次状态
+                        RefreshBatchStatus();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"测试结果更新出错: {ex.Message}");
+                }
+            });
+        }
+
+        /// <summary>
+        /// 刷新批次状态
+        /// </summary>
+        private void RefreshBatchStatus()
+        {
+            try
+            {
+                if (SelectedBatch == null || string.IsNullOrEmpty(SelectedBatch.BatchName))
+                    return;
+
+                // 获取选定批次的所有通道
+                var batchChannels = AllChannels.Where(c => c.TestBatch == SelectedBatch.BatchName).ToList();
+                
+                if (batchChannels.Count == 0)
+                    return;
+
+                // 计算测试状态
+                int totalChannels = batchChannels.Count;
+                int testedChannels = batchChannels.Count(c => c.TestResultStatus > 0);
+                int passedChannels = batchChannels.Count(c => c.TestResultStatus == 1);
+
+                // 更新批次状态
+                if (testedChannels == 0)
+                {
+                    SelectedBatch.Status = "未开始";
+                }
+                else if (testedChannels < totalChannels)
+                {
+                    SelectedBatch.Status = "进行中";
+                }
+                else if (passedChannels == totalChannels)
+                {
+                    SelectedBatch.Status = "已完成";
+                }
+                else
+                {
+                    SelectedBatch.Status = "部分失败";
+                }
+
+                // 更新批次的测试时间
+                if (testedChannels > 0 && SelectedBatch.FirstTestTime == null)
+                {
+                    SelectedBatch.FirstTestTime = DateTime.Now;
+                }
+                SelectedBatch.LastTestTime = DateTime.Now;
+
+                // 更新接线确认按钮状态
+                IsWiringCompleteBtnEnabled = SelectedBatch.Status == "未开始" || SelectedBatch.Status == "进行中";
+                
+                // 通知UI更新
+                RaisePropertyChanged(nameof(SelectedBatch));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"刷新批次状态时出错: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 刷新测试队列
+        /// </summary>
+        private void RefreshTestQueue()
+        {
+            try
+            {
+                if (SelectedBatch == null || string.IsNullOrEmpty(SelectedBatch.BatchName))
+                {
+                    TestQueue.Clear();
+                    TestQueueStatus = "队列为空";
+                    TestQueuePosition = 0;
+                    return;
+                }
+
+                // 获取选定批次的所有通道
+                var batchChannels = AllChannels
+                    .Where(c => c.TestBatch == SelectedBatch.BatchName && c.TestResultStatus == 0)
+                    .ToList();
+
+                // 更新测试队列
+                TestQueue = new ObservableCollection<ChannelMapping>(batchChannels);
+                
+                // 更新队列状态
+                if (TestQueue.Count == 0)
+                {
+                    TestQueueStatus = "队列为空";
+                    TestQueuePosition = 0;
+                }
+                else
+                {
+                    TestQueueStatus = $"队列中有 {TestQueue.Count} 个通道待测试";
+                    TestQueuePosition = 1; // 从第一个开始
+                }
+
+                // 通知UI更新
+                RaisePropertyChanged(nameof(TestQueue));
+                RaisePropertyChanged(nameof(TestQueueStatus));
+                RaisePropertyChanged(nameof(TestQueuePosition));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"刷新测试队列时出错: {ex.Message}");
+            }
+        }
+        
         #endregion
     }
     

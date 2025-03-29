@@ -11,146 +11,156 @@ using FatFullVersion.Entities.EntitiesEnum;
 namespace FatFullVersion.IServices
 {
     /// <summary>
-    /// 通道映射服务接口，提供通道分配和管理功能
+    /// 通道映射服务接口
     /// </summary>
     public interface IChannelMappingService
     {
         /// <summary>
-        /// 默认通道分批功能：根据测试PLC的配置信息获取可用测试通道数，对应被测PLC进行通道自动分配
+        /// 获取所有通道映射
         /// </summary>
-        /// <param name="allChannels">所有通道集合</param>
-        /// <param name="testPlcConfig">测试PLC配置信息</param>
-        /// <returns>分配通道后的通道映射信息</returns>
-        Task<IEnumerable<ChannelMapping>> AllocateChannelsAsync(
-            IEnumerable<ChannelMapping> allChannels,
-            TestPlcConfig testPlcConfig);
+        /// <returns>通道映射列表</returns>
+        Task<IEnumerable<ChannelMapping>> GetAllChannelMappingsAsync();
 
         /// <summary>
-        /// 测试使用的分配方法，后续替换为AllocateChannelsAsync
+        /// 根据批次名称获取通道映射
+        /// </summary>
+        /// <param name="batchName">批次名称</param>
+        /// <returns>该批次的通道映射列表</returns>
+        Task<IEnumerable<ChannelMapping>> GetChannelMappingsByBatchNameAsync(string batchName);
+
+        /// <summary>
+        /// 根据通道类型获取通道映射
+        /// </summary>
+        /// <param name="moduleType">通道类型</param>
+        /// <returns>该类型的通道映射列表</returns>
+        Task<IEnumerable<ChannelMapping>> GetChannelMappingsByModuleTypeAsync(string moduleType);
+
+        /// <summary>
+        /// 添加通道映射
+        /// </summary>
+        /// <param name="channelMapping">通道映射实体</param>
+        /// <returns>操作结果</returns>
+        Task<bool> AddChannelMappingAsync(ChannelMapping channelMapping);
+
+        /// <summary>
+        /// 批量添加通道映射
+        /// </summary>
+        /// <param name="channelMappings">通道映射列表</param>
+        /// <returns>操作结果</returns>
+        Task<bool> AddChannelMappingsAsync(IEnumerable<ChannelMapping> channelMappings);
+
+        /// <summary>
+        /// 更新通道映射
+        /// </summary>
+        /// <param name="channelMapping">通道映射实体</param>
+        /// <returns>操作结果</returns>
+        Task<bool> UpdateChannelMappingAsync(ChannelMapping channelMapping);
+
+        /// <summary>
+        /// 批量更新通道映射
+        /// </summary>
+        /// <param name="channelMappings">通道映射列表</param>
+        /// <returns>操作结果</returns>
+        Task<bool> UpdateChannelMappingsAsync(IEnumerable<ChannelMapping> channelMappings);
+
+        /// <summary>
+        /// 删除通道映射
+        /// </summary>
+        /// <param name="id">通道映射ID</param>
+        /// <returns>操作结果</returns>
+        Task<bool> DeleteChannelMappingAsync(string id);
+
+        /// <summary>
+        /// 批量删除通道映射
+        /// </summary>
+        /// <param name="ids">通道映射ID列表</param>
+        /// <returns>操作结果</returns>
+        Task<bool> DeleteChannelMappingsAsync(IEnumerable<string> ids);
+
+        /// <summary>
+        /// 分配通道测试关系
         /// </summary>
         /// <param name="allChannels">所有通道集合</param>
-        /// <param name="testResults">测试结果集合，用于同步更新</param>
-        /// <returns>分配通道后的通道映射信息</returns>
+        /// <returns>分配结果</returns>
         Task<IEnumerable<ChannelMapping>> AllocateChannelsTestAsync(
-            IEnumerable<ChannelMapping> allChannels,
-            IEnumerable<ChannelMapping> testResults = null);
-
-        /// <summary>
-        /// 原有的通道分配方法，兼容旧版本
-        /// </summary>
-        /// <param name="aiChannels">被测PLC的AI通道列表</param>
-        /// <param name="aoChannels">被测PLC的AO通道列表</param>
-        /// <param name="diChannels">被测PLC的DI通道列表</param>
-        /// <param name="doChannels">被测PLC的DO通道列表</param>
-        /// <param name="testAoModuleCount">测试PLC的AO模块数量</param>
-        /// <param name="testAoChannelPerModule">每个AO模块的通道数</param>
-        /// <param name="testAiModuleCount">测试PLC的AI模块数量</param>
-        /// <param name="testAiChannelPerModule">每个AI模块的通道数</param>
-        /// <param name="testDoModuleCount">测试PLC的DO模块数量</param>
-        /// <param name="testDoChannelPerModule">每个DO模块的通道数</param>
-        /// <param name="testDiModuleCount">测试PLC的DI模块数量</param>
-        /// <param name="testDiChannelPerModule">每个DI模块的通道数</param>
-        /// <returns>分配通道后的通道映射信息</returns>
-        Task<(IEnumerable<ChannelMapping> AI, IEnumerable<ChannelMapping> AO, IEnumerable<ChannelMapping> DI, IEnumerable<ChannelMapping> DO)> 
-            AllocateChannelsAsync(
-                IEnumerable<ChannelMapping> aiChannels,
-                IEnumerable<ChannelMapping> aoChannels,
-                IEnumerable<ChannelMapping> diChannels,
-                IEnumerable<ChannelMapping> doChannels,
-                int testAoModuleCount, int testAoChannelPerModule,
-                int testAiModuleCount, int testAiChannelPerModule,
-                int testDoModuleCount, int testDoChannelPerModule,
-                int testDiModuleCount, int testDiChannelPerModule);
-
-        /// <summary>
-        /// 单个通道的对应关系修改：当默认通道分配好后用户有可能需要调整对应关系
-        /// </summary>
-        /// <param name="targetChannel">要修改的被测PLC通道</param>
-        /// <param name="newTestPlcChannel">新分配的测试PLC通道标识</param>
-        /// <param name="newTestPlcCommAddress">新分配的测试PLC通讯地址</param>
-        /// <param name="allChannels">所有通道的集合，用于查找和更新原有的映射关系</param>
-        /// <returns>修改后的目标通道信息</returns>
-        Task<ChannelMapping> UpdateChannelMappingAsync(
-            ChannelMapping targetChannel, 
-            string newTestPlcChannel, 
-            string newTestPlcCommAddress,
             IEnumerable<ChannelMapping> allChannels);
 
         /// <summary>
-        /// 同步更新测试结果中通道分配的信息
+        /// 将通道分配结果同步到通道集合中
         /// </summary>
-        /// <param name="allChannels">所有通道集合</param>
-        /// <param name="testResults">测试结果集合，用于同步更新</param>
-        void SyncChannelAllocation(
-            IEnumerable<ChannelMapping> allChannels,
-            IEnumerable<ChannelMapping> testResults = null);
-
-        /// <summary>
-        /// 兼容旧版本的同步更新测试结果中通道分配的信息
-        /// </summary>
-        /// <param name="aiChannels">AI通道列表</param>
-        /// <param name="aoChannels">AO通道列表</param>
-        /// <param name="diChannels">DI通道列表</param>
-        /// <param name="doChannels">DO通道列表</param>
-        /// <param name="testResults">测试结果集合，用于同步更新</param>
-        void SyncChannelAllocation(
-            IEnumerable<ChannelMapping> aiChannels,
-            IEnumerable<ChannelMapping> aoChannels,
-            IEnumerable<ChannelMapping> diChannels,
-            IEnumerable<ChannelMapping> doChannels,
-            IEnumerable<ChannelMapping> testResults = null);
+        /// <param name="channels">通道映射集合</param>
+        void SyncChannelAllocation(IEnumerable<ChannelMapping> channels);
 
         /// <summary>
         /// 设置当前使用的测试PLC配置
         /// </summary>
-        /// <param name="config">测试PLC配置</param>
-        /// <returns>操作是否成功</returns>
-        Task<bool> SetTestPlcConfigAsync(TestPlcConfig config);
+        /// <param name="config">配置信息</param>
+        void SetTestPlcConfig(TestPlcConfig config);
 
         /// <summary>
-        /// 获取当前使用的测试PLC配置
+        /// 更新批次状态信息，根据通道数据更新批次的状态
         /// </summary>
-        /// <returns>测试PLC配置</returns>
-        Task<TestPlcConfig> GetTestPlcConfigAsync();
+        /// <param name="batches">批次信息集合</param>
+        /// <param name="channels">通道数据集合</param>
+        /// <returns>更新后的批次信息集合</returns>
+        Task<IEnumerable<ViewModels.BatchInfo>> UpdateBatchStatusAsync(
+            IEnumerable<ViewModels.BatchInfo> batches,
+            IEnumerable<ChannelMapping> channels);
 
         /// <summary>
-        /// 获取测试PLC通道的配置信息
+        /// 获取特定类型的通道列表
         /// </summary>
-        /// <returns>测试PLC的通道配置信息</returns>
-        Task<(int AoModules, int AoChannelsPerModule, int AiModules, int AiChannelsPerModule, 
-               int DoModules, int DoChannelsPerModule, int DiModules, int DiChannelsPerModule)> 
-            GetTestPlcConfigurationAsync();
-
-        /// <summary>
-        /// 获取已被分配的测试PLC通道列表
-        /// </summary>
-        /// <returns>已分配的测试PLC通道信息</returns>
-        Task<IEnumerable<(string ChannelType, string ChannelTag, string CommAddress)>> GetAllocatedTestChannelsAsync(
-            IEnumerable<ChannelMapping> allChannels);
-
-        /// <summary>
-        /// 清除指定通道类型的所有通道分配信息
-        /// </summary>
-        /// <param name="channels">要清除的通道列表</param>
-        /// <returns>清除后的通道列表</returns>
-        Task<IEnumerable<ChannelMapping>> ClearAllChannelAllocationsAsync(IEnumerable<ChannelMapping> channels);
-
-        /// <summary>
-        /// 从通道映射集合中提取批次信息
-        /// </summary>
+        /// <param name="moduleType">通道类型</param>
         /// <param name="allChannels">所有通道集合</param>
-        /// <returns>批次信息列表</returns>
-        Task<IEnumerable<ViewModels.BatchInfo>> ExtractBatchInfoAsync(
-            IEnumerable<ChannelMapping> allChannels);
+        /// <returns>过滤后的通道列表</returns>
+        IEnumerable<ChannelMapping> GetChannelsByType(string moduleType, IEnumerable<ChannelMapping> allChannels);
 
         /// <summary>
-        /// 兼容旧版本的从通道映射集合中提取批次信息
+        /// 从Excel导入的数据创建通道映射
+        /// </summary>
+        /// <param name="excelData">Excel导入的数据</param>
+        /// <returns>创建的通道映射集合</returns>
+        Task<IEnumerable<ChannelMapping>> CreateChannelMappingsFromExcelAsync(IEnumerable<ExcelPointData> excelData);
+
+        /// <summary>
+        /// 异步分配PLC通道映射关系
         /// </summary>
         /// <param name="aiChannels">AI通道列表</param>
         /// <param name="aoChannels">AO通道列表</param>
         /// <param name="diChannels">DI通道列表</param>
         /// <param name="doChannels">DO通道列表</param>
+        /// <param name="testPlcConfig">测试PLC的配置信息</param>
+        /// <returns>分配结果，包含所有类型的通道</returns>
+        Task<(IEnumerable<ChannelMapping> AI, IEnumerable<ChannelMapping> AO, IEnumerable<ChannelMapping> DI, IEnumerable<ChannelMapping> DO)> 
+            AllocateChannelsAsync(
+                IEnumerable<ChannelMapping> aiChannels,
+                IEnumerable<ChannelMapping> aoChannels, 
+                IEnumerable<ChannelMapping> diChannels,
+                IEnumerable<ChannelMapping> doChannels,
+                TestPlcConfig testPlcConfig);
+
+        /// <summary>
+        /// 获取所有批次
+        /// </summary>
         /// <returns>批次信息列表</returns>
+        Task<IEnumerable<ViewModels.BatchInfo>> GetAllBatchesAsync();
+
+        /// <summary>
+        /// 获取或创建批次信息
+        /// </summary>
+        /// <param name="batchName">批次名称</param>
+        /// <param name="itemCount">批次包含的项目数量</param>
+        /// <returns>批次信息</returns>
+        Task<ViewModels.BatchInfo> GetOrCreateBatchAsync(string batchName, int itemCount);
+
+        /// <summary>
+        /// 从通道映射信息中提取批次信息
+        /// </summary>
+        /// <param name="aiChannels">AI通道列表</param>
+        /// <param name="aoChannels">AO通道列表</param>
+        /// <param name="diChannels">DI通道列表</param>
+        /// <param name="doChannels">DO通道列表</param>
+        /// <returns>提取的批次信息集合</returns>
         Task<IEnumerable<ViewModels.BatchInfo>> ExtractBatchInfoAsync(
             IEnumerable<ChannelMapping> aiChannels,
             IEnumerable<ChannelMapping> aoChannels,
@@ -158,58 +168,18 @@ namespace FatFullVersion.IServices
             IEnumerable<ChannelMapping> doChannels);
 
         /// <summary>
-        /// 更新批次状态信息，根据测试结果更新批次的状态
-        /// </summary>
-        /// <param name="batches">批次信息集合</param>
-        /// <param name="testResults">测试结果集合</param>
-        /// <returns>更新后的批次信息集合</returns>
-        Task<IEnumerable<ViewModels.BatchInfo>> UpdateBatchStatusAsync(
-            IEnumerable<ViewModels.BatchInfo> batches,
-            IEnumerable<ChannelMapping> testResults);
-
-        /// <summary>
-        /// 获取特定类型的通道列表
+        /// 从通道映射信息中提取批次信息
         /// </summary>
         /// <param name="allChannels">所有通道集合</param>
-        /// <param name="channelType">通道类型</param>
-        /// <returns>特定类型的通道列表</returns>
-        IEnumerable<ChannelMapping> GetChannelsByType(
-            IEnumerable<ChannelMapping> allChannels, 
-            TestPlcChannelType channelType);
+        /// <returns>提取的批次信息集合</returns>
+        Task<IEnumerable<ViewModels.BatchInfo>> ExtractBatchInfoAsync(
+            IEnumerable<ChannelMapping> allChannels);
 
         /// <summary>
-        /// 获取AI类型的通道列表
+        /// 清除所有通道分配信息
         /// </summary>
-        /// <param name="allChannels">所有通道集合</param>
-        /// <returns>AI类型的通道列表</returns>
-        IEnumerable<ChannelMapping> GetAIChannels(IEnumerable<ChannelMapping> allChannels);
-
-        /// <summary>
-        /// 获取AO类型的通道列表
-        /// </summary>
-        /// <param name="allChannels">所有通道集合</param>
-        /// <returns>AO类型的通道列表</returns>
-        IEnumerable<ChannelMapping> GetAOChannels(IEnumerable<ChannelMapping> allChannels);
-
-        /// <summary>
-        /// 获取DI类型的通道列表
-        /// </summary>
-        /// <param name="allChannels">所有通道集合</param>
-        /// <returns>DI类型的通道列表</returns>
-        IEnumerable<ChannelMapping> GetDIChannels(IEnumerable<ChannelMapping> allChannels);
-
-        /// <summary>
-        /// 获取DO类型的通道列表
-        /// </summary>
-        /// <param name="allChannels">所有通道集合</param>
-        /// <returns>DO类型的通道列表</returns>
-        IEnumerable<ChannelMapping> GetDOChannels(IEnumerable<ChannelMapping> allChannels);
-
-        /// <summary>
-        /// 根据批次名称获取相关的通道映射数据
-        /// </summary>
-        /// <param name="batchName">批次名称</param>
-        /// <returns>属于该批次的通道映射集合</returns>
-        Task<IEnumerable<ChannelMapping>> GetChannelMappingsByBatchNameAsync(string batchName);
+        /// <param name="channels">需要清除分配信息的通道集合</param>
+        /// <returns>清除分配信息后的通道集合</returns>
+        Task<IEnumerable<ChannelMapping>> ClearAllChannelAllocationsAsync(IEnumerable<ChannelMapping> channels);
     }
 }

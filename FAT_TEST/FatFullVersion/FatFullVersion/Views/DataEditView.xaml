@@ -398,7 +398,7 @@
                             Header="通道类型" />
                         <DataGridTextColumn
                             Width="*"
-                            Binding="{Binding ChannelTag}"
+                            Binding="{Binding HardPointTestResult}"
                             Header="通道硬点测试结果" />
                         <DataGridTemplateColumn Width="*" Header="通道复测">
                             <DataGridTemplateColumn.CellTemplate>
@@ -509,7 +509,7 @@
                     ColumnHeaderStyle="{StaticResource DataGridColumnHeaderStyle}"
                     FontSize="20"
                     IsReadOnly="True"
-                    ItemsSource="{Binding TestResults}"
+                    ItemsSource="{Binding AllChannels}"
                     Style="{StaticResource DataGridStyle}"
                     VirtualizingPanel.ScrollUnit="Pixel">
                     <DataGrid.Resources>
@@ -593,12 +593,12 @@
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding RangeLowerLimitValue, Converter={StaticResource DoubleToSlashConverter}}"
+                            Binding="{Binding RangeLowerLimit, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="行程最小值" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding RangeUpperLimitValue, Converter={StaticResource DoubleToSlashConverter}}"
+                            Binding="{Binding RangeUpperLimit, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="行程最大值" />
                         <DataGridTextColumn
                             Width="Auto"
@@ -655,6 +655,11 @@
                             MinWidth="150"
                             Binding="{Binding TestTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
                             Header="测试时间" />
+                        <DataGridTextColumn
+                            Width="Auto"
+                            MinWidth="300"
+                            Binding="{Binding HardPointTestResult}"
+                            Header="通道硬点测试结果" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="300"

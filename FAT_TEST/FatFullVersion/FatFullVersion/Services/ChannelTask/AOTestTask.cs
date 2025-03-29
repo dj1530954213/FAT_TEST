@@ -50,7 +50,9 @@ namespace FatFullVersion.Services.ChannelTask
 
             try
             {
-                // AO测试流程：在被测PLC上设置输出值，然后由测试PLC读取实际输出信号
+                // 实现AO测试逻辑
+                // 1. 向被测PLC的AO发送不同输出值
+                // 2. 测试PLC读取该模拟量并检验是否在允许范围
 
                 // 定义测试信号值（根据工程单位和量程计算）
                 float minValue = ChannelMapping.LowLowLimit;
@@ -59,98 +61,150 @@ namespace FatFullVersion.Services.ChannelTask
 
                 // 依次测试不同百分比的信号值
                 float[] percentages = { 0, 25, 50, 75, 100 };
-
-                foreach (var percentage in percentages)
+                
+                bool allTestsPassed = true;
+                
+                for (int i = 0; i < percentages.Length; i++)
                 {
+                    float percentage = percentages[i];
+                    
                     // 取消检查
                     cancellationToken.ThrowIfCancellationRequested();
-
+                    
                     // 暂停检查
                     await CheckAndWaitForResumeAsync(cancellationToken);
-
+                    
                     // 计算当前测试值
-                    float testValue = minValue + range * percentage / 100;
-
-                    // 写入测试值到被测PLC
-                    var writeResult = await TargetPlcCommunication.WriteAnalogValueAsync(ChannelMapping.PlcCommunicationAddress.Substring(1), testValue);
+                    float testValue = minValue + (range * percentage / 100);
+                    
+                    // 向被测PLC发送AO值
+                    var writeResult = await TargetPlcCommunication.WriteAnalogValueAsync(
+                        ChannelMapping.PlcCommunicationAddress.Substring(1), 
+                        testValue);
+                        
                     if (!writeResult.IsSuccess)
                     {
-                        Result.Status = $"写入测试值失败：{writeResult.ErrorMessage}";
+                        Result.Status = $"写入被测PLC失败: {writeResult.ErrorMessage}";
+                        allTestsPassed = false;
                         break;
                     }
-
-                    // 等待信号稳定(大约3秒)
+                    
+                    // 等待信号稳定
                     await Task.Delay(3000, cancellationToken);
-
-                    // 读取测试PLC的值
-                    var readResult = await TestPlcCommunication.ReadAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress.Substring(1));
+                    
+                    // 测试PLC读取该值
+                    var readResult = await TestPlcCommunication.ReadAnalogValueAsync(
+                        ChannelMapping.TestPLCCommunicationAddress.Substring(1));
+                        
                     if (!readResult.IsSuccess)
                     {
-                        Result.Status = $"读取测试PLC值失败：{readResult.ErrorMessage}";
+                        Result.Status = $"读取测试PLC失败: {readResult.ErrorMessage}";
+                        allTestsPassed = false;
                         break;
                     }
-
+                    
                     float actualValue = readResult.Data;
-
+                    
+                    // 存储各个百分比点位的值
+                    switch (percentage)
+                    {
+                        case 0:
+                            Result.Value0Percent = actualValue;
+                            Console.WriteLine($"AO存储0%值: {actualValue}");
+                            break;
+                        case 25:
+                            Result.Value25Percent = actualValue;
+                            Console.WriteLine($"AO存储25%值: {actualValue}");
+                            break;
+                        case 50:
+                            Result.Value50Percent = actualValue;
+                            Console.WriteLine($"AO存储50%值: {actualValue}");
+                            break;
+                        case 75:
+                            Result.Value75Percent = actualValue;
+                            Console.WriteLine($"AO存储75%值: {actualValue}");
+                            break;
+                        case 100:
+                            Result.Value100Percent = actualValue;
+                            Console.WriteLine($"AO存储100%值: {actualValue}");
+                            break;
+                    }
+                    
                     // 更新测试结果
                     Result.ExpectedValue = testValue;
                     Result.ActualValue = actualValue;
-
-                    // 计算偏差是否在容许范围内
+                    
+                    // 计算偏差
                     float deviation = Math.Abs(actualValue - testValue);
-                    float deviationPercent = testValue != 0 ? deviation / Math.Abs(testValue) * 100 : 0;
-
-                    // 根据偏差判断是否通过测试
-                    // 假设允许偏差为1%
-                    const float allowedDeviation = 1.0F;
-
+                    float deviationPercent = (testValue != 0) ? (deviation / Math.Abs(testValue)) * 100 : 0;
+                    
+                    // 检查偏差是否在允许范围内
+                    const float allowedDeviation = 1.0f; // 1%的允许偏差
+                    
                     if (deviationPercent <= allowedDeviation)
                     {
                         Result.Status = $"{percentage}%测试通过";
                     }
                     else
                     {
-                        Result.Status = $"{percentage}%测试失败：偏差{deviationPercent:F2}%超出范围";
-                        //break; // 如果测试失败，则结束后续测试
+                        Result.Status = $"{percentage}%测试失败: 偏差{deviationPercent:F2}%超出范围";
+                        allTestsPassed = false;
+                        // 不中断测试，继续测试其它百分比点
                     }
-
-                    // 短暂延时再进行下一个测试点
+                    
+                    // 短暂延时
                     await Task.Delay(1000, cancellationToken);
                 }
-
-                // 所有测试点通过后，将最终状态设置为通过
-                if (Result.Status.Contains("通过"))
+                
+                // 确保百分比测试值能够持久化到通道映射中
+                ChannelMapping.Value0Percent = Result.Value0Percent;
+                ChannelMapping.Value25Percent = Result.Value25Percent;
+                ChannelMapping.Value50Percent = Result.Value50Percent;
+                ChannelMapping.Value75Percent = Result.Value75Percent;
+                ChannelMapping.Value100Percent = Result.Value100Percent;
+                
+                // 设置最终测试状态
+                if (allTestsPassed)
                 {
                     Result.Status = "通过";
+                    ChannelMapping.HardPointTestResult = "通过";
+                }
+                else if (Result.Status.Contains("%测试失败"))
+                {
+                    // 保持最后一个失败点位的失败信息
+                    ChannelMapping.HardPointTestResult = Result.Status;
+                }
+                else
+                {
+                    Result.Status = "失败";
+                    ChannelMapping.HardPointTestResult = "失败";
                 }
             }
             catch (OperationCanceledException)
             {
-                // 任务被取消，不做特殊处理，直接向上抛出
+                // 任务被取消
                 throw;
             }
             catch (Exception ex)
             {
-                // 其他异常，记录错误消息
+                // 其他异常
                 Result.Status = "失败";
                 Result.ErrorMessage = ex.Message;
+                ChannelMapping.HardPointTestResult = "失败";
                 throw;
             }
             finally
             {
-                // 结束测试时，将被测PLC输出复位到0%
+                // 将被测PLC AO复位到0%
                 try
                 {
-                    var resetResult = await TargetPlcCommunication.WriteAnalogValueAsync(ChannelMapping.PlcCommunicationAddress.Substring(1), ChannelMapping.LowLowLimit);
-                    if (!resetResult.IsSuccess)
-                    {
-                        // 记录复位失败但不影响测试结果
-                        Result.ErrorMessage = $"复位失败：{resetResult.ErrorMessage}";
-                    }
+                    await TargetPlcCommunication.WriteAnalogValueAsync(
+                        ChannelMapping.PlcCommunicationAddress.Substring(1), 
+                        ChannelMapping.LowLowLimit);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 忽略复位过程中的异常
+                    Console.WriteLine($"复位AO通道失败: {ex.Message}");
                 }
             }
         }

@@ -49,10 +49,10 @@ namespace FatFullVersion.Views
                 if (this.DataContext == null)
                 {
                     this.DataContext = new DataEditViewModel(
-                        _eventAggregator,
-                        _channelMappingService,
                         _pointDataService,
-                        _testTaskManager);
+                        _channelMappingService,
+                        _testTaskManager,
+                        _eventAggregator);
                 }
                 
                 // 注册加载完成事件用于延迟初始化
