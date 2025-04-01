@@ -61,8 +61,12 @@ namespace FatFullVersion.Services.ChannelTask
 
                 // 依次测试不同百分比的信号值
                 float[] percentages = { 0, 25, 50, 75, 100 };
-                
+                //测试前清除原有记录
+                Result.Status = "";
                 bool allTestsPassed = true;
+                
+                // 创建详细测试日志
+                StringBuilder detailedTestLog = new StringBuilder();
                 
                 for (int i = 0; i < percentages.Length; i++)
                 {
@@ -84,7 +88,7 @@ namespace FatFullVersion.Services.ChannelTask
                         
                     if (!writeResult.IsSuccess)
                     {
-                        Result.Status = $"写入被测PLC失败: {writeResult.ErrorMessage}";
+                        detailedTestLog.AppendLine($"写入被测PLC失败: {writeResult.ErrorMessage}");
                         allTestsPassed = false;
                         break;
                     }
@@ -98,7 +102,7 @@ namespace FatFullVersion.Services.ChannelTask
                         
                     if (!readResult.IsSuccess)
                     {
-                        Result.Status = $"读取测试PLC失败: {readResult.ErrorMessage}";
+                        detailedTestLog.AppendLine($"读取测试PLC失败: {readResult.ErrorMessage}");
                         allTestsPassed = false;
                         break;
                     }
@@ -143,11 +147,11 @@ namespace FatFullVersion.Services.ChannelTask
                     
                     if (deviationPercent <= allowedDeviation)
                     {
-                        Result.Status = $"{percentage}%测试通过";
+                        detailedTestLog.AppendLine($"{percentage}%测试通过");
                     }
                     else
                     {
-                        Result.Status = $"{percentage}%测试失败: 偏差{deviationPercent:F2}%超出范围";
+                        detailedTestLog.AppendLine($"{percentage}%测试失败: 偏差{deviationPercent:F2}%超出范围");
                         allTestsPassed = false;
                         // 不中断测试，继续测试其它百分比点
                     }
@@ -163,16 +167,14 @@ namespace FatFullVersion.Services.ChannelTask
                 ChannelMapping.Value75Percent = Result.Value75Percent;
                 ChannelMapping.Value100Percent = Result.Value100Percent;
                 
+                // 保存详细测试日志
+                Result.ErrorMessage = detailedTestLog.ToString();
+                
                 // 设置最终测试状态
                 if (allTestsPassed)
                 {
                     Result.Status = "通过";
                     ChannelMapping.HardPointTestResult = "通过";
-                }
-                else if (Result.Status.Contains("%测试失败"))
-                {
-                    // 保持最后一个失败点位的失败信息
-                    ChannelMapping.HardPointTestResult = Result.Status;
                 }
                 else
                 {
@@ -205,6 +207,10 @@ namespace FatFullVersion.Services.ChannelTask
                 catch (Exception ex)
                 {
                     Console.WriteLine($"复位AO通道失败: {ex.Message}");
+                    if (string.IsNullOrEmpty(Result.ErrorMessage))
+                        Result.ErrorMessage = $"复位失败: {ex.Message}";
+                    else
+                        Result.ErrorMessage += $"\n复位失败: {ex.Message}";
                 }
             }
         }

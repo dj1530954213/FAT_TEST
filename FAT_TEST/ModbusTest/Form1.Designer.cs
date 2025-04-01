@@ -37,6 +37,8 @@
             label2 = new Label();
             textBox_sd = new TextBox();
             button_stop = new Button();
+            label3 = new Label();
+            textBox_batch = new TextBox();
             SuspendLayout();
             // 
             // button_connect
@@ -123,11 +125,31 @@
             button_stop.UseVisualStyleBackColor = true;
             button_stop.Click += button_stop_Click;
             // 
+            // label3
+            // 
+            label3.AutoSize = true;
+            label3.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 134);
+            label3.Location = new Point(27, 314);
+            label3.Name = "label3";
+            label3.Size = new Size(82, 41);
+            label3.TabIndex = 11;
+            label3.Text = "批次";
+            // 
+            // textBox_batch
+            // 
+            textBox_batch.Location = new Point(240, 314);
+            textBox_batch.Multiline = true;
+            textBox_batch.Name = "textBox_batch";
+            textBox_batch.Size = new Size(200, 59);
+            textBox_batch.TabIndex = 10;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(14F, 31F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1702, 1641);
+            Controls.Add(label3);
+            Controls.Add(textBox_batch);
             Controls.Add(button_stop);
             Controls.Add(label2);
             Controls.Add(textBox_sd);
@@ -155,5 +177,7 @@
         private Label label2;
         private TextBox textBox_sd;
         private Button button_stop;
+        private Label label3;
+        private TextBox textBox_batch;
     }
 }

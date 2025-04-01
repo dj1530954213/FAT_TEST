@@ -59,6 +59,10 @@ namespace FatFullVersion.Services.ChannelTask
                 await CheckAndWaitForResumeAsync(cancellationToken);
                 
                 bool allTestsPassed = true;
+                Result.Status = "";
+                
+                // 创建详细测试日志
+                StringBuilder detailedTestLog = new StringBuilder();
                 
                 // 测试信号为1（闭合）
                 var writeHighResult = await TargetPlcCommunication.WriteDigitalValueAsync(
@@ -67,7 +71,7 @@ namespace FatFullVersion.Services.ChannelTask
                     
                 if (!writeHighResult.IsSuccess)
                 {
-                    Result.Status = $"写入高信号失败: {writeHighResult.ErrorMessage}";
+                    detailedTestLog.AppendLine($"写入高信号失败: {writeHighResult.ErrorMessage}");
                     allTestsPassed = false;
                 }
                 else
@@ -81,7 +85,7 @@ namespace FatFullVersion.Services.ChannelTask
                         
                     if (!readHighResult.IsSuccess)
                     {
-                        Result.Status = $"读取高信号失败: {readHighResult.ErrorMessage}";
+                        detailedTestLog.AppendLine($"读取高信号失败: {readHighResult.ErrorMessage}");
                         allTestsPassed = false;
                     }
                     else
@@ -90,11 +94,11 @@ namespace FatFullVersion.Services.ChannelTask
                         
                         if (actualHighValue)
                         {
-                            Result.Status = "高信号测试通过";
+                            detailedTestLog.AppendLine("高信号测试通过");
                         }
                         else
                         {
-                            Result.Status = "高信号测试失败: 期望值为true，实际值为false";
+                            detailedTestLog.AppendLine("高信号测试失败: 期望值为true，实际值为false");
                             allTestsPassed = false;
                         }
                         
@@ -119,7 +123,7 @@ namespace FatFullVersion.Services.ChannelTask
                         
                     if (!writeLowResult.IsSuccess)
                     {
-                        Result.Status = $"写入低信号失败: {writeLowResult.ErrorMessage}";
+                        detailedTestLog.AppendLine($"写入低信号失败: {writeLowResult.ErrorMessage}");
                         allTestsPassed = false;
                     }
                     else
@@ -133,7 +137,7 @@ namespace FatFullVersion.Services.ChannelTask
                             
                         if (!readLowResult.IsSuccess)
                         {
-                            Result.Status = $"读取低信号失败: {readLowResult.ErrorMessage}";
+                            detailedTestLog.AppendLine($"读取低信号失败: {readLowResult.ErrorMessage}");
                             allTestsPassed = false;
                         }
                         else
@@ -142,11 +146,11 @@ namespace FatFullVersion.Services.ChannelTask
                             
                             if (!actualLowValue)
                             {
-                                Result.Status = "低信号测试通过";
+                                detailedTestLog.AppendLine("低信号测试通过");
                             }
                             else
                             {
-                                Result.Status = "低信号测试失败: 期望值为false，实际值为true";
+                                detailedTestLog.AppendLine("低信号测试失败: 期望值为false，实际值为true");
                                 allTestsPassed = false;
                             }
                             
@@ -157,6 +161,9 @@ namespace FatFullVersion.Services.ChannelTask
                     }
                 }
                 
+                // 保存详细测试日志
+                Result.ErrorMessage = detailedTestLog.ToString();
+                
                 // 设置最终测试状态
                 if (allTestsPassed)
                 {
@@ -165,8 +172,8 @@ namespace FatFullVersion.Services.ChannelTask
                 }
                 else
                 {
-                    // 保持最后一个失败消息
-                    ChannelMapping.HardPointTestResult = Result.Status;
+                    Result.Status = "失败";
+                    ChannelMapping.HardPointTestResult = "失败";
                 }
             }
             catch (OperationCanceledException)
@@ -194,6 +201,10 @@ namespace FatFullVersion.Services.ChannelTask
                 catch (Exception ex)
                 {
                     Console.WriteLine($"复位DO通道失败: {ex.Message}");
+                    if (string.IsNullOrEmpty(Result.ErrorMessage))
+                        Result.ErrorMessage = $"复位失败: {ex.Message}";
+                    else
+                        Result.ErrorMessage += $"\n复位失败: {ex.Message}";
                 }
             }
         }

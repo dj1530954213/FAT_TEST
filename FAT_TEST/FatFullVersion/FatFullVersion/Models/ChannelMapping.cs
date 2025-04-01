@@ -939,5 +939,15 @@ namespace FatFullVersion.Models
         #endregion
 
         public string CurrentValue { get; set; } = "--";
+
+        private string _showValueStatus = "未测试";
+        /// <summary>
+        /// 显示值核对状态
+        /// </summary>
+        public string ShowValueStatus
+        {
+            get { return _showValueStatus; }
+            set { SetProperty(ref _showValueStatus, value); }
+        }
     }
 }

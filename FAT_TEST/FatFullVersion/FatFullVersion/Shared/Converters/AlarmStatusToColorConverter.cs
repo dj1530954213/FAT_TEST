@@ -32,16 +32,29 @@ namespace FatFullVersion.Shared.Converters
             
             switch (status)
             {
+                case "通过":
                 case "已通过":
                     return new SolidColorBrush(Colors.Green);
                 case "未通过":
+                case "失败":
                     return new SolidColorBrush(Colors.Red);
                 case "测试中":
                 case "正在检测":
                     return new SolidColorBrush(Colors.Orange);
+                case "等待测试":
+                    return new SolidColorBrush(Colors.Blue);
                 case "未测试":
                     return new SolidColorBrush(Colors.Gray);
                 default:
+                    // 检查状态字符串是否包含"失败"或"错误"
+                    if (status.Contains("失败") || status.Contains("错误"))
+                    {
+                        return new SolidColorBrush(Colors.Red);
+                    }
+                    else if (status.Contains("通过"))
+                    {
+                        return new SolidColorBrush(Colors.Green);
+                    }
                     return new SolidColorBrush(Color.FromRgb(0x44, 0x72, 0xC4)); // 默认蓝色 #4472C4
             }
         }

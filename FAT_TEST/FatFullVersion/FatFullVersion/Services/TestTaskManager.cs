@@ -436,8 +436,25 @@ namespace FatFullVersion.Services
                     return;
                 }
 
-                // 将测试状态（通过/失败）同步到硬点测试结果中
-                originalChannel.HardPointTestResult = task.Result.Status;
+                // 将测试状态同步到硬点测试结果中
+                // 如果测试成功，则HardPointTestResult显示"通过"
+                // 如果测试失败，则HardPointTestResult显示"失败"，并将详细错误信息保存在ErrorMessage中
+                if (task.Result.Status == "通过")
+                {
+                    originalChannel.HardPointTestResult = "通过";
+                    originalChannel.TestResultStatus = 1; // 成功
+                }
+                else if (task.Result.Status.Contains("失败"))
+                {
+                    originalChannel.HardPointTestResult = "失败";
+                    originalChannel.TestResultStatus = 2; // 失败
+                    
+                    // 如果有错误信息，则保存到ErrorMessage中
+                    if (!string.IsNullOrEmpty(task.Result.ErrorMessage))
+                    {
+                        originalChannel.ErrorMessage = task.Result.ErrorMessage;
+                    }
+                }
                 
                 // 同步测试完成时间
                 originalChannel.TestTime = DateTime.Now;
@@ -477,22 +494,6 @@ namespace FatFullVersion.Services
                         break;
                 }
                 
-                // 设置测试结果状态码
-                if (task.Result.Status == "通过")
-                {
-                    originalChannel.TestResultStatus = 1; // 成功
-                }
-                else if (task.Result.Status.Contains("失败"))
-                {
-                    originalChannel.TestResultStatus = 2; // 失败
-                }
-                
-                // 同步错误信息
-                if (!string.IsNullOrEmpty(task.Result.ErrorMessage))
-                {
-                    originalChannel.ErrorMessage = task.Result.ErrorMessage;
-                }
-                
                 Console.WriteLine($"成功同步通道 {originalChannel.VariableName} 的测试结果: {originalChannel.HardPointTestResult}");
             }
             catch (Exception ex)
@@ -515,14 +516,36 @@ namespace FatFullVersion.Services
             int failedTasks = _activeTasks.Values.Count(t => t.Result?.Status?.Contains("失败") == true);
             int cancelledTasks = _activeTasks.Values.Count(t => t.IsCancelled);
 
-            if (passedTasks == totalTasks)
-                return BatchTestStatus.Completed;
-            else if (failedTasks > 0)
-                return BatchTestStatus.Completed;
-            else if (cancelledTasks > 0)
-                return BatchTestStatus.Canceled;
-            else
+            // 硬点测试正在进行或刚完成时，总是显示为"测试中"
+            // 这样可以提示用户进行后续的手动测试
+            if (passedTasks > 0 || failedTasks > 0)
+            {
                 return BatchTestStatus.InProgress;
+            }
+            
+            if (cancelledTasks > 0)
+                return BatchTestStatus.Canceled;
+                
+            return BatchTestStatus.InProgress;
+        }
+
+        /// <summary>
+        /// 更新批次状态为全部已完成
+        /// 只有在所有手动测试完成后才调用此方法
+        /// </summary>
+        public async Task<bool> CompleteAllTestsAsync()
+        {
+            if (_currentBatch != null)
+            {
+                _currentBatch.Status = BatchTestStatus.Completed.ToString();
+                _currentBatch.LastTestTime = DateTime.Now;
+                
+                // 通知UI刷新显示
+                NotifyTestResultsUpdated();
+                
+                return true;
+            }
+            return false;
         }
 
         /// <summary>

@@ -343,6 +343,7 @@
                     <DataGrid.RowStyle>
                         <Style TargetType="{x:Type DataGridRow}">
                             <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="Background" Value="{Binding TestResultStatus, Converter={StaticResource StatusToColorConverter}}" />
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="{x:Type DataGridRow}">
@@ -593,12 +594,12 @@
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding RangeLowerLimit, Converter={StaticResource DoubleToSlashConverter}}"
+                            Binding="{Binding RangeLowerLimitValue, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="行程最小值" />
                         <DataGridTextColumn
                             Width="Auto"
                             MinWidth="50"
-                            Binding="{Binding RangeUpperLimit, Converter={StaticResource DoubleToSlashConverter}}"
+                            Binding="{Binding RangeUpperLimitValue, Converter={StaticResource DoubleToSlashConverter}}"
                             Header="行程最大值" />
                         <DataGridTextColumn
                             Width="Auto"
@@ -886,7 +887,7 @@
                                     Grid.Column="0"
                                     Grid.ColumnSpan="2"
                                     Padding="16,8"
-                                    Background="{Binding CurrentTestResult.HardPointTestResult, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                    Background="{Binding CurrentChannel.ShowValueStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
                                     Command="{Binding ConfirmAIValueCommand}"
                                     CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
@@ -930,7 +931,7 @@
                                 <Button
                                     Grid.Row="1"
                                     Padding="16,8"
-                                    Background="{Binding CurrentTestResult.HighAlarmStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                    Background="{Binding CurrentChannel.HighAlarmStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
                                     Command="{Binding ConfirmAIHighAlarmCommand}"
                                     CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
@@ -975,7 +976,7 @@
                                 <Button
                                     Grid.Row="1"
                                     Padding="16,8"
-                                    Background="{Binding CurrentTestResult.LowAlarmStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                    Background="{Binding CurrentChannel.LowAlarmStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
                                     Command="{Binding ConfirmAILowAlarmCommand}"
                                     CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
@@ -1013,7 +1014,7 @@
                                 <Button
                                     Grid.Row="1"
                                     Padding="16,8"
-                                    Background="{Binding CurrentTestResult.MaintenanceFunction, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                    Background="{Binding CurrentChannel.MaintenanceFunction, Converter={StaticResource AlarmStatusToColorConverter}}"
                                     Command="{Binding ConfirmAIMaintenanceCommand}"
                                     CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
@@ -1098,7 +1099,7 @@
                                 <Button
                                     Grid.Row="1"
                                     Padding="16,8"
-                                    Background="{Binding CurrentTestResult.HardPointTestResult, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                    Background="{Binding CurrentChannel.ShowValueStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
                                     Command="{Binding ConfirmDICommand}"
                                     CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
@@ -1185,7 +1186,7 @@
 
                             <Button
                                 Padding="16,8"
-                                Background="{Binding CurrentTestResult.HardPointTestResult, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                Background="{Binding CurrentChannel.ShowValueStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
                                 Command="{Binding ConfirmDOCommand}"
                                 CommandParameter="{Binding CurrentChannel}"
                                 Content="确认通过"
@@ -1271,7 +1272,7 @@
 
                             <Button
                                 Padding="16,8"
-                                Background="{Binding CurrentTestResult.HardPointTestResult, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                Background="{Binding CurrentChannel.ShowValueStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
                                 Command="{Binding ConfirmAOCommand}"
                                 CommandParameter="{Binding CurrentChannel}"
                                 Content="确认通过"

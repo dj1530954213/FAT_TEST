@@ -61,6 +61,10 @@ namespace FatFullVersion.Models
                 float[] percentages = { 0, 25, 50, 75, 100 };
                 
                 bool allTestsPassed = true;
+                // 测试前清除原来的测试记录
+                Result.Status = "";
+                // 保存详细的测试过程记录
+                StringBuilder detailedTestLog = new StringBuilder();
                 
                 for (int i = 0; i < percentages.Length; i++)
                 {
@@ -79,7 +83,7 @@ namespace FatFullVersion.Models
                     var writeResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress.Substring(1), testValue);
                     if (!writeResult.IsSuccess)
                     {
-                        Result.Status = $"写入测试值失败：{writeResult.ErrorMessage}";
+                        detailedTestLog.AppendLine($"写入测试值失败：{writeResult.ErrorMessage}");
                         allTestsPassed = false;
                         break;
                     }
@@ -91,7 +95,7 @@ namespace FatFullVersion.Models
                     var readResult = await TargetPlcCommunication.ReadAnalogValueAsync(ChannelMapping.PlcCommunicationAddress.Substring(1));
                     if (!readResult.IsSuccess)
                     {
-                        Result.Status = $"读取被测PLC值失败：{readResult.ErrorMessage}";
+                        detailedTestLog.AppendLine($"读取被测PLC值失败：{readResult.ErrorMessage}");
                         allTestsPassed = false;
                         break;
                     }
@@ -137,11 +141,11 @@ namespace FatFullVersion.Models
                     
                     if (deviationPercent <= allowedDeviation)
                     {
-                        Result.Status = $"{percentage}%测试通过";
+                        detailedTestLog.AppendLine($"{percentage}%测试通过");
                     }
                     else
                     {
-                        Result.Status = $"{percentage}%测试失败：偏差{deviationPercent:F2}%超出范围";
+                        detailedTestLog.AppendLine($"{percentage}%测试失败：偏差{deviationPercent:F2}%超出范围");
                         allTestsPassed = false;
                         // 不中断测试流程，继续测试其它点位
                     }
@@ -157,16 +161,14 @@ namespace FatFullVersion.Models
                 ChannelMapping.Value75Percent = Result.Value75Percent;
                 ChannelMapping.Value100Percent = Result.Value100Percent;
                 
-                // 设置最终测试状态
+                // 保存详细日志到错误信息字段，便于查看
+                Result.ErrorMessage = detailedTestLog.ToString();
+                
+                // 设置最终测试状态 - 只显示通过或失败
                 if (allTestsPassed)
                 {
                     Result.Status = "通过";
                     ChannelMapping.HardPointTestResult = "通过";
-                }
-                else if (Result.Status.Contains("%测试失败"))
-                {
-                    // 保持最后一个失败点位的失败信息
-                    ChannelMapping.HardPointTestResult = Result.Status;
                 }
                 else
                 {
@@ -196,7 +198,10 @@ namespace FatFullVersion.Models
                     if (!resetResult.IsSuccess)
                     {
                         // 记录复位失败但不影响测试结果
-                        Result.ErrorMessage = $"复位失败：{resetResult.ErrorMessage}";
+                        if (string.IsNullOrEmpty(Result.ErrorMessage))
+                            Result.ErrorMessage = $"复位失败：{resetResult.ErrorMessage}";
+                        else
+                            Result.ErrorMessage += $"\n复位失败：{resetResult.ErrorMessage}";
                     }
                 }
                 catch

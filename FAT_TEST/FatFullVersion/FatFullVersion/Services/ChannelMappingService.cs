@@ -25,7 +25,7 @@ namespace FatFullVersion.Services
         /// </summary>
         private readonly (int AoModules, int AoChannelsPerModule, int AiModules, int AiChannelsPerModule,
                           int DoModules, int DoChannelsPerModule, int DiModules, int DiChannelsPerModule) _defaultTestPlcConfig
-            = (2, 4, 2, 4, 2, 8, 2, 8);
+            = (3, 2, 1, 4, 1, 20, 1, 28);
 
         /// <summary>
         /// 当前使用的测试PLC配置
@@ -432,7 +432,7 @@ namespace FatFullVersion.Services
         }
 
         /// <summary>
-        /// 使用配置中的通道信息分配通道
+        /// 使用配置中的通道信息分配通道(实际使用的通道分配的方法)
         /// </summary>
         /// <param name="channels">待分配的通道</param>
         /// <param name="testChannelMappings">测试PLC的通道映射</param>
@@ -553,7 +553,7 @@ namespace FatFullVersion.Services
         }
 
         /// <summary>
-        /// 测试使用的分配方法，后续替换为AllocateChannelsAsync
+        /// 测试使用的分配方法，后续替换为AllocateChannelsAsync(目前使用的实际的通道分配的方法)
         /// </summary>
         /// <param name="allChannels">所有通道集合</param>
         /// <returns>分配通道后的通道映射信息</returns>
