@@ -180,6 +180,7 @@ namespace FatFullVersion.Services.ChannelTask
                 {
                     Result.Status = "失败";
                     ChannelMapping.HardPointTestResult = "失败";
+                    ChannelMapping.TestResultStatus = 2;
                 }
             }
             catch (OperationCanceledException)

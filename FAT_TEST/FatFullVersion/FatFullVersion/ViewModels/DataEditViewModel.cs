@@ -19,6 +19,10 @@ using FatFullVersion.Services;
 using Prism.Events;
 using FatFullVersion.Events;
 using System.Threading.Channels;
+using System.Security.Cryptography;
+using NPOI.SS.Formula.Functions;
+using static NPOI.POIFS.Crypt.CryptoFunctions;
+using static Org.BouncyCastle.Asn1.Cmp.Challenge;
 
 namespace FatFullVersion.ViewModels
 {
@@ -30,6 +34,9 @@ namespace FatFullVersion.ViewModels
         private readonly IChannelMappingService _channelMappingService;
         private readonly ITestTaskManager _testTaskManager;
         private readonly IEventAggregator _eventAggregator;
+        private readonly IPlcCommunication _testPlc;
+        private readonly IPlcCommunication _targetPlc;
+        private readonly IPlcCommunication _plcCommunication;
 
         private string _message;
 
@@ -71,6 +78,16 @@ namespace FatFullVersion.ViewModels
                 }
             }
         }
+
+        /// <summary>
+        /// 测试PLC通信实例
+        /// </summary>
+        protected readonly IPlcCommunication TestPlcCommunication;
+
+        /// <summary>
+        /// 被测PLC通信实例
+        /// </summary>
+        protected readonly IPlcCommunication TargetPlcCommunication;
 
         // 当前显示的通道列表（用于UI展示）
         private ObservableCollection<ChannelMapping> _currentChannels;
@@ -322,7 +339,7 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 发送AI测试值命令
         /// </summary>
-        public DelegateCommand SendAITestValueCommand { get; private set; }
+        public DelegateCommand<ChannelMapping> SendAITestValueCommand { get; private set; }
 
         /// <summary>
         /// 确认AI值命令
@@ -332,12 +349,16 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 发送AI高报命令
         /// </summary>
-        public DelegateCommand SendAIHighAlarmCommand { get; private set; }
+        public DelegateCommand<ChannelMapping> SendAIHighAlarmCommand { get; private set; }
+        /// <summary>
+        /// 发送AI高高报命令
+        /// </summary>
+        public DelegateCommand<ChannelMapping> SendAIHighHighAlarmCommand { get; private set; }
 
         /// <summary>
         /// 复位AI高报命令
         /// </summary>
-        public DelegateCommand ResetAIHighAlarmCommand { get; private set; }
+        public DelegateCommand<ChannelMapping> ResetAIHighAlarmCommand { get; private set; }
 
         /// <summary>
         /// 确认AI高报命令
@@ -347,12 +368,17 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 发送AI低报命令
         /// </summary>
-        public DelegateCommand SendAILowAlarmCommand { get; private set; }
+        public DelegateCommand<ChannelMapping> SendAILowAlarmCommand { get; private set; }
+
+        /// <summary>
+        /// 发送AI低低报命令
+        /// </summary>
+        public DelegateCommand<ChannelMapping> SendAILowLowAlarmCommand { get; private set; }
 
         /// <summary>
         /// 复位AI低报命令
         /// </summary>
-        public DelegateCommand ResetAILowAlarmCommand { get; private set; }
+        public DelegateCommand<ChannelMapping> ResetAILowAlarmCommand { get; private set; }
 
         /// <summary>
         /// 确认AI低报命令
@@ -362,12 +388,12 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 发送AI维护功能命令
         /// </summary>
-        public DelegateCommand SendAIMaintenanceCommand { get; private set; }
+        public DelegateCommand<ChannelMapping> SendAIMaintenanceCommand { get; private set; }
 
         /// <summary>
         /// 复位AI维护功能命令
         /// </summary>
-        public DelegateCommand ResetAIMaintenanceCommand { get; private set; }
+        public DelegateCommand<ChannelMapping> ResetAIMaintenanceCommand { get; private set; }
 
         /// <summary>
         /// 确认AI维护功能命令
@@ -377,12 +403,12 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 发送DI测试命令
         /// </summary>
-        public DelegateCommand SendDITestCommand { get; private set; }
+        public DelegateCommand<ChannelMapping> SendDITestCommand { get; private set; }
 
         /// <summary>
         /// 复位DI命令
         /// </summary>
-        public DelegateCommand ResetDICommand { get; private set; }
+        public DelegateCommand<ChannelMapping> ResetDICommand { get; private set; }
 
         /// <summary>
         /// 确认DI命令
@@ -624,12 +650,17 @@ namespace FatFullVersion.ViewModels
             IPointDataService pointDataService,
             IChannelMappingService channelMappingService,
             ITestTaskManager testTaskManager,
-            IEventAggregator eventAggregator)
+            IEventAggregator eventAggregator,
+            IPlcCommunication testPlc,
+            IPlcCommunication targetPlc
+            )
         {
             _pointDataService = pointDataService;
             _channelMappingService = channelMappingService;
             _testTaskManager = testTaskManager;
             _eventAggregator = eventAggregator;
+            _testPlc = testPlc ?? throw new ArgumentNullException(nameof(testPlc));
+            _targetPlc = targetPlc ?? throw new ArgumentNullException(nameof(targetPlc));
 
             // 订阅测试结果更新事件
             _eventAggregator.GetEvent<TestResultsUpdatedEvent>().Subscribe(OnTestResultsUpdated);
@@ -682,21 +713,23 @@ namespace FatFullVersion.ViewModels
             CloseAOManualTestCommand = new DelegateCommand(ExecuteCloseAOManualTest);
 
             // AI手动测试命令
-            SendAITestValueCommand = new DelegateCommand(ExecuteSendAITestValue);
+            SendAITestValueCommand = new DelegateCommand<ChannelMapping>(ExecuteSendAITestValue);
             ConfirmAIValueCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAIValue);
-            SendAIHighAlarmCommand = new DelegateCommand(ExecuteSendAIHighAlarm);
-            ResetAIHighAlarmCommand = new DelegateCommand(ExecuteResetAIHighAlarm);
+            SendAIHighAlarmCommand = new DelegateCommand<ChannelMapping>(ExecuteSendAIHighAlarm);
+            SendAIHighHighAlarmCommand = new DelegateCommand<ChannelMapping>(ExecuteSendAIHighHighAlarm);
+            ResetAIHighAlarmCommand = new DelegateCommand<ChannelMapping>(ExecuteResetAIHighAlarm);
             ConfirmAIHighAlarmCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAIHighAlarm);
-            SendAILowAlarmCommand = new DelegateCommand(ExecuteSendAILowAlarm);
-            ResetAILowAlarmCommand = new DelegateCommand(ExecuteResetAILowAlarm);
+            SendAILowAlarmCommand = new DelegateCommand<ChannelMapping>(ExecuteSendAILowAlarm);
+            SendAILowLowAlarmCommand = new DelegateCommand<ChannelMapping>(ExecuteSendAILowLowAlarm);
+            ResetAILowAlarmCommand = new DelegateCommand<ChannelMapping>(ExecuteResetAILowAlarm);
             ConfirmAILowAlarmCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAILowAlarm);
-            SendAIMaintenanceCommand = new DelegateCommand(ExecuteSendAIMaintenance);
-            ResetAIMaintenanceCommand = new DelegateCommand(ExecuteResetAIMaintenance);
+            SendAIMaintenanceCommand = new DelegateCommand<ChannelMapping>(ExecuteSendAIMaintenance);
+            ResetAIMaintenanceCommand = new DelegateCommand<ChannelMapping>(ExecuteResetAIMaintenance);
             ConfirmAIMaintenanceCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAIMaintenance);
 
             // DI手动测试命令
-            SendDITestCommand = new DelegateCommand(ExecuteSendDITest);
-            ResetDICommand = new DelegateCommand(ExecuteResetDI);
+            SendDITestCommand = new DelegateCommand<ChannelMapping>(ExecuteSendDITest);
+            ResetDICommand = new DelegateCommand<ChannelMapping>(ExecuteResetDI);
             ConfirmDICommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmDI);
 
             // DO手动测试命令
@@ -834,6 +867,7 @@ namespace FatFullVersion.ViewModels
                         SHHSetValue = point.SHHSetValue,
                         SHHSetValueNumber = point.SHHSetValueNumber,
                         PlcCommunicationAddress = point.CommunicationAddress,
+                        MaintenanceEnableSwitchPointCommAddress = point.MaintenanceEnableSwitchPointCommAddress,
 
                         DataType = point.DataType,
                         RangeLowerLimitValue = (float)point.LowLowLimit,
@@ -880,6 +914,7 @@ namespace FatFullVersion.ViewModels
                         SHHSetValue = point.SHHSetValue,
                         SHHSetValueNumber = point.SHHSetValueNumber,
                         PlcCommunicationAddress = point.CommunicationAddress,
+                        MaintenanceEnableSwitchPointCommAddress = point.MaintenanceEnableSwitchPointCommAddress,
 
                         DataType = point.DataType,
                         RangeLowerLimitValue = (float)point.LowLowLimit,
@@ -1310,7 +1345,7 @@ namespace FatFullVersion.ViewModels
                 }
 
                 // 显示等待测试的画面
-                await _testTaskManager.ShowTestProgressDialogAsync();
+                await _testTaskManager.ShowTestProgressDialogAsync(false, null);
 
                 // 开始所有测试任务
                 var result = await _testTaskManager.StartAllTasksAsync();
@@ -1366,22 +1401,47 @@ namespace FatFullVersion.ViewModels
         {
             if (result == null) return;
 
-            // 复测逻辑实现
-            Message = $"复测 {result.TestId}";
+            try
+            {
+                // 设置加载状态
+                IsLoading = true;
+                StatusMessage = $"正在复测通道 {result.VariableName}...";
 
-            // 模拟复测：随机生成新的测试结果
-            Random random = new Random();
-            result.TestResultStatus = random.Next(1, 3); // 1:通过, 2:失败
-            result.TestTime = DateTime.Now;
-            result.ResultText = result.TestResultStatus == 1 ? "通过" : "失败";
+                // 调用测试任务管理器复测该通道
+                bool retestSuccess = await _testTaskManager.RetestChannelAsync(result);
 
-            // 更新批次信息
-            await UpdateBatchInfoAsync();
+                if (retestSuccess)
+                {
+                    // 更新批次信息
+                    await UpdateBatchInfoAsync();
 
-            RaisePropertyChanged(nameof(AllChannels));
+                    // 通知UI更新
+                    RaisePropertyChanged(nameof(AllChannels));
+                    UpdateCurrentChannels();
 
-            // 更新点位统计数据
-            UpdatePointStatistics();
+                    // 更新点位统计数据
+                    UpdatePointStatistics();
+
+                    // 更新测试结果状态
+                    UpdateTestResultStatus(result);
+                    
+                    // 提示成功
+                    StatusMessage = $"通道 {result.VariableName} 复测完成";
+                }
+                else
+                {
+                    StatusMessage = $"通道 {result.VariableName} 复测失败";
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"复测失败: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"复测失败: {ex.Message}");
+            }
+            finally
+            {
+                IsLoading = false;
+            }
         }
 
         #endregion
@@ -1430,8 +1490,8 @@ namespace FatFullVersion.ViewModels
                 // 根据测试结果更新批次状态
                 var updatedBatches = await _channelMappingService.UpdateBatchStatusAsync(batches, AllChannels);
 
-                // 保存当前选中的批次ID
-                string selectedBatchId = SelectedBatch?.BatchId;
+                // 保存当前选中的批次名称
+                string selectedBatchName = SelectedBatch?.BatchName;
 
                 // 更新批次集合
                 if (updatedBatches != null && updatedBatches.Any())
@@ -1439,10 +1499,10 @@ namespace FatFullVersion.ViewModels
                     Batches = new ObservableCollection<BatchInfo>(updatedBatches);
 
                     // 如果之前有选中的批次，尝试找回并选中
-                    if (!string.IsNullOrEmpty(selectedBatchId))
+                    if (!string.IsNullOrEmpty(selectedBatchName))
                     {
                         var updatedSelectedBatch =
-                            Batches.FirstOrDefault(b => b != null && b.BatchId == selectedBatchId);
+                            Batches.FirstOrDefault(b => b != null && b.BatchName == selectedBatchName);
                         if (updatedSelectedBatch != null)
                         {
                             // 直接设置字段而不触发OnBatchSelected
@@ -1888,7 +1948,8 @@ namespace FatFullVersion.ViewModels
                     {
                         channel.ResultText = "手动测试中";
                     }
-                    
+                    //打开窗口时生成一个在低报和高报内的随机数
+                    AISetValue = ((float)(new Random().NextDouble() * (channel.HighLimit - channel.LowLimit) + channel.LowLimit)).ToString();
                     // 设置AI手动测试窗口打开状态为true
                     IsAIManualTestOpen = true;
                     
@@ -2005,7 +2066,7 @@ namespace FatFullVersion.ViewModels
                     {
                         channel.ResultText = "手动测试中";
                     }
-                    
+
                     // 设置AO手动测试窗口打开状态为true
                     IsAOManualTestOpen = true;
                     
@@ -2139,13 +2200,13 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 执行发送AI测试值
         /// </summary>
-        private void ExecuteSendAITestValue()
+        private async void ExecuteSendAITestValue(ChannelMapping channel)
         {
             try
             {
                 // 实现发送AI测试值的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(AISetValue));
             }
             catch (Exception ex)
             {
@@ -2184,12 +2245,30 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 发送AI高报警测试信号
         /// </summary>
-        private void ExecuteSendAIHighAlarm()
+        private async void ExecuteSendAIHighAlarm(ChannelMapping channel)
         {
             try
             {
                 // 实现发送AI高报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(channel.HighLimit)+0.01f);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"发送AI高报警测试信号失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 发送AI高高报警测试信号
+        /// </summary>
+        private async void ExecuteSendAIHighHighAlarm(ChannelMapping channel)
+        {
+            try
+            {
+                // 实现发送AI高报警测试信号的逻辑
+                // 直接执行业务逻辑，不弹出消息框
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(channel.HighHighLimit) + 0.01f);
             }
             catch (Exception ex)
             {
@@ -2200,12 +2279,13 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 重置AI高报警测试信号
         /// </summary>
-        private void ExecuteResetAIHighAlarm()
+        private async void ExecuteResetAIHighAlarm(ChannelMapping channel)
         {
             try
             {
                 // 实现重置AI高报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(AISetValue));
             }
             catch (Exception ex)
             {
@@ -2245,12 +2325,30 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 发送AI低报警测试信号
         /// </summary>
-        private void ExecuteSendAILowAlarm()
+        private async void ExecuteSendAILowAlarm(ChannelMapping channel)
         {
             try
             {
                 // 实现发送AI低报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(channel.LowLimit) - 0.01f);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"发送AI低报警测试信号失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 发送AI低低报警测试信号
+        /// </summary>
+        private async void ExecuteSendAILowLowAlarm(ChannelMapping channel)
+        {
+            try
+            {
+                // 实现发送AI低报警测试信号的逻辑
+                // 直接执行业务逻辑，不弹出消息框
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(channel.LowLowLimit) - 0.01f);
             }
             catch (Exception ex)
             {
@@ -2261,12 +2359,13 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 重置AI低报警测试信号
         /// </summary>
-        private void ExecuteResetAILowAlarm()
+        private async void ExecuteResetAILowAlarm(ChannelMapping channel)
         {
             try
             {
                 // 实现重置AI低报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(AISetValue));
             }
             catch (Exception ex)
             {
@@ -2306,12 +2405,13 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 发送AI维护测试信号
         /// </summary>
-        private void ExecuteSendAIMaintenance()
+        private async void ExecuteSendAIMaintenance(ChannelMapping channel)
         {
             try
             {
                 // 实现发送AI维护测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
+                await _testPlc.WriteDigitalValueAsync(channel.MaintenanceEnableSwitchPointCommAddress, true);
             }
             catch (Exception ex)
             {
@@ -2322,12 +2422,13 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 重置AI维护测试信号
         /// </summary>
-        private void ExecuteResetAIMaintenance()
+        private async void ExecuteResetAIMaintenance(ChannelMapping channel)
         {
             try
             {
                 // 实现重置AI维护测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
+                await _testPlc.WriteDigitalValueAsync(channel.MaintenanceEnableSwitchPointCommAddress, false);
             }
             catch (Exception ex)
             {
@@ -2366,12 +2467,13 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 发送DI测试信号
         /// </summary>
-        private void ExecuteSendDITest()
+        private async void ExecuteSendDITest(ChannelMapping channel)
         {
             try
             {
                 // 实现发送DI测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
+                await _testPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, true);
             }
             catch (Exception ex)
             {
@@ -2382,12 +2484,13 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 重置DI测试信号
         /// </summary>
-        private void ExecuteResetDI()
+        private async void ExecuteResetDI(ChannelMapping channel)
         {
             try
             {
                 // 实现重置DI测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
+                await _testPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, true);
             }
             catch (Exception ex)
             {
@@ -2426,16 +2529,22 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 启动DO监测
         /// </summary>
-        private void ExecuteStartDOMonitor(ChannelMapping channel)
+        private async void ExecuteStartDOMonitor(ChannelMapping channel)
         {
             try
             {
-                if (channel != null)
+                //当前传入的数据不为空且未点击确认通过
+                if (channel != null && channel.ShowValueStatus != "通过")
                 {
                     // 设置当前监测的DO通道
                     CurrentChannel = channel;
                     CurrentTestResult = channel;
                     // 启动DO监测逻辑
+                    while (channel.ShowValueStatus != "通过" )
+                    {
+                        DOCurrentValue = (await _testPlc.ReadDigitalValueAsync(channel.TestPLCCommunicationAddress)).Data.ToString();
+                        await Task.Delay(500);
+                    }
                     // 直接执行业务逻辑，不弹出消息框
                 }
             }
@@ -2476,16 +2585,21 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 启动AO监测
         /// </summary>
-        private void ExecuteStartAOMonitor(ChannelMapping channel)
+        private async void ExecuteStartAOMonitor(ChannelMapping channel)
         {
             try
             {
-                if (channel != null)
+                if (channel != null && channel.ShowValueStatus != "通过")
                 {
                     // 设置当前监测的AO通道
                     CurrentChannel = channel;
                     CurrentTestResult = channel;
                     // 启动AO监测逻辑
+                    while (channel.ShowValueStatus != "通过")
+                    {
+                        AOCurrentValue = (await _testPlc.ReadAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1))).Data.ToString();
+                        await Task.Delay(500);
+                    }
                     // 直接执行业务逻辑，不弹出消息框
                 }
             }

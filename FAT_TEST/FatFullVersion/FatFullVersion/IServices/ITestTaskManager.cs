@@ -95,8 +95,10 @@ namespace FatFullVersion.IServices
         /// <summary>
         /// 显示测试进度对话框
         /// </summary>
+        /// <param name="isRetestMode">是否为复测模式，默认为false表示全自动测试</param>
+        /// <param name="channelInfo">复测的通道信息（复测模式下使用）</param>
         /// <returns>异步任务</returns>
-        Task ShowTestProgressDialogAsync();
+        Task ShowTestProgressDialogAsync(bool isRetestMode = false, ChannelMapping channelInfo = null);
         
         /// <summary>
         /// 更新批次状态为全部已完成
@@ -104,5 +106,12 @@ namespace FatFullVersion.IServices
         /// </summary>
         /// <returns>操作是否成功</returns>
         Task<bool> CompleteAllTestsAsync();
+
+        /// <summary>
+        /// 对单个通道进行复测
+        /// </summary>
+        /// <param name="channelMapping">需要复测的通道映射</param>
+        /// <returns>操作是否成功</returns>
+        Task<bool> RetestChannelAsync(ChannelMapping channelMapping);
     }
 }

@@ -183,7 +183,7 @@ namespace FatFullVersion.Services
                 if (autoStart)
                 {
                     // 显示等待对话框
-                    await ShowTestProgressDialogAsync();
+                    await ShowTestProgressDialogAsync(false, null);
                     
                     // 开始测试
                     await StartAllTasksAsync();
@@ -199,8 +199,10 @@ namespace FatFullVersion.Services
         /// <summary>
         /// 显示测试进度对话框
         /// </summary>
-        /// <returns>显示对话框的任务</returns>
-        public async Task ShowTestProgressDialogAsync()
+        /// <param name="isRetestMode">是否为复测模式，默认为false表示全自动测试</param>
+        /// <param name="channelInfo">复测的通道信息（复测模式下使用）</param>
+        /// <returns>异步任务</returns>
+        public async Task ShowTestProgressDialogAsync(bool isRetestMode = false, ChannelMapping channelInfo = null)
         {
             await Task.Run(() =>
             {
@@ -221,10 +223,24 @@ namespace FatFullVersion.Services
                         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(10) }); // 5: 间距
                         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 6: 提示文本
 
+                        // 根据不同模式设置不同的标题和信息
+                        string title = isRetestMode ? "通道复测进行中" : "自动测试进行中";
+                        string info = isRetestMode ? "请等待通道复测完成..." : "请等待测试完成...";
+                        string batchInfo = string.Empty;
+
+                        if (isRetestMode && channelInfo != null)
+                        {
+                            batchInfo = $"批次: {channelInfo.TestBatch}, 通道: {channelInfo.VariableName}";
+                        }
+                        else
+                        {
+                            batchInfo = _currentBatch != null ? $"批次: {_currentBatch.BatchName}" : "批次: 未知";
+                        }
+
                         // 添加标题文本
                         var titleTextBlock = new TextBlock
                         {
-                            Text = "测试正在进行中",
+                            Text = title,
                             FontSize = 20,
                             FontWeight = FontWeights.Bold,
                             HorizontalAlignment = HorizontalAlignment.Center,
@@ -237,7 +253,7 @@ namespace FatFullVersion.Services
                         // 添加批次信息
                         var batchInfoTextBlock = new TextBlock
                         {
-                            Text = _currentBatch != null ? $"批次: {_currentBatch.BatchName}" : "批次: 未知",
+                            Text = batchInfo,
                             FontSize = 14,
                             HorizontalAlignment = HorizontalAlignment.Center,
                             Margin = new Thickness(0, 5, 0, 0)
@@ -261,7 +277,7 @@ namespace FatFullVersion.Services
                         // 添加提示文本
                         var infoTextBlock = new TextBlock
                         {
-                            Text = "请等待测试完成...",
+                            Text = info,
                             FontSize = 14,
                             HorizontalAlignment = HorizontalAlignment.Center,
                             Margin = new Thickness(0, 5, 0, 15)
@@ -272,7 +288,7 @@ namespace FatFullVersion.Services
                         // 创建等待对话框
                         _progressDialog = new Window
                         {
-                            Title = "测试进行中",
+                            Title = title,
                             Width = 350,
                             Height = 250,
                             WindowStartupLocation = WindowStartupLocation.CenterScreen,
@@ -810,6 +826,91 @@ namespace FatFullVersion.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"通知UI更新失败: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 对单个通道进行复测
+        /// </summary>
+        /// <param name="channelMapping">需要复测的通道映射</param>
+        /// <returns>操作是否成功</returns>
+        public async Task<bool> RetestChannelAsync(ChannelMapping channelMapping)
+        {
+            if (channelMapping == null)
+                return false;
+
+            try
+            {
+                // 移除旧的相关测试任务
+                var existingTask = GetTaskByChannel(channelMapping);
+                if (existingTask != null)
+                {
+                    // 如果任务正在运行，先停止
+                    if (existingTask.Status == TestTaskStatus.Running || existingTask.Status == TestTaskStatus.Paused)
+                    {
+                        await existingTask.StopAsync();
+                    }
+                    
+                    // 从活跃任务列表中移除
+                    await RemoveTaskAsync(existingTask.Id);
+                }
+
+                // 根据通道类型创建并启动新的测试任务
+                string taskId = string.Empty;
+                List<string> taskIds = new List<string>();
+                
+                switch (channelMapping.ModuleType?.ToLower())
+                {
+                    case "ai":
+                        taskIds = (await CreateAITasksAsync(new[] { channelMapping })).ToList();
+                        break;
+                    case "ao":
+                        taskIds = (await CreateAOTasksAsync(new[] { channelMapping })).ToList();
+                        break;
+                    case "di":
+                        taskIds = (await CreateDITasksAsync(new[] { channelMapping })).ToList();
+                        break;
+                    case "do":
+                        taskIds = (await CreateDOTasksAsync(new[] { channelMapping })).ToList();
+                        break;
+                    default:
+                        return false;
+                }
+
+                // 如果成功创建了任务，启动它
+                if (taskIds.Count > 0)
+                {
+                    taskId = taskIds[0];
+                    var newTask = GetTaskById(taskId);
+                    if (newTask != null)
+                    {
+                        // 设置测试起始时间
+                        channelMapping.TestTime = DateTime.Now;
+                        channelMapping.TestResultStatus = 0; // 重置结果状态为未测试
+                        channelMapping.HardPointTestResult = "正在复测中...";
+
+                        // 显示进度对话框
+                        await ShowTestProgressDialogAsync(true, channelMapping);
+                        
+                        // 启动任务
+                        await newTask.StartAsync();
+                        
+                        // 同步任务结果到原始通道
+                        //SyncHardPointTestResult(newTask);
+                        
+                        // 关闭进度对话框
+                        CloseProgressDialog();
+                        
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _messageService.ShowAsync("错误", $"复测通道失败: {ex.Message}", MessageBoxButton.OK);
+                return false;
             }
         }
 

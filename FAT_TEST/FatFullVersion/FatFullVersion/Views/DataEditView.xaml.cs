@@ -21,6 +21,9 @@ namespace FatFullVersion.Views
         private readonly IChannelMappingService _channelMappingService;
         private readonly IEventAggregator _eventAggregator;
         private readonly ITestTaskManager _testTaskManager;
+        private readonly IPlcCommunication _testPlc;
+        private readonly IPlcCommunication _targetPlc;
+        private readonly IMessageService _messageService;
 
         /// <summary>
         /// 构造函数
@@ -33,13 +36,19 @@ namespace FatFullVersion.Views
             IPointDataService pointDataService,
             IChannelMappingService channelMappingService,
             IEventAggregator eventAggregator,
-            ITestTaskManager testTaskManager)
+            ITestTaskManager testTaskManager,
+            IPlcCommunication testPlc,
+            IPlcCommunication targetPlc,
+            IMessageService messageService)
         {
             _pointDataService = pointDataService;
             _channelMappingService = channelMappingService;
             _eventAggregator = eventAggregator;
             _testTaskManager = testTaskManager;
-            
+            _testPlc = testPlc ?? throw new ArgumentNullException(nameof(testPlc));
+            _targetPlc = targetPlc ?? throw new ArgumentNullException(nameof(targetPlc));
+            _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
+
             try
             {
                 // 初始化组件（由XAML设计器生成的方法）
@@ -52,7 +61,10 @@ namespace FatFullVersion.Views
                         _pointDataService,
                         _channelMappingService,
                         _testTaskManager,
-                        _eventAggregator);
+                        _eventAggregator,
+                        _testPlc,
+                        _targetPlc
+                        );
                 }
                 
                 // 注册加载完成事件用于延迟初始化

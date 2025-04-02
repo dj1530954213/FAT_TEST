@@ -10,6 +10,7 @@ using FatFullVersion.Entities.EntitiesEnum;
 using Prism.DryIoc;
 using DryIoc;
 using FatFullVersion.Common;
+using Prism.Events;
 
 namespace FatFullVersion
 {
@@ -65,12 +66,30 @@ namespace FatFullVersion
 
             container.RegisterInstance<IPlcCommunication>(testPlcCommunication, serviceKey: "TestPlcCommunication");
             container.RegisterInstance<IPlcCommunication>(targetPlcCommunication, serviceKey: "TargetPlcCommunication");
+            
+            // 为DataEditView注册特定的PLC通信服务
+            container.RegisterDelegate<IPlcCommunication>(
+                factoryDelegate: r => r.Resolve<IPlcCommunication>(serviceKey: "TestPlcCommunication"), 
+                serviceKey: "TestPlc");
+            container.RegisterDelegate<IPlcCommunication>(
+                factoryDelegate: r => r.Resolve<IPlcCommunication>(serviceKey: "TargetPlcCommunication"), 
+                serviceKey: "TargetPlc");
 
             // 注册测试任务管理器
             containerRegistry.RegisterSingleton<ITestTaskManager, TestTaskManager>();
             
-            // 注册视图
+            // 注册视图用于导航
             containerRegistry.RegisterForNavigation<DataEditView>();
+            
+            // 直接在容器中注册 DataEditView 的自定义构造函数
+            container.Register<DataEditView>(made: Parameters.Of
+                .Type<IPointDataService>()
+                .Type<IChannelMappingService>()
+                .Type<IEventAggregator>()
+                .Type<ITestTaskManager>()
+                .Type<IPlcCommunication>(serviceKey: "TestPlc")
+                .Type<IPlcCommunication>(serviceKey: "TargetPlc")
+                .Type<IMessageService>());
         }
         
         //模块注册点

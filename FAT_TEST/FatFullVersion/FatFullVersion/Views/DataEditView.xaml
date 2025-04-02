@@ -23,6 +23,7 @@
         <converter:DoubleToSlashConverter x:Key="DoubleToSlashConverter" />
         <converter:MonitorStatusToColorConverter x:Key="MonitorStatusToColorConverter" />
         <converter:AlarmStatusToColorConverter x:Key="AlarmStatusToColorConverter" />
+        <converter:HardPointTestResultToEnabledConverter x:Key="HardPointTestResultToEnabledConverter" />
 
         <!--  公共DataGrid样式  -->
         <Style x:Key="DataGridCellStyle" TargetType="{x:Type DataGridCell}">
@@ -409,6 +410,7 @@
                                         Padding="10,4"
                                         Background="#5B9BD5"
                                         Command="{Binding DataContext.RetestCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                        CommandParameter="{Binding}"
                                         Content="通道复测"
                                         FontSize="18"
                                         Foreground="White" />
@@ -425,6 +427,7 @@
                                         Content="打开手动测试窗口"
                                         FontSize="18"
                                         Foreground="White"
+                                        IsEnabled="{Binding HardPointTestResult, Converter={StaticResource HardPointTestResultToEnabledConverter}}"
                                         Visibility="{Binding ModuleType, Converter={StaticResource ModuleTypeToVisibilityConverter}}">
                                         <Button.Command>
                                             <MultiBinding Converter="{StaticResource ModuleTypeToCommandConverter}">
@@ -870,6 +873,7 @@
                                     Margin="0,0,8,8"
                                     materialDesign:HintAssist.Hint="设定值"
                                     FontSize="16"
+                                    Foreground="Black"
                                     Text="{Binding AISetValue, UpdateSourceTrigger=PropertyChanged}" />
 
                                 <Button
@@ -879,6 +883,7 @@
                                     Padding="12,8"
                                     Background="#5B9BD5"
                                     Command="{Binding SendAITestValueCommand}"
+                                    CommandParameter="{Binding CurrentChannel}"
                                     Content="测试值下发"
                                     Foreground="White" />
 
@@ -909,6 +914,7 @@
                                         Padding="12,8"
                                         Background="#5B9BD5"
                                         Command="{Binding SendAIHighAlarmCommand}"
+                                        CommandParameter="{Binding CurrentChannel}"
                                         Content="下发高报测试命令"
                                         Foreground="White" />
                                     <Button
@@ -916,6 +922,7 @@
                                         Padding="12,8"
                                         Background="#5B9BD5"
                                         Command="{Binding SendAIHighHighAlarmCommand}"
+                                        CommandParameter="{Binding CurrentChannel}"
                                         Content="下发高高报测试命令"
                                         Foreground="White" />
                                     <Button
@@ -924,6 +931,7 @@
                                         HorizontalAlignment="Right"
                                         Background="#E6E6E6"
                                         Command="{Binding ResetAIHighAlarmCommand}"
+                                        CommandParameter="{Binding CurrentChannel}"
                                         Content="复位"
                                         Foreground="#333333" />
                                 </DockPanel>
@@ -953,6 +961,7 @@
                                         Padding="12,8"
                                         Background="#5B9BD5"
                                         Command="{Binding SendAILowAlarmCommand}"
+                                        CommandParameter="{Binding CurrentChannel}"
                                         Content="下发低报测试命令"
                                         Foreground="White" />
 
@@ -961,6 +970,7 @@
                                         Padding="12,8"
                                         Background="#5B9BD5"
                                         Command="{Binding SendAILowLowAlarmCommand}"
+                                        CommandParameter="{Binding CurrentChannel}"
                                         Content="下发低低报测试命令"
                                         Foreground="White" />
                                     <Button
@@ -969,6 +979,7 @@
                                         HorizontalAlignment="Right"
                                         Background="#E6E6E6"
                                         Command="{Binding ResetAILowAlarmCommand}"
+                                        CommandParameter="{Binding CurrentChannel}"
                                         Content="复位"
                                         Foreground="#333333" />
                                 </DockPanel>
@@ -998,6 +1009,7 @@
                                         Padding="12,8"
                                         Background="#5B9BD5"
                                         Command="{Binding SendAIMaintenanceCommand}"
+                                        CommandParameter="{Binding CurrentChannel}"
                                         Content="下发测试命令"
                                         Foreground="White" />
 
@@ -1007,6 +1019,7 @@
                                         HorizontalAlignment="Right"
                                         Background="#E6E6E6"
                                         Command="{Binding ResetAIMaintenanceCommand}"
+                                        CommandParameter="{Binding CurrentChannel}"
                                         Content="复位"
                                         Foreground="#333333" />
                                 </DockPanel>
@@ -1083,6 +1096,7 @@
                                         Padding="12,8"
                                         Background="#5B9BD5"
                                         Command="{Binding SendDITestCommand}"
+                                        CommandParameter="{Binding CurrentChannel}"
                                         Content="下发测试命令"
                                         Foreground="White" />
 
@@ -1092,6 +1106,7 @@
                                         HorizontalAlignment="Right"
                                         Background="#E6E6E6"
                                         Command="{Binding ResetDICommand}"
+                                        CommandParameter="{Binding CurrentChannel}"
                                         Content="复位"
                                         Foreground="#333333" />
                                 </DockPanel>
@@ -1170,7 +1185,10 @@
                             BorderBrush="#CCCCCC"
                             BorderThickness="1"
                             CornerRadius="4">
-                            <TextBlock FontSize="18" Text="{Binding DOCurrentValue}" />
+                            <TextBlock
+                                FontSize="18"
+                                Foreground="Black"
+                                Text="{Binding DOCurrentValue}" />
                         </Border>
 
                         <!--  操作按钮区域  -->
@@ -1256,7 +1274,10 @@
                             BorderBrush="#CCCCCC"
                             BorderThickness="1"
                             CornerRadius="4">
-                            <TextBlock FontSize="18" Text="{Binding AOCurrentValue}" />
+                            <TextBlock
+                                FontSize="18"
+                                Foreground="Black"
+                                Text="{Binding AOCurrentValue}" />
                         </Border>
 
                         <!--  操作按钮区域  -->

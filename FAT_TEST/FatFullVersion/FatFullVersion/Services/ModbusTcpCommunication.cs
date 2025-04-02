@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 using DCMCAJ.ModBus;
-using DCMCAJ.Core;
 using DCMCAJ.Core.Pipe;
 using DCMCAJ;
 using FatFullVersion.IServices;
 using FatFullVersion.Entities;
+using DataFormat = DCMCAJ.Core.DataFormat;
 
 namespace FatFullVersion.Services
 {
