@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Eventing.Reader;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -354,13 +355,21 @@ namespace FatFullVersion.Services
                         
                         // 掉电保护
                         excelPoint.PowerFailureProtection = GetStringCellValue(row.GetCell(13));
-                        
-                        // 量程低限
-                        excelPoint.RangeLowerLimit = GetStringCellValue(row.GetCell(14));
-                        
-                        // 量程高限
-                        excelPoint.RangeUpperLimit = GetStringCellValue(row.GetCell(15));
-                        
+                        //预留点位量程上下限默认值赋值
+                        if (excelPoint.VariableName.Contains("YLDW"))
+                        {
+                            // 量程低限
+                            excelPoint.RangeLowerLimit = "0";
+                            // 量程高限
+                            excelPoint.RangeUpperLimit = "100";
+                        }
+                        else
+                        {
+                            // 量程低限
+                            excelPoint.RangeLowerLimit = GetStringCellValue(row.GetCell(14));
+                            // 量程高限
+                            excelPoint.RangeUpperLimit = GetStringCellValue(row.GetCell(15));
+                        }
                         // SLL设定值
                         excelPoint.SLLSetValue = GetStringCellValue(row.GetCell(16));
                         

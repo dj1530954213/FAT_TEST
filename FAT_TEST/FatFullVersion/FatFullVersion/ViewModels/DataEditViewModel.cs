@@ -870,29 +870,37 @@ namespace FatFullVersion.ViewModels
                         MaintenanceEnableSwitchPointCommAddress = point.MaintenanceEnableSwitchPointCommAddress,
 
                         DataType = point.DataType,
-                        RangeLowerLimitValue = (float)point.LowLowLimit,
-                        RangeUpperLimitValue = (float)point.HighHighLimit,
+                        RangeLowerLimitValue = (float)point.RangeLowerLimitValue,
+                        RangeUpperLimitValue = (float)point.RangeUpperLimitValue,
                         // AI点位不初始化百分比值，这些值将在测试过程中填充
                         TestResultStatus = 0, // 未测试
                         ResultText = "未测试"
                     };
-                    AllChannels.Add(channel);
 
-                    // 创建对应的测试结果
-                    //var result = new ChannelMapping
-                    //{
-                    //    TestId = TestResults.Count + 1,
-                    //    VariableName = point.VariableName,
-                    //    ModuleType = point.ModuleType,
-                    //    DataType = point.DataType,
-                    //    ChannelTag = point.ChannelTag,
-                    //    RangeLowerLimitValue = (float)point.LowLowLimit,
-                    //    RangeUpperLimitValue = (float)point.HighHighLimit,
-                    //    // AI点位不初始化百分比值，这些值将在测试过程中填充
-                    //    TestResultStatus = 0, // 未测试
-                    //    ResultText = "未测试"
-                    //};
-                    //TestResults.Add(result);
+                    #region 电表内参数空校验及处理
+                    //低低报
+                    if (channel.SLLSetValue == "")
+                    {
+                        channel.LowLowAlarmStatus = "通过";
+                    }
+                    //低报
+                    if (channel.SLSetValue == "")
+                    {
+                        channel.LowAlarmStatus = "通过";
+                    }
+                    //高报
+                    if (channel.SHSetValue == "")
+                    {
+                        channel.HighAlarmStatus = "通过";
+                    }
+                    //高高报
+                    if (channel.SHHSetValue == "")
+                    {
+                        channel.HighHighAlarmStatus = "通过";
+                    }
+                    #endregion
+
+                    AllChannels.Add(channel);
                 }
 
                 // 添加AO通道
@@ -917,8 +925,8 @@ namespace FatFullVersion.ViewModels
                         MaintenanceEnableSwitchPointCommAddress = point.MaintenanceEnableSwitchPointCommAddress,
 
                         DataType = point.DataType,
-                        RangeLowerLimitValue = (float)point.LowLowLimit,
-                        RangeUpperLimitValue = (float)point.HighHighLimit,
+                        RangeLowerLimitValue = (float)point.RangeLowerLimitValue,
+                        RangeUpperLimitValue = (float)point.RangeUpperLimitValue,
                         // AO点位相关设置
                         TestResultStatus = 0, // 未测试
                         ResultText = "未测试",
@@ -929,27 +937,6 @@ namespace FatFullVersion.ViewModels
                         HighHighAlarmStatus = "N/A"
                     };
                     AllChannels.Add(channel);
-
-                    // 创建对应的测试结果
-                    //var result = new ChannelMapping
-                    //{
-                    //    TestId = TestResults.Count + 1,
-                    //    VariableName = point.VariableName,
-                    //    ModuleType = point.ModuleType,
-                    //    DataType = point.DataType,
-                    //    ChannelTag = point.ChannelTag,
-                    //    RangeLowerLimitValue = (float)point.LowLowLimit,
-                    //    RangeUpperLimitValue = (float)point.HighHighLimit,
-                    //    // AO点位相关设置
-                    //    TestResultStatus = 0, // 未测试
-                    //    ResultText = "未测试",
-                    //    // AO点位的低低报、低报、高报、高高报设置为N/A
-                    //    LowLowAlarmStatus = "N/A",
-                    //    LowAlarmStatus = "N/A",
-                    //    HighAlarmStatus = "N/A",
-                    //    HighHighAlarmStatus = "N/A"
-                    //};
-                    //TestResults.Add(result);
                 }
 
                 // 添加DI通道
@@ -981,32 +968,6 @@ namespace FatFullVersion.ViewModels
                         MaintenanceFunction = "N/A"
                     };
                     AllChannels.Add(channel);
-
-                    // 创建对应的测试结果
-                    //var result = new ChannelMapping
-                    //{
-                    //    TestId = TestResults.Count + 1,
-                    //    VariableName = point.VariableName,
-                    //    ModuleType = point.ModuleType,
-                    //    DataType = point.DataType,
-                    //    ChannelTag = point.ChannelTag,
-                    //    TestResultStatus = 0, // 未测试
-                    //    ResultText = "未测试",
-                    //    // 为DI点位设置NaN值
-                    //    RangeLowerLimitValue = float.NaN,
-                    //    RangeUpperLimitValue = float.NaN, 
-                    //    Value0Percent = double.NaN,
-                    //    Value25Percent = double.NaN,
-                    //    Value50Percent = double.NaN,
-                    //    Value75Percent = double.NaN,
-                    //    Value100Percent = double.NaN,
-                    //    LowLowAlarmStatus = "N/A",
-                    //    LowAlarmStatus = "N/A",
-                    //    HighAlarmStatus = "N/A",
-                    //    HighHighAlarmStatus = "N/A",
-                    //    MaintenanceFunction = "N/A"
-                    //};
-                    //TestResults.Add(result);
                 }
 
                 // 添加DO通道
@@ -1038,32 +999,6 @@ namespace FatFullVersion.ViewModels
                         MaintenanceFunction = "N/A"
                     };
                     AllChannels.Add(channel);
-
-                    // 创建对应的测试结果
-                    //var result = new ChannelMapping
-                    //{
-                    //    TestId = TestResults.Count + 1,
-                    //    VariableName = point.VariableName,
-                    //    ModuleType = point.ModuleType,
-                    //    DataType = point.DataType,
-                    //    ChannelTag = point.ChannelTag,
-                    //    TestResultStatus = 0, // 未测试
-                    //    ResultText = "未测试",
-                    //    // 为DO点位设置NaN值
-                    //    RangeLowerLimitValue = float.NaN,
-                    //    RangeUpperLimitValue = float.NaN, 
-                    //    Value0Percent = double.NaN,
-                    //    Value25Percent = double.NaN,
-                    //    Value50Percent = double.NaN,
-                    //    Value75Percent = double.NaN,
-                    //    Value100Percent = double.NaN,
-                    //    LowLowAlarmStatus = "N/A",
-                    //    LowAlarmStatus = "N/A",
-                    //    HighAlarmStatus = "N/A",
-                    //    HighHighAlarmStatus = "N/A",
-                    //    MaintenanceFunction = "N/A"
-                    //};
-                    //TestResults.Add(result);
                 }
 
                 //当Excel中点位解析完成后并且已经初始化完ChannelMapping后调用自动分配程序分配点位

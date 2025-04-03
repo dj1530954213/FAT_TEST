@@ -55,8 +55,8 @@ namespace FatFullVersion.Services.ChannelTask
                 // 2. 测试PLC读取该模拟量并检验是否在允许范围
 
                 // 定义测试信号值（根据工程单位和量程计算）
-                float minValue = ChannelMapping.LowLowLimit;
-                float maxValue = ChannelMapping.HighHighLimit;
+                float minValue = ChannelMapping.RangeLowerLimitValue;
+                float maxValue = ChannelMapping.RangeUpperLimitValue;
                 float range = maxValue - minValue;
 
                 // 依次测试不同百分比的信号值
@@ -203,7 +203,7 @@ namespace FatFullVersion.Services.ChannelTask
                 {
                     await TargetPlcCommunication.WriteAnalogValueAsync(
                         ChannelMapping.PlcCommunicationAddress.Substring(1), 
-                        ChannelMapping.LowLowLimit);
+                        ChannelMapping.RangeLowerLimitValue);
                 }
                 catch (Exception ex)
                 {

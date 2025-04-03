@@ -170,7 +170,7 @@ namespace ModbusTest
                             await MockA("117", "31", pc);
                             break;
                     }
-                    await Task.Delay(1000);
+                    await Task.Delay(100);
                 }
             });
         }

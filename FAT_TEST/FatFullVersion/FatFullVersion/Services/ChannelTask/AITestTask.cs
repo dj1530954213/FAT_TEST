@@ -53,8 +53,8 @@ namespace FatFullVersion.Models
                 // 测试多个不同的信号值（0%、25%、50%、75%、100%等）
 
                 // 定义测试信号值（根据工程单位和量程计算）
-                float minValue = ChannelMapping.LowLowLimit;
-                float maxValue = ChannelMapping.HighHighLimit;
+                float minValue = ChannelMapping.RangeLowerLimitValue;
+                float maxValue = ChannelMapping.RangeUpperLimitValue;
                 float range = maxValue - minValue;
 
                 // 依次测试不同百分比的信号值
@@ -195,7 +195,7 @@ namespace FatFullVersion.Models
                 // 结束测试时，将测试PLC输出复位到0%
                 try
                 {
-                    var resetResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress.Substring(1), ChannelMapping.LowLowLimit);
+                    var resetResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress.Substring(1), ChannelMapping.RangeLowerLimitValue);
                     if (!resetResult.IsSuccess)
                     {
                         // 记录复位失败但不影响测试结果
