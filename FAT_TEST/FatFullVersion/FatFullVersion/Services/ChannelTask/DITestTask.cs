@@ -77,7 +77,7 @@ namespace FatFullVersion.Services.ChannelTask
                 else
                 {
                     // 等待信号稳定
-                    await Task.Delay(2000, cancellationToken);
+                    await Task.Delay(3000, cancellationToken);
                     
                     // 读取被测PLC的值
                     var readHighResult = await TargetPlcCommunication.ReadDigitalValueAsync(
@@ -107,7 +107,8 @@ namespace FatFullVersion.Services.ChannelTask
                         Result.ActualValue = actualHighValue ? 1 : 0;
                     }
                 }
-                
+
+                await Task.Delay(1000, cancellationToken);
                 // 测试信号为0（断开）
                 if (allTestsPassed)
                 {
@@ -129,7 +130,7 @@ namespace FatFullVersion.Services.ChannelTask
                     else
                     {
                         // 等待信号稳定
-                        await Task.Delay(2000, cancellationToken);
+                        await Task.Delay(3000, cancellationToken);
                         
                         // 读取被测PLC的值
                         var readLowResult = await TargetPlcCommunication.ReadDigitalValueAsync(
@@ -160,7 +161,7 @@ namespace FatFullVersion.Services.ChannelTask
                         }
                     }
                 }
-                
+                await Task.Delay(1000, cancellationToken);
                 // 保存详细测试日志
                 Result.ErrorMessage = detailedTestLog.ToString();
                 
@@ -208,6 +209,346 @@ namespace FatFullVersion.Services.ChannelTask
                         Result.ErrorMessage += $"\n复位失败: {ex.Message}";
                 }
             }
+        }
+
+        /// <summary>
+        /// 写入高信号（true）
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public override async Task WriteHighSignalAsync(CancellationToken cancellationToken)
+        {
+            // 取消检查
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            // 暂停检查
+            await CheckAndWaitForResumeAsync(cancellationToken);
+            
+            try
+            {
+                // 确保连接已建立
+                if (!TestPlcCommunication.IsConnected)
+                {
+                    await TestPlcCommunication.ConnectAsync();
+                }
+
+                // 写入高信号（true）到测试PLC
+                var writeHighResult = await TestPlcCommunication.WriteDigitalValueAsync(
+                    ChannelMapping.TestPLCCommunicationAddress.Substring(1), 
+                    true);
+                    
+                if (!writeHighResult.IsSuccess)
+                {
+                    Console.WriteLine($"DI写入高信号失败: {writeHighResult.ErrorMessage}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"DI写入高信号时出错: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 读取高信号（true）
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public override async Task ReadHighSignalAsync(CancellationToken cancellationToken)
+        {
+            // 取消检查
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            // 暂停检查
+            await CheckAndWaitForResumeAsync(cancellationToken);
+            
+            try
+            {
+                // 确保连接已建立
+                if (!TargetPlcCommunication.IsConnected)
+                {
+                    await TargetPlcCommunication.ConnectAsync();
+                }
+
+                // 读取被测PLC的值
+                var readHighResult = await TargetPlcCommunication.ReadDigitalValueAsync(
+                    ChannelMapping.PlcCommunicationAddress.Substring(1));
+                    
+                if (!readHighResult.IsSuccess)
+                {
+                    Console.WriteLine($"DI读取高信号失败: {readHighResult.ErrorMessage}");
+                }
+                else
+                {
+                    bool actualHighValue = readHighResult.Data;
+                    
+                    // 记录实际值
+                    if (actualHighValue)
+                    {
+                        Console.WriteLine("DI高信号测试通过");
+                    }
+                    else
+                    {
+                        Console.WriteLine("DI高信号测试失败: 期望值为true，实际值为false");
+                    }
+                    
+                    // 更新测试结果
+                    Result.ExpectedValue = 1;
+                    Result.ActualValue = actualHighValue ? 1 : 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"DI读取高信号时出错: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 写入低信号（false）
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public override async Task WriteLowSignalAsync(CancellationToken cancellationToken)
+        {
+            // 取消检查
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            // 暂停检查
+            await CheckAndWaitForResumeAsync(cancellationToken);
+            
+            try
+            {
+                // 确保连接已建立
+                if (!TestPlcCommunication.IsConnected)
+                {
+                    await TestPlcCommunication.ConnectAsync();
+                }
+
+                // 写入低信号（false）到测试PLC
+                var writeLowResult = await TestPlcCommunication.WriteDigitalValueAsync(
+                    ChannelMapping.TestPLCCommunicationAddress.Substring(1), 
+                    false);
+                    
+                if (!writeLowResult.IsSuccess)
+                {
+                    Console.WriteLine($"DI写入低信号失败: {writeLowResult.ErrorMessage}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"DI写入低信号时出错: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 读取低信号（false）
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public override async Task ReadLowSignalAsync(CancellationToken cancellationToken)
+        {
+            // 取消检查
+            cancellationToken.ThrowIfCancellationRequested();
+            
+            // 暂停检查
+            await CheckAndWaitForResumeAsync(cancellationToken);
+            
+            try
+            {
+                // 确保连接已建立
+                if (!TargetPlcCommunication.IsConnected)
+                {
+                    await TargetPlcCommunication.ConnectAsync();
+                }
+
+                // 读取被测PLC的值
+                var readLowResult = await TargetPlcCommunication.ReadDigitalValueAsync(
+                    ChannelMapping.PlcCommunicationAddress.Substring(1));
+                    
+                if (!readLowResult.IsSuccess)
+                {
+                    Console.WriteLine($"DI读取低信号失败: {readLowResult.ErrorMessage}");
+                }
+                else
+                {
+                    bool actualLowValue = readLowResult.Data;
+                    
+                    // 记录实际值 - 低信号测试需要值为false才通过
+                    if (!actualLowValue)
+                    {
+                        Console.WriteLine("DI低信号测试通过");
+                    }
+                    else
+                    {
+                        Console.WriteLine("DI低信号测试失败: 期望值为false，实际值为true");
+                    }
+                    
+                    // 保存低信号测试结果到临时变量，而不是直接覆盖Result
+                    double lowSignalExpectedValue = 0;
+                    double lowSignalActualValue = actualLowValue ? 1 : 0;
+                    
+                    // 获取之前保存的高信号测试结果
+                    double highSignalExpectedValue = Result.ExpectedValue;
+                    double highSignalActualValue = Result.ActualValue;
+                    
+                    // 评估测试结果，使用正确的变量比较
+                    bool highSignalPassed = (highSignalExpectedValue == 1) && (highSignalActualValue == 1);
+                    bool lowSignalPassed = (lowSignalExpectedValue == 0) && (lowSignalActualValue == 0);
+                    StringBuilder testReport = new StringBuilder();
+                    
+                    // 添加高信号测试结果
+                    testReport.AppendLine(highSignalPassed ? "高信号测试通过" : "高信号测试失败: 期望值为true，实际值为false");
+                    // 添加低信号测试结果
+                    testReport.AppendLine(lowSignalPassed ? "低信号测试通过" : "低信号测试失败: 期望值为false，实际值为true");
+                    
+                    // 保存测试报告
+                    Result.ErrorMessage = testReport.ToString();
+                    
+                    // 更新Result值为低信号结果 (这里更新是可以的，因为高信号结果已经在上面的逻辑中使用过了)
+                    Result.ExpectedValue = lowSignalExpectedValue;
+                    Result.ActualValue = lowSignalActualValue;
+                    
+                    // 设置最终测试状态
+                    if (highSignalPassed && lowSignalPassed)
+                    {
+                        Result.Status = "通过";
+                        ChannelMapping.HardPointTestResult = "通过";
+                    }
+                    else
+                    {
+                        Result.Status = "失败";
+                        ChannelMapping.HardPointTestResult = "失败";
+                        ChannelMapping.TestResultStatus = 2;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"DI读取低信号时出错: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 写入复位值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public override async Task WriteResetValueAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                // 确保连接已建立
+                if (!TestPlcCommunication.IsConnected)
+                {
+                    await TestPlcCommunication.ConnectAsync();
+                }
+
+                // 将测试PLC的DI输出复位为false
+                var resetResult = await TestPlcCommunication.WriteDigitalValueAsync(
+                    ChannelMapping.TestPLCCommunicationAddress.Substring(1), 
+                    false);
+                    
+                if (!resetResult.IsSuccess)
+                {
+                    Console.WriteLine($"复位DI通道失败: {resetResult.ErrorMessage}");
+                    if (string.IsNullOrEmpty(Result.ErrorMessage))
+                        Result.ErrorMessage = $"复位失败: {resetResult.ErrorMessage}";
+                    else
+                        Result.ErrorMessage += $"\n复位失败: {resetResult.ErrorMessage}";
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"复位DI通道失败: {ex.Message}");
+                // 记录错误但不抛出异常，避免中断测试流程
+                if (string.IsNullOrEmpty(Result.ErrorMessage))
+                    Result.ErrorMessage = $"复位失败: {ex.Message}";
+                else
+                    Result.ErrorMessage += $"\n复位失败: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// 使用50%的测试点无需实际操作，仅返回
+        /// </summary>
+        public override async Task Write50PercentTestValueAsync(CancellationToken cancellationToken) => 
+            await Task.CompletedTask;
+
+        /// <summary>
+        /// 使用50%的测试点无需实际操作，仅返回
+        /// </summary>
+        public override async Task Read50PercentTestValueAsync(CancellationToken cancellationToken) => 
+            await Task.CompletedTask;
+
+        /// <summary>
+        /// 使用75%的测试点无需实际操作，仅返回
+        /// </summary>
+        public override async Task Write75PercentTestValueAsync(CancellationToken cancellationToken) => 
+            await Task.CompletedTask;
+
+        /// <summary>
+        /// 使用75%的测试点无需实际操作，仅返回
+        /// </summary>
+        public override async Task Read75PercentTestValueAsync(CancellationToken cancellationToken) => 
+            await Task.CompletedTask;
+
+        /// <summary>
+        /// 使用100%的测试点无需实际操作，仅返回
+        /// </summary>
+        public override async Task Write100PercentTestValueAsync(CancellationToken cancellationToken) => 
+            await Task.CompletedTask;
+
+        /// <summary>
+        /// 使用100%的测试点无需实际操作，仅返回
+        /// </summary>
+        public override async Task Read100PercentTestValueAsync(CancellationToken cancellationToken) => 
+            await Task.CompletedTask;
+
+        /// <summary>
+        /// 写入0%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public override async Task Write0PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            // 对于DI测试，0%相当于写入低信号(false)
+            await WriteLowSignalAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// 读取0%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public override async Task Read0PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            // 对于DI测试，0%相当于读取低信号(false)
+            await ReadLowSignalAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// 写入25%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public override async Task Write25PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            // 对于DI测试，25%也可视为写入高信号(true)
+            await WriteHighSignalAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// 读取25%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public override async Task Read25PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            // 对于DI测试，25%也可视为读取高信号(true)
+            await ReadHighSignalAsync(cancellationToken);
         }
     }
 }

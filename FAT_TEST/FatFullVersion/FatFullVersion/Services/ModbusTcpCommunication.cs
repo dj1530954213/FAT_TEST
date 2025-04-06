@@ -58,7 +58,7 @@ namespace FatFullVersion.Services
             try
             {
                 // 从仓储层获取连接配置
-                _connectionConfig = await _repository.GetPlcConnectionConfigAsync();
+                _connectionConfig = await _repository.GetTestPlcConnectionConfigAsync();
                 
                 // 配置Modbus连接参数
                 _modbus.Station = _connectionConfig.Station;

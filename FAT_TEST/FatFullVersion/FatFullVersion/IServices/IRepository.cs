@@ -17,7 +17,13 @@ namespace FatFullVersion.IServices
         /// 获取PLC连接配置
         /// </summary>
         /// <returns>PLC连接配置</returns>
-        Task<PlcConnectionConfig> GetPlcConnectionConfigAsync();
+        Task<PlcConnectionConfig> GetTestPlcConnectionConfigAsync();
+
+        /// <summary>
+        /// 获取被测PLC连接配置
+        /// </summary>
+        /// <returns>PLC连接配置</returns>
+        Task<PlcConnectionConfig> GetTargetPlcConnectionConfigAsync();
 
         /// <summary>
         /// 保存PLC连接配置

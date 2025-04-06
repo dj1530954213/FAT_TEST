@@ -19,7 +19,7 @@ namespace FatFullVersion.Entities
         /// <summary>
         /// PLC的端口号
         /// </summary>
-        public int Port { get; set; } = 502;
+        public int Port { get; set; } = 503;
 
         /// <summary>
         /// PLC站号

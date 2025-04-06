@@ -41,21 +41,6 @@ namespace ModbusTest
                 run = true;
                 while (run)
                 {
-                    //float value1 = await modbusTcpCommunication.ReadAnalogValueAsync("17");
-                    //await modbusTcpCommunication.WriteAnalogValueAsync("101", value1 * (1 - pc));
-
-                    //float value2 = await modbusTcpCommunication.ReadAnalogValueAsync("103");
-                    //await modbusTcpCommunication.WriteAnalogValueAsync("1", value2 * (1 - pc));
-
-                    //if (!sd)
-                    //{
-                    //    bool value3 = await modbusTcpCommunication.ReadDigitalValueAsync("17");
-                    //    await modbusTcpCommunication.WriteDigitalValueAsync("101", value3);
-
-                    //    bool value4 = await modbusTcpCommunication.ReadDigitalValueAsync("102");
-                    //    await modbusTcpCommunication.WriteDigitalValueAsync("1", value4);
-                    //}
-                    //await MockA();
                     switch (textBox_batch.Text)
                     {
                         case "1":
@@ -170,7 +155,7 @@ namespace ModbusTest
                             await MockA("117", "31", pc);
                             break;
                     }
-                    await Task.Delay(100);
+                    await Task.Delay(2100);
                 }
             });
         }

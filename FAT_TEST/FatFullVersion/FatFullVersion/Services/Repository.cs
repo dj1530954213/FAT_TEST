@@ -32,10 +32,15 @@ namespace FatFullVersion.Services
         /// 获取PLC连接配置
         /// </summary>
         /// <returns>PLC连接配置</returns>
-        public async Task<PlcConnectionConfig> GetPlcConnectionConfigAsync()
+        public async Task<PlcConnectionConfig> GetTestPlcConnectionConfigAsync()
         {
             // 在实际应用中，这里应该从数据库、配置文件等读取配置
             return await Task.FromResult(_plcConnectionConfig);
+        }
+
+        public Task<PlcConnectionConfig> GetTargetPlcConnectionConfigAsync()
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>

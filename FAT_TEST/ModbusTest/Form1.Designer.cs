@@ -39,6 +39,8 @@
             button_stop = new Button();
             label3 = new Label();
             textBox_batch = new TextBox();
+            label4 = new Label();
+            textBox_inttime = new TextBox();
             SuspendLayout();
             // 
             // button_connect
@@ -76,6 +78,7 @@
             textBox_pc.Name = "textBox_pc";
             textBox_pc.Size = new Size(200, 59);
             textBox_pc.TabIndex = 4;
+            textBox_pc.Text = "0.005";
             // 
             // label1
             // 
@@ -114,6 +117,7 @@
             textBox_sd.Name = "textBox_sd";
             textBox_sd.Size = new Size(200, 59);
             textBox_sd.TabIndex = 7;
+            textBox_sd.Text = "false";
             // 
             // button_stop
             // 
@@ -142,12 +146,34 @@
             textBox_batch.Name = "textBox_batch";
             textBox_batch.Size = new Size(200, 59);
             textBox_batch.TabIndex = 10;
+            textBox_batch.Text = "1";
+            // 
+            // label4
+            // 
+            label4.AutoSize = true;
+            label4.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 134);
+            label4.Location = new Point(719, 40);
+            label4.Name = "label4";
+            label4.Size = new Size(82, 41);
+            label4.TabIndex = 13;
+            label4.Text = "批次";
+            // 
+            // textBox_inttime
+            // 
+            textBox_inttime.Location = new Point(835, 32);
+            textBox_inttime.Multiline = true;
+            textBox_inttime.Name = "textBox_inttime";
+            textBox_inttime.Size = new Size(200, 59);
+            textBox_inttime.TabIndex = 12;
+            textBox_inttime.Text = "500";
             // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(14F, 31F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1702, 1641);
+            Controls.Add(label4);
+            Controls.Add(textBox_inttime);
             Controls.Add(label3);
             Controls.Add(textBox_batch);
             Controls.Add(button_stop);
@@ -179,5 +205,7 @@
         private Button button_stop;
         private Label label3;
         private TextBox textBox_batch;
+        private Label label4;
+        private TextBox textBox_inttime;
     }
 }

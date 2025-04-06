@@ -276,6 +276,160 @@ namespace FatFullVersion.Models
 
         #endregion
 
+        #region 串行测试接口方法
+
+        /// <summary>
+        /// 写入0%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task Write0PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 读取0%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task Read0PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 写入25%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task Write25PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 读取25%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task Read25PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 写入50%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task Write50PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 读取50%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task Read50PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 写入75%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task Write75PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 读取75%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task Read75PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 写入100%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task Write100PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 读取100%测试值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task Read100PercentTestValueAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 写入高信号（true）
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task WriteHighSignalAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 读取高信号（true）
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task ReadHighSignalAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 写入低信号（false）
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task WriteLowSignalAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 读取低信号（false）
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task ReadLowSignalAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 写入复位值
+        /// </summary>
+        /// <param name="cancellationToken">取消令牌</param>
+        /// <returns>异步任务</returns>
+        public virtual async Task WriteResetValueAsync(CancellationToken cancellationToken)
+        {
+            await Task.CompletedTask;
+        }
+
+        #endregion
+
         #region 抽象方法
 
         /// <summary>

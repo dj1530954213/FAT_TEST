@@ -113,5 +113,18 @@ namespace FatFullVersion.IServices
         /// <param name="channelMapping">需要复测的通道映射</param>
         /// <returns>操作是否成功</returns>
         Task<bool> RetestChannelAsync(ChannelMapping channelMapping);
+
+        /// <summary>
+        /// 启动所有测试任务（串行执行方式）
+        /// </summary>
+        /// <returns>操作是否成功</returns>
+        Task<bool> StartAllTasksSerialAsync();
+
+        /// <summary>
+        /// 对单个通道进行复测（串行执行方式）
+        /// </summary>
+        /// <param name="channelMapping">需要复测的通道映射</param>
+        /// <returns>操作是否成功</returns>
+        Task<bool> RetestChannelSerialAsync(ChannelMapping channelMapping);
     }
 }
