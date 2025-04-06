@@ -5,7 +5,7 @@ using System.Windows.Data;
 namespace FatFullVersion.Shared.Converters
 {
     /// <summary>
-    /// 将double.NaN值转换为"/"的转换器
+    /// 将double.NaN值转换为"/"的转换器，对有效数值保留小数点后三位
     /// </summary>
     public class DoubleToSlashConverter : IValueConverter
     {
@@ -25,7 +25,17 @@ namespace FatFullVersion.Shared.Converters
                 {
                     return "/";
                 }
-                return doubleValue;
+                // 格式化浮点数，保留三位小数
+                return Math.Round(doubleValue, 3).ToString("F3", culture);
+            }
+            else if (value is float floatValue)
+            {
+                if (float.IsNaN(floatValue))
+                {
+                    return "/";
+                }
+                // 格式化浮点数，保留三位小数
+                return Math.Round(floatValue, 3).ToString("F3", culture);
             }
             return value;
         }

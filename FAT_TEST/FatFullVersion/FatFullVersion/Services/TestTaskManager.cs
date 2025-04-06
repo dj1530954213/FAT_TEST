@@ -375,6 +375,18 @@ namespace FatFullVersion.Services
                 var diTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "di").ToList();
                 var doTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "do").ToList();
 
+                // 设置所有通道的开始测试时间为当前时间
+                DateTime currentTime = DateTime.Now;
+                foreach (var task in _activeTasks.Values)
+                {
+                    if (task.ChannelMapping != null)
+                    {
+                        task.ChannelMapping.StartTime = currentTime;
+                        task.ChannelMapping.TestTime = currentTime;
+                        task.ChannelMapping.FinalTestTime = null;
+                    }
+                }
+
                 // 测试进度提示
                 await UpdateProgressMessageAsync("正在准备测试...");
 
@@ -1484,7 +1496,9 @@ namespace FatFullVersion.Services
                     if (newTask != null)
                     {
                         // 设置测试起始时间
+                        channelMapping.StartTime = DateTime.Now;
                         channelMapping.TestTime = DateTime.Now;
+                        channelMapping.FinalTestTime = null;
                         channelMapping.TestResultStatus = 0; // 重置结果状态为未测试
                         channelMapping.HardPointTestResult = "正在复测中...";
 

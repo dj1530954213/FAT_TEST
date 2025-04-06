@@ -38,9 +38,13 @@ namespace FatFullVersion.Services
             return await Task.FromResult(_plcConnectionConfig);
         }
 
-        public Task<PlcConnectionConfig> GetTargetPlcConnectionConfigAsync()
+        public async Task<PlcConnectionConfig> GetTargetPlcConnectionConfigAsync()
         {
-            throw new NotImplementedException();
+            return await Task.FromResult(new PlcConnectionConfig()
+            {
+                IpAddress = "127.0.0.1",
+                Port = 502
+            });
         }
 
         /// <summary>

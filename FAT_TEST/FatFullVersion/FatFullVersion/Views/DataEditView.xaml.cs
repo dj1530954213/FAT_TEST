@@ -24,6 +24,7 @@ namespace FatFullVersion.Views
         private readonly IPlcCommunication _testPlc;
         private readonly IPlcCommunication _targetPlc;
         private readonly IMessageService _messageService;
+        private readonly ITestResultExportService _testResultExportService;
 
         /// <summary>
         /// 构造函数
@@ -39,7 +40,8 @@ namespace FatFullVersion.Views
             ITestTaskManager testTaskManager,
             IPlcCommunication testPlc,
             IPlcCommunication targetPlc,
-            IMessageService messageService)
+            IMessageService messageService,
+            ITestResultExportService testResultExportService)
         {
             _pointDataService = pointDataService;
             _channelMappingService = channelMappingService;
@@ -48,6 +50,7 @@ namespace FatFullVersion.Views
             _testPlc = testPlc ?? throw new ArgumentNullException(nameof(testPlc));
             _targetPlc = targetPlc ?? throw new ArgumentNullException(nameof(targetPlc));
             _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
+            _testResultExportService = testResultExportService;
 
             try
             {
@@ -63,7 +66,8 @@ namespace FatFullVersion.Views
                         _testTaskManager,
                         _eventAggregator,
                         _testPlc,
-                        _targetPlc
+                        _targetPlc,
+                        _testResultExportService
                         );
                 }
                 

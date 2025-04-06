@@ -41,9 +41,11 @@ namespace ModbusTest
                 run = true;
                 while (run)
                 {
+                    richTextBox_result.Text = $"批次{textBox_batch.Text}";
                     switch (textBox_batch.Text)
                     {
                         case "1":
+                            //MessageBox.Show("开始测试1批次");
                             //AI点位映射
                             await MockA("111","01",pc);
                             await MockA("113", "03", pc);
@@ -113,6 +115,7 @@ namespace ModbusTest
 
                             break;
                         case "2":
+                            //MessageBox.Show("开始测试2批次");
                             //AI点位映射
                             await MockA("111", "13", pc);
                             await MockA("113", "15", pc);
@@ -137,9 +140,9 @@ namespace ModbusTest
                             await MockD("137", "27");
                             await MockD("138", "28");
                             await MockD("139", "29");
-                            await MockD("140", "20");
-                            await MockD("141", "21");
-                            await MockD("142", "22");
+                            await MockD("140", "30");
+                            await MockD("141", "31");
+                            await MockD("142", "32");
 
                             //DO点位映射
                             await MockD("61", "101");

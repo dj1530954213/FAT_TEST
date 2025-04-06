@@ -29,7 +29,18 @@ namespace FatFullVersion.Services
         /// <returns>PLC通信实例</returns>
         public IPlcCommunication CreatePlcCommunication()
         {
-            return new ModbusTcpCommunication(_repository);
+            // 根据PLC类型创建不同的通信实例
+            switch (_plcType)
+            {
+                case PlcType.TestPlc:
+                    // 测试PLC使用测试PLC的配置
+                    return new ModbusTcpCommunication(_repository, isTestPlc: true);
+                case PlcType.TargetPlc:
+                    // 被测PLC使用被测PLC的配置
+                    return new ModbusTcpCommunication(_repository, isTestPlc: false);
+                default:
+                    throw new ArgumentException($"不支持的PLC类型: {_plcType}");
+            }
         }
     }
 } 

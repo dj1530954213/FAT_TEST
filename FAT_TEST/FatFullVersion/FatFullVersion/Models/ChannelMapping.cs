@@ -725,6 +725,21 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _testTime, value); }
         }
 
+        private DateTime? _finalTestTime;
+        /// <summary>
+        /// 最终测试时间
+        /// </summary>
+        public DateTime? FinalTestTime
+        {
+            get { return _finalTestTime; }
+            set 
+            { 
+                SetProperty(ref _finalTestTime, value);
+                // 当最终测试时间设置时，自动计算总测试持续时间
+                RaisePropertyChanged(nameof(TotalTestDuration));
+            }
+        }
+
         private string _status;
         /// <summary>
         /// 当前测试状态（通过/失败/取消等）
@@ -770,6 +785,21 @@ namespace FatFullVersion.Models
                 if (_endTime > DateTime.MinValue && _startTime > DateTime.MinValue)
                 {
                     return (_endTime - _startTime).TotalSeconds;
+                }
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// 总测试持续时间（秒）
+        /// </summary>
+        public double TotalTestDuration
+        {
+            get
+            {
+                if (_finalTestTime.HasValue && _startTime > DateTime.MinValue)
+                {
+                    return (_finalTestTime.Value - _startTime).TotalSeconds;
                 }
                 return 0;
             }

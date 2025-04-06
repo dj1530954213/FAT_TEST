@@ -37,6 +37,8 @@ namespace FatFullVersion.ViewModels
         private readonly IPlcCommunication _testPlc;
         private readonly IPlcCommunication _targetPlc;
         private readonly IPlcCommunication _plcCommunication;
+        private readonly IMessageService _messageService;
+        private readonly ITestResultExportService _testResultExportService;
 
         private string _message;
 
@@ -319,6 +321,7 @@ namespace FatFullVersion.ViewModels
         public DelegateCommand CancelBatchSelectionCommand { get; private set; }
         public DelegateCommand AllocateChannelsCommand { get; private set; }
         public DelegateCommand ClearChannelAllocationsCommand { get; private set; }
+        public DelegateCommand ExportTestResultsCommand { get; private set; }
 
         // 添加原始通道集合属性
         private ObservableCollection<ChannelMapping> _originalAIChannels;
@@ -652,15 +655,16 @@ namespace FatFullVersion.ViewModels
             ITestTaskManager testTaskManager,
             IEventAggregator eventAggregator,
             IPlcCommunication testPlc,
-            IPlcCommunication targetPlc
-            )
+            IPlcCommunication targetPlc,
+            ITestResultExportService testResultExportService)
         {
             _pointDataService = pointDataService;
             _channelMappingService = channelMappingService;
-            _testTaskManager = testTaskManager;
             _eventAggregator = eventAggregator;
+            _testTaskManager = testTaskManager;
             _testPlc = testPlc ?? throw new ArgumentNullException(nameof(testPlc));
             _targetPlc = targetPlc ?? throw new ArgumentNullException(nameof(targetPlc));
+            _testResultExportService = testResultExportService ?? throw new ArgumentNullException(nameof(testResultExportService));
 
             // 订阅测试结果更新事件
             _eventAggregator.GetEvent<TestResultsUpdatedEvent>().Subscribe(OnTestResultsUpdated);
@@ -701,6 +705,7 @@ namespace FatFullVersion.ViewModels
             CancelBatchSelectionCommand = new DelegateCommand(CancelBatchSelection);
             AllocateChannelsCommand = new DelegateCommand(ExecuteAllocateChannels);
             ClearChannelAllocationsCommand = new DelegateCommand(ClearChannelAllocationsAsync);
+            ExportTestResultsCommand = new DelegateCommand(ExportTestResults, CanExportTestResults);
 
             // 初始化手动测试相关命令
             OpenAIManualTestCommand = new DelegateCommand<ChannelMapping>(OpenAIManualTest);
@@ -1237,6 +1242,11 @@ namespace FatFullVersion.ViewModels
                     var batchChannels = AllChannels.Where(c => c.TestBatch == SelectedBatch.BatchName).ToList();
                     foreach (var channel in batchChannels)
                     {
+                        // 设置开始测试时间为当前时间，并将最终测试时间设为null
+                        channel.StartTime = DateTime.Now;
+                        channel.TestTime = DateTime.Now;
+                        channel.FinalTestTime = null;
+                        
                         // 只更新未测试或等待测试的通道
                         if (string.IsNullOrEmpty(channel.HardPointTestResult) ||
                             channel.HardPointTestResult == "未测试" ||
@@ -2817,6 +2827,12 @@ namespace FatFullVersion.ViewModels
                 // 更新接线确认按钮状态
                 IsWiringCompleteBtnEnabled = SelectedBatch.Status == "未测试" || SelectedBatch.Status == "测试中";
 
+                // 检查是否所有点位都通过了硬点测试，如果是则启用开始测试按钮
+                bool allPassed = hardPointTestedCount == hardPointPassedCount && hardPointTestedCount > 0;
+
+                // 通知导出测试结果按钮更新状态
+                ExportTestResultsCommand.RaiseCanExecuteChanged();
+
                 // 通知UI更新
                 RaisePropertyChanged(nameof(SelectedBatch));
             }
@@ -2913,6 +2929,9 @@ namespace FatFullVersion.ViewModels
                     
                     // 如果所有手动测试已完成，更新批次状态为已完成
                     CheckAndCompleteAllTests();
+                    
+                    // 通知导出测试结果按钮更新状态
+                    ExportTestResultsCommand.RaiseCanExecuteChanged();
                 }
                 
                 // 更新UI
@@ -3016,7 +3035,11 @@ namespace FatFullVersion.ViewModels
             // 如果所有测试都已完成，调用完成所有测试的方法
             if (allCompleted)
             {
+                // 调用测试任务管理器完成所有测试
                 _testTaskManager.CompleteAllTestsAsync();
+                
+                // 通知导出测试结果按钮更新状态
+                ExportTestResultsCommand.RaiseCanExecuteChanged();
             }
         }
 
@@ -3053,6 +3076,9 @@ namespace FatFullVersion.ViewModels
                     channel.Status = "通过"; // 更新总体状态
                     channel.ResultText = "测试已通过"; // 更新结果文本
                     
+                    // 设置最终测试时间为当前时间
+                    channel.FinalTestTime = DateTime.Now;
+                    
                     // 刷新批次状态
                     RefreshBatchStatus();
                     
@@ -3078,6 +3104,9 @@ namespace FatFullVersion.ViewModels
                     channel.Status = "通过"; // 更新总体状态
                     channel.ResultText = "测试已通过"; // 更新结果文本
                     
+                    // 设置最终测试时间为当前时间
+                    channel.FinalTestTime = DateTime.Now;
+                    
                     // 刷新批次状态
                     RefreshBatchStatus();
                     
@@ -3092,6 +3121,50 @@ namespace FatFullVersion.ViewModels
             
             // 更新点位统计数据
             UpdatePointStatistics();
+        }
+
+        /// <summary>
+        /// 执行导出测试结果操作
+        /// </summary>
+        private async void ExportTestResults()
+        {
+            try
+            {
+                IsLoading = true;
+                StatusMessage = "正在导出测试结果...";
+                
+                // 调用导出服务
+                bool result = await _testResultExportService.ExportToExcelAsync(AllChannels);
+                
+                if (result)
+                {
+                    Message = "测试结果导出成功";
+                }
+                else
+                {
+                    Message = "测试结果导出失败";
+                }
+            }
+            catch (Exception ex)
+            {
+                Message = $"导出测试结果时出错: {ex.Message}";
+            }
+            finally
+            {
+                IsLoading = false;
+                StatusMessage = string.Empty;
+            }
+        }
+
+        /// <summary>
+        /// 检查是否可以导出测试结果
+        /// </summary>
+        /// <returns>是否可以导出测试结果</returns>
+        private bool CanExportTestResults()
+        {
+            // 检查是否所有点位都已测试通过
+            return AllChannels != null && AllChannels.Any() && 
+                   _testResultExportService.AreAllTestsPassed(AllChannels);
         }
     }
 

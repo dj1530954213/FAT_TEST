@@ -22,7 +22,7 @@ namespace ModbusTest
             modbus.IsCheckMessageId = true;
             modbus.IsStringReverse = false;
             modbus.DataFormat = DCMCAJ.Core.DataFormat.ABCD;
-            modbus.CommunicationPipe = new DCMCAJ.Core.Pipe.PipeTcpNet("127.0.0.1", 503)
+            modbus.CommunicationPipe = new DCMCAJ.Core.Pipe.PipeTcpNet("127.0.0.1", 502)
             {
                 ConnectTimeOut = 5000,    // 连接超时时间，单位毫秒
                 ReceiveTimeOut = 10000,    // 接收设备数据反馈的超时时间

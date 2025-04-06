@@ -29,9 +29,14 @@ namespace FatFullVersion.Services
         private readonly IRepository _repository;
         
         /// <summary>
-        /// 连接配置
+        /// PLC连接配置
         /// </summary>
         private PlcConnectionConfig _connectionConfig;
+
+        /// <summary>
+        /// 是否是测试PLC
+        /// </summary>
+        private readonly bool _isTestPlc;
 
         /// <summary>
         /// 连接状态
@@ -42,9 +47,11 @@ namespace FatFullVersion.Services
         /// 构造函数
         /// </summary>
         /// <param name="repository">仓储层接口</param>
-        public ModbusTcpCommunication(IRepository repository)
+        /// <param name="isTestPlc">是否是测试PLC，true表示测试PLC，false表示被测PLC</param>
+        public ModbusTcpCommunication(IRepository repository, bool isTestPlc = true)
         {
             _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+            _isTestPlc = isTestPlc;
             _modbus = new DCMCAJ.ModBus.ModbusTcpNet();
             IsConnected = false;
         }
@@ -57,8 +64,10 @@ namespace FatFullVersion.Services
         {
             try
             {
-                // 从仓储层获取连接配置
-                _connectionConfig = await _repository.GetTestPlcConnectionConfigAsync();
+                // 根据PLC类型从仓储层获取对应的连接配置
+                _connectionConfig = _isTestPlc
+                    ? await _repository.GetTestPlcConnectionConfigAsync()
+                    : await _repository.GetTargetPlcConnectionConfigAsync();
                 
                 // 配置Modbus连接参数
                 _modbus.Station = _connectionConfig.Station;

@@ -50,20 +50,22 @@ namespace FatFullVersion
             // 注册服务定位器
             containerRegistry.RegisterSingleton<IServiceLocator, ServiceLocator>();
 
-            // 注册PLC通信工厂
+            // 注册仓储实例，用于后续创建PLC通信工厂
             var repository = container.Resolve<IRepository>();
 
-            //使用生产工厂来创建对应的实现
+            // 注册PLC通信工厂 - 分别为测试PLC和被测PLC创建工厂
             var testPlcFactory = new PlcCommunicationFactory(repository, PlcType.TestPlc);
             var targetPlcFactory = new PlcCommunicationFactory(repository, PlcType.TargetPlc);
 
+            // 将两个工厂注册到容器中
             container.RegisterInstance(testPlcFactory, serviceKey: "TestPlcFactory");
             container.RegisterInstance(targetPlcFactory, serviceKey: "TargetPlcFactory");
 
-            // 注册PLC通信服务
+            // 分别创建测试PLC和被测PLC的通信实例
             var testPlcCommunication = testPlcFactory.CreatePlcCommunication();
             var targetPlcCommunication = targetPlcFactory.CreatePlcCommunication();
 
+            // 将两个通信实例注册到容器中
             container.RegisterInstance<IPlcCommunication>(testPlcCommunication, serviceKey: "TestPlcCommunication");
             container.RegisterInstance<IPlcCommunication>(targetPlcCommunication, serviceKey: "TargetPlcCommunication");
             
@@ -90,6 +92,9 @@ namespace FatFullVersion
                 .Type<IPlcCommunication>(serviceKey: "TestPlc")
                 .Type<IPlcCommunication>(serviceKey: "TargetPlc")
                 .Type<IMessageService>());
+
+            // 注册测试结果导出服务
+            containerRegistry.RegisterSingleton<ITestResultExportService, TestResultExportService>();
         }
         
         //模块注册点
