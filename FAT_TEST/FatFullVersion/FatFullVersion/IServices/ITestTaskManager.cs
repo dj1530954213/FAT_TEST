@@ -13,6 +13,11 @@ namespace FatFullVersion.IServices
     public interface ITestTaskManager : IDisposable
     {
         /// <summary>
+        /// 获取接线是否已完成的标志
+        /// </summary>
+        bool IsWiringCompleted { get; }
+        
+        /// <summary>
         /// 从通道映射集合创建测试任务
         /// </summary>
         /// <param name="channelMappings">需要测试的通道映射集合</param>

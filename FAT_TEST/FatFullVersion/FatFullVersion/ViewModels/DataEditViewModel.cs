@@ -883,28 +883,19 @@ namespace FatFullVersion.ViewModels
                     };
 
                     #region 电表内参数空校验及处理
-                    //低低报
-                    if (channel.SLLSetValue == "")
+                    //低报、低低报
+                    if (channel.SLLSetValue == "" && channel.SLSetValue == "")
                     {
                         channel.LowLowAlarmStatus = "通过";
-                    }
-                    //低报
-                    if (channel.SLSetValue == "")
-                    {
                         channel.LowAlarmStatus = "通过";
                     }
-                    //高报
-                    if (channel.SHSetValue == "")
+                    //高报、高高报
+                    if (channel.SHSetValue == "" && channel.SHHSetValue == "")
                     {
                         channel.HighAlarmStatus = "通过";
-                    }
-                    //高高报
-                    if (channel.SHHSetValue == "")
-                    {
                         channel.HighHighAlarmStatus = "通过";
                     }
                     #endregion
-
                     AllChannels.Add(channel);
                 }
 
@@ -1280,7 +1271,8 @@ namespace FatFullVersion.ViewModels
                             }
                         }
                     }
-
+                    // 显示等待测试的画面
+                    await _testTaskManager.ShowTestProgressDialogAsync(false, null);
                     // 设置批次状态为硬点通道测试中
                     SelectedBatch.Status = "硬点通道测试中";
 
@@ -1289,8 +1281,15 @@ namespace FatFullVersion.ViewModels
                     RaisePropertyChanged(nameof(SelectedBatch));
                 }
 
-                // 显示等待测试的画面
-                await _testTaskManager.ShowTestProgressDialogAsync(false, null);
+                // 如果未确认接线，则不应继续
+                //if (!_testTaskManager.IsWiringCompleted)
+                //{
+                //    MessageBox.Show("请先确认接线已完成", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                //    return;
+                //}
+
+                // 在开始测试前清空所有现有任务，确保批次间互不干扰
+                //await _testTaskManager.ClearAllTasksAsync();
 
                 // 开始所有测试任务
                 var result = await _testTaskManager.StartAllTasksAsync();
@@ -3131,28 +3130,30 @@ namespace FatFullVersion.ViewModels
             try
             {
                 IsLoading = true;
-                StatusMessage = "正在导出测试结果...";
+                StatusMessage = "正在导出测试结果，包含所有通道测试数据...";
                 
                 // 调用导出服务
                 bool result = await _testResultExportService.ExportToExcelAsync(AllChannels);
                 
                 if (result)
                 {
-                    Message = "测试结果导出成功";
+                    Message = "测试结果导出成功，已导出全部测试数据字段";
+                    StatusMessage = "导出完成";
                 }
                 else
                 {
                     Message = "测试结果导出失败";
+                    StatusMessage = "导出失败";
                 }
             }
             catch (Exception ex)
             {
                 Message = $"导出测试结果时出错: {ex.Message}";
+                StatusMessage = "导出出错";
             }
             finally
             {
                 IsLoading = false;
-                StatusMessage = string.Empty;
             }
         }
 

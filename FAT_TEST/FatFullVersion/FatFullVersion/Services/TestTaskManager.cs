@@ -42,6 +42,15 @@ namespace FatFullVersion.Services
 
         #endregion
 
+        #region 属性
+
+        /// <summary>
+        /// 获取接线是否已完成的标志
+        /// </summary>
+        public bool IsWiringCompleted => _isWiringCompleted;
+
+        #endregion
+
         #region 构造函数
 
         /// <summary>
@@ -175,6 +184,9 @@ namespace FatFullVersion.Services
                     // 明确设置TestBatch为BatchName，避免可能的误用BatchId
                     channel.TestBatch = batchInfo.BatchName;
                 }
+                
+                // 在创建新任务前，先清空所有现有任务
+                await ClearAllTasksAsync();
                 
                 // 创建测试任务
                 await CreateTestTasksAsync(channelMappings);
@@ -982,7 +994,15 @@ namespace FatFullVersion.Services
 
             try
             {
-                // 首先进行测试结果评估 - 新增部分
+                // 确保只处理当前批次的任务
+                if (_currentBatch != null && 
+                    !string.IsNullOrEmpty(task.ChannelMapping.TestBatch) && 
+                    !task.ChannelMapping.TestBatch.Equals(_currentBatch.BatchName))
+                {
+                    return; // 跳过不属于当前批次的任务
+                }
+
+                // 首先进行测试结果评估
                 if (string.IsNullOrEmpty(task.Result.Status))
                 {
                     // 根据任务类型进行特定的结果评估
@@ -1004,6 +1024,30 @@ namespace FatFullVersion.Services
                         task.Result.Status = "通过";
                         task.ChannelMapping.HardPointTestResult = "通过";
                         task.ChannelMapping.TestResultStatus = 1; // 成功状态
+                    }
+                }//相当于对于已经测试过的点位进行判断
+                else if(task.Result.Status == "通过" || task.Result.Status == "失败")
+                {
+                    // 根据任务类型进行特定的结果评估
+                    if (task is AITestTask || task is AOTestTask)
+                    {
+                        bool allPassed = EvaluateAnalogTestResults(task);
+                        task.Result.Status = allPassed ? "通过" : "失败";
+                        task.ChannelMapping.HardPointTestResult = task.Result.Status;
+                        task.ChannelMapping.TestResultStatus = 0;
+
+                        // 如果失败，设置错误状态
+                        if (!allPassed)
+                        {
+                            task.ChannelMapping.TestResultStatus = 2;
+                        }
+                    }
+                    else if (task is DITestTask || task is DOTestTask)
+                    {
+                        // 数字量测试始终通过
+                        task.Result.Status = "通过";
+                        task.ChannelMapping.HardPointTestResult = "通过";
+                        task.ChannelMapping.TestResultStatus = 0; // 成功状态
                     }
                 }
 
@@ -1326,17 +1370,60 @@ namespace FatFullVersion.Services
         {
             try
             {
-                // 先停止所有任务
-                await StopAllTasksAsync();
-
-                // 逐个删除并释放资源
-                foreach (var task in _activeTasks.Values)
+                // 如果当前有任务在运行，先停止所有任务
+                if (_isRunning)
                 {
-                    task.Dispose();
+                    await StopAllTasksAsync();
+                }
+                else
+                {
+                    // 即使没有任务在运行，也应确保所有任务都被适当地停止
+                    if (_masterCancellationTokenSource != null && !_masterCancellationTokenSource.IsCancellationRequested)
+                    {
+                        _masterCancellationTokenSource.Cancel();
+                    }
+
+                    foreach (var task in _activeTasks.Values)
+                    {
+                        try
+                        {
+                            // 尝试停止任务，但不等待太长时间
+                            var stopTask = task.StopAsync();
+                            await Task.WhenAny(stopTask, Task.Delay(500));
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"停止任务时出错: {ex.Message}");
+                        }
+                    }
+                }
+
+                // 逐个释放资源并删除任务
+                foreach (var task in _activeTasks.Values.ToList())
+                {
+                    try
+                    {
+                        task.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"释放任务资源时出错: {ex.Message}");
+                    }
                 }
 
                 // 清空集合
                 _activeTasks.Clear();
+                
+                // 创建新的取消令牌源
+                if (_masterCancellationTokenSource != null)
+                {
+                    _masterCancellationTokenSource.Dispose();
+                    _masterCancellationTokenSource = new CancellationTokenSource();
+                }
+                
+                // 重置运行标志
+                _isRunning = false;
+                
                 return true;
             }
             catch (Exception ex)
@@ -1501,6 +1588,7 @@ namespace FatFullVersion.Services
                         channelMapping.FinalTestTime = null;
                         channelMapping.TestResultStatus = 0; // 重置结果状态为未测试
                         channelMapping.HardPointTestResult = "正在复测中...";
+                        channelMapping.ResultText = "正在复测中..."; // 更新最终测试结果文本
 
                         // 显示进度对话框
                         await ShowTestProgressDialogAsync(true, channelMapping);
@@ -1538,11 +1626,27 @@ namespace FatFullVersion.Services
                                 
                                 // 同步测试结果
                                 SyncHardPointTestResult(newTask);
+                                
+                                // 更新最终测试结果
+                                if (newTask.Result?.Status == "通过")
+                                {
+                                    channelMapping.ResultText = "硬点通道测试通过";
+                                    channelMapping.TestResultStatus = 1; // 成功状态
+                                }
+                                else
+                                {
+                                    channelMapping.ResultText = newTask.Result?.Status ?? "复测失败";
+                                    channelMapping.TestResultStatus = 2; // 失败状态
+                                }
+                                
+                                // 设置最终测试时间
+                                channelMapping.FinalTestTime = DateTime.Now;
                             }
                             catch (Exception ex)
                             {
                                 Console.WriteLine($"复测通道时出错: {ex.Message}");
                                 channelMapping.HardPointTestResult = "复测失败";
+                                channelMapping.ResultText = "复测失败: " + ex.Message;
                                 channelMapping.TestResultStatus = 2; // 失败
                                 channelMapping.ErrorMessage = ex.Message;
                             }
@@ -1770,10 +1874,13 @@ namespace FatFullVersion.Services
 
         #endregion
 
-        // 修改原来的StartAllTasksAsync方法，让它调用新的串行执行方法
+        /// <summary>
+        /// 启动所有测试任务
+        /// </summary>
+        /// <returns>操作是否成功</returns>
         public async Task<bool> StartAllTasksAsync()
         {
-            // 调用新的串行执行方法来替代原有的并行实现
+            // 调用串行执行方法
             return await StartAllTasksSerialAsync();
         }
 
