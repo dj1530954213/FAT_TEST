@@ -158,7 +158,7 @@ namespace FatFullVersion.Services
                             "测试PLC通道位号", "被测PLC通道位号", "行程最小值", "行程最大值", 
                             "0%对比值", "25%对比值", "50%对比值", "75%对比值", "100%对比值", 
                             "低低报反馈状态", "低报反馈状态", "高报反馈状态", "高高报反馈状态", "维护功能检测", 
-                            "开始测试时间", "最终测试时间", "测试时长(秒)", "通道硬点测试结果", "测试结果" 
+                            "开始测试时间", "最终测试时间", "测试时长", "通道硬点测试结果", "测试结果" 
                         };
                         
                         for (int i = 0; i < headers.Length; i++)
@@ -197,25 +197,25 @@ namespace FatFullVersion.Services
                             SetCellValue(dataRow, 6, result.ChannelTag, contentStyle);
                             
                             // 8. 行程最小值
-                            SetDoubleValue(dataRow, 7, result.RangeLowerLimitValue, contentStyle);
-                            
+                            SetDoubleValue(dataRow, 7, Math.Round(result.RangeLowerLimitValue,3), contentStyle);
+
                             // 9. 行程最大值
-                            SetDoubleValue(dataRow, 8, result.RangeUpperLimitValue, contentStyle);
-                            
+                            SetDoubleValue(dataRow, 8, Math.Round(result.RangeUpperLimitValue, 3), contentStyle);
+
                             // 10. 0%对比值
-                            SetDoubleValue(dataRow, 9, result.Value0Percent, contentStyle);
-                            
+                            SetDoubleValue(dataRow, 9, Math.Round(result.Value0Percent, 3), contentStyle);
+
                             // 11. 25%对比值
-                            SetDoubleValue(dataRow, 10, result.Value25Percent, contentStyle);
+                            SetDoubleValue(dataRow, 10, Math.Round(result.Value25Percent, 3), contentStyle);
                             
                             // 12. 50%对比值
-                            SetDoubleValue(dataRow, 11, result.Value50Percent, contentStyle);
+                            SetDoubleValue(dataRow, 11, Math.Round(result.Value50Percent, 3), contentStyle);
                             
                             // 13. 75%对比值
-                            SetDoubleValue(dataRow, 12, result.Value75Percent, contentStyle);
+                            SetDoubleValue(dataRow, 12, Math.Round(result.Value75Percent, 3), contentStyle);
                             
                             // 14. 100%对比值
-                            SetDoubleValue(dataRow, 13, result.Value100Percent, contentStyle);
+                            SetDoubleValue(dataRow, 13, Math.Round(result.Value100Percent, 3), contentStyle);
                             
                             // 15. 低低报反馈状态
                             SetCellValue(dataRow, 14, result.LowLowAlarmStatus, contentStyle);
@@ -246,7 +246,8 @@ namespace FatFullVersion.Services
                             
                             // 22. 测试时长(秒)
                             var durationCell = dataRow.CreateCell(21);
-                            durationCell.SetCellValue(result.TotalTestDuration);
+                            TimeSpan usedTime = TimeSpan.FromSeconds(Math.Round(result.TotalTestDuration, 0));
+                            durationCell.SetCellValue($"{(int)usedTime.Hours:D2}小时{usedTime.Minutes:D2}分{usedTime.Seconds:D2}秒");
                             durationCell.CellStyle = contentStyle;
                             
                             // 23. 通道硬点测试结果

@@ -69,7 +69,7 @@ namespace FatFullVersion.ViewModels
             catch (Exception ex)
             {
                 //当修改了测试窗口为启动页的时候导航服务中的内容为Null，这里就不进行任何处理了
-                MessageBox.Show($"导航出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                //MessageBox.Show($"导航出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         //导航日志中前进和返回的命令注册
@@ -95,9 +95,9 @@ namespace FatFullVersion.ViewModels
 
         public void CreateMenu()
         {
-            //MenuBars.Add(new MenuBar(){Icon= "AccountSettings", NameSpace = "UserConfigView",Title = "用户配置"});
-            MenuBars.Add(new MenuBar() { Icon = "SearchWeb", NameSpace = "DataBrowseView", Title = "线上数据查看" });
-            //MenuBars.Add(new MenuBar() { Icon = "ApplicationEditOutline", NameSpace = "DataEditView", Title = "综合表格编辑" });
+            MenuBars.Add(new MenuBar() { Icon = "ApplicationEditOutline", NameSpace = "DataEditView", Title = "综合表格编辑" });
+            MenuBars.Add(new MenuBar() { Icon = "SettingsApplications", NameSpace = "ConfigEditView", Title = "PLC配置管理" });
+            //MenuBars.Add(new MenuBar() { Icon = "SearchWeb", NameSpace = "DataBrowseView", Title = "线上数据查看" });
         }
     }
 }

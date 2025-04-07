@@ -1015,6 +1015,7 @@ namespace FatFullVersion.Services
                         // 如果失败，设置错误状态
                         if (!allPassed)
                         {
+                            //task.ChannelMapping.ErrorMessage = task.Result.ErrorMessage;
                             task.ChannelMapping.TestResultStatus = 2;
                         }
                     }
@@ -1039,6 +1040,7 @@ namespace FatFullVersion.Services
                         // 如果失败，设置错误状态
                         if (!allPassed)
                         {
+                            //task.ChannelMapping.ErrorMessage = task.Result.ErrorMessage;
                             task.ChannelMapping.TestResultStatus = 2;
                         }
                     }
@@ -1066,12 +1068,24 @@ namespace FatFullVersion.Services
                     task.ChannelMapping.HardPointTestResult = task.Result.Status;
                     task.ChannelMapping.TestTime = DateTime.Now;
                     task.ChannelMapping.EndTime = task.Result.EndTime;
-                    task.ChannelMapping.Value0Percent = task.Result.Value0Percent;
-                    task.ChannelMapping.Value25Percent = task.Result.Value25Percent;
-                    task.ChannelMapping.Value50Percent = task.Result.Value50Percent;
-                    task.ChannelMapping.Value75Percent = task.Result.Value75Percent;
-                    task.ChannelMapping.Value100Percent = task.Result.Value100Percent;
+                    if (task is AITestTask || task is AOTestTask)
+                    {
+                        task.ChannelMapping.Value0Percent = task.Result.Value0Percent;
+                        task.ChannelMapping.Value25Percent = task.Result.Value25Percent;
+                        task.ChannelMapping.Value50Percent = task.Result.Value50Percent;
+                        task.ChannelMapping.Value75Percent = task.Result.Value75Percent;
+                        task.ChannelMapping.Value100Percent = task.Result.Value100Percent;
+                    }
+                    else
+                    {
+                        task.ChannelMapping.Value0Percent = float.NaN;
+                        task.ChannelMapping.Value25Percent = float.NaN;
+                        task.ChannelMapping.Value50Percent = float.NaN;
+                        task.ChannelMapping.Value75Percent = float.NaN;
+                        task.ChannelMapping.Value100Percent = float.NaN;
+                    }
                     task.ChannelMapping.Status = task.Result.Status;
+                    task.ChannelMapping.ErrorMessage = task.Result.ErrorMessage;
                     
                     // 尝试异步更新数据库，但不等待完成
                     Task.Run(async () => 
