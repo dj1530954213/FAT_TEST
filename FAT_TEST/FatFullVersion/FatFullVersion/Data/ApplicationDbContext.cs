@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using FatFullVersion.Entities;
 using FatFullVersion.Entities.ValueObject;
+using FatFullVersion.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace FatFullVersion.Data
@@ -14,9 +15,11 @@ namespace FatFullVersion.Data
     {
         public DbSet<PlcConnectionConfig> PlcConnections { get; set; }
         public DbSet<ComparisonTable> ComparisonTables { get; set; }
+        public DbSet<ChannelMapping> ChannelMappings { get; set; }
 
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
+
         }
     }
 } 

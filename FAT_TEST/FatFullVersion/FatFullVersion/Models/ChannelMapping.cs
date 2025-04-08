@@ -9,7 +9,27 @@ namespace FatFullVersion.Models
     public class ChannelMapping : BindableBase
     {
         #region 从ExcelPointData添加的属性
-        
+
+        private Guid _id;
+        /// <summary>
+        /// 本次测试标识
+        /// </summary>
+        public Guid Id
+        {
+            get { return _id; }
+            set { SetProperty(ref _id, value); }
+        }
+
+        private string _testTag;
+        /// <summary>
+        /// 本次测试标识
+        /// </summary>
+        public string TestTag
+        {
+            get { return _testTag; }
+            set { SetProperty(ref _testTag, value); }
+        }
+
         private string _moduleName;
         /// <summary>
         /// 模块名称

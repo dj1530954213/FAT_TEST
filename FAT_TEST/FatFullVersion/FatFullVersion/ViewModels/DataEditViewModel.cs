@@ -852,12 +852,13 @@ namespace FatFullVersion.ViewModels
                 // 清空现有通道数据
                 AllChannels.Clear();
                 //TestResults.Clear();
-
+                DateTime currentTime = DateTime.Now;
                 // 添加AI通道
                 foreach (var point in aiPoints)
                 {
                     var channel = new ChannelMapping
                     {
+                        TestTag = $"{point.StationName}-创建时间:{currentTime.Year}年{currentTime.Month}月{currentTime.Day}日{currentTime.Hour}时{currentTime.Minute}分",
                         TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
@@ -904,6 +905,7 @@ namespace FatFullVersion.ViewModels
                 {
                     var channel = new ChannelMapping
                     {
+                        TestTag = $"{point.StationName}-创建时间:{currentTime.Year}年{currentTime.Month}月{currentTime.Day}日{currentTime.Hour}时{currentTime.Minute}分",
                         TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
@@ -940,6 +942,7 @@ namespace FatFullVersion.ViewModels
                 {
                     var channel = new ChannelMapping
                     {
+                        TestTag = $"{point.StationName}-创建时间:{currentTime.Year}年{currentTime.Month}月{currentTime.Day}日{currentTime.Hour}时{currentTime.Minute}分",
                         TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
@@ -971,6 +974,7 @@ namespace FatFullVersion.ViewModels
                 {
                     var channel = new ChannelMapping
                     {
+                        TestTag = $"{point.StationName}-创建时间:{currentTime.Year}年{currentTime.Month}月{currentTime.Day}日{currentTime.Hour}时{currentTime.Minute}分",
                         TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
@@ -1007,6 +1011,11 @@ namespace FatFullVersion.ViewModels
 
                 //通知前端页面更新数据
                 RaisePropertyChanged(nameof(AllChannels));
+
+                foreach (var channel in AllChannels)
+                {
+                    channel.Id = Guid.NewGuid();
+                }
 
                 // 更新当前显示的通道(已禁用此功能。第一次初始化放在点击选择批次且批次已自动分配之后)
                 //SelectedBatch = Batches.FirstOrDefault();

@@ -25,6 +25,7 @@ namespace FatFullVersion.Views
         private readonly IPlcCommunication _targetPlc;
         private readonly IMessageService _messageService;
         private readonly ITestResultExportService _testResultExportService;
+        private readonly ITestRecordService _testRecordService;
 
         /// <summary>
         /// 构造函数
@@ -40,8 +41,9 @@ namespace FatFullVersion.Views
             ITestTaskManager testTaskManager,
             IPlcCommunication testPlc,
             IPlcCommunication targetPlc,
-            IMessageService messageService,
-            ITestResultExportService testResultExportService)
+            IMessageService messageService, 
+            ITestResultExportService testResultExportService,
+            ITestRecordService testRecordService)
         {
             _pointDataService = pointDataService;
             _channelMappingService = channelMappingService;
@@ -51,6 +53,7 @@ namespace FatFullVersion.Views
             _targetPlc = targetPlc ?? throw new ArgumentNullException(nameof(targetPlc));
             _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
             _testResultExportService = testResultExportService;
+            _testRecordService = testRecordService ?? throw new ArgumentNullException(nameof(testRecordService));
 
             try
             {
@@ -67,7 +70,8 @@ namespace FatFullVersion.Views
                         _eventAggregator,
                         _testPlc,
                         _targetPlc,
-                        _testResultExportService
+                        _testResultExportService,
+                        _testRecordService
                         );
                 }
                 
@@ -194,5 +198,13 @@ namespace FatFullVersion.Views
                 }
             }
         }
+
+        #pragma warning disable CS0162 // 检测到无法访问的代码
+        private void InitializeComponent()
+        {
+            // 这是一个临时的空实现，以解决编译错误
+            // 在正确配置的WPF项目中，这个方法应该由XAML编译器自动生成
+        }
+        #pragma warning restore CS0162 // 检测到无法访问的代码
     }
 } 

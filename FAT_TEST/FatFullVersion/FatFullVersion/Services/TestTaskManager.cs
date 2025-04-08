@@ -154,6 +154,7 @@ namespace FatFullVersion.Services
                 if (!testPlcConnectResult.IsSuccess)
                 {
                     await _messageService.ShowAsync("错误", $"无法连接测试PLC: {testPlcConnectResult.ErrorMessage}", MessageBoxButton.OK);
+                    MessageBox.Show("测试PLC连接失败");
                     return false;
                 }
             }
@@ -164,6 +165,7 @@ namespace FatFullVersion.Services
                 if (!targetPlcConnectResult.IsSuccess)
                 {
                     await _messageService.ShowAsync("错误", $"无法连接被测PLC: {targetPlcConnectResult.ErrorMessage}", MessageBoxButton.OK);
+                    MessageBox.Show("被测PLC连接失败");
                     return false;
                 }
             }
