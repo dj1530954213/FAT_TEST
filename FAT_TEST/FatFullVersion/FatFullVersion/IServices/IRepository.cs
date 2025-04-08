@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using FatFullVersion.Entities;
 using FatFullVersion.Entities.ValueObject;
+using FatFullVersion.Models;
 
 namespace FatFullVersion.IServices
 {
@@ -98,6 +99,44 @@ namespace FatFullVersion.IServices
         /// <returns>保存操作是否成功</returns>
         Task<bool> SaveAllComparisonTablesAsync(List<ComparisonTable> comparisonTables);
 
+        #endregion
+        
+        #region 测试记录操作
+        
+        /// <summary>
+        /// 保存测试记录集合
+        /// </summary>
+        /// <param name="records">测试记录集合</param>
+        /// <returns>保存操作是否成功</returns>
+        Task<bool> SaveTestRecordsAsync(IEnumerable<ChannelMapping> records);
+        
+        /// <summary>
+        /// 保存单个测试记录
+        /// </summary>
+        /// <param name="record">测试记录</param>
+        /// <returns>保存操作是否成功</returns>
+        Task<bool> SaveTestRecordAsync(ChannelMapping record);
+        
+        /// <summary>
+        /// 根据测试标识获取测试记录
+        /// </summary>
+        /// <param name="testTag">测试标识</param>
+        /// <returns>测试记录集合</returns>
+        Task<List<ChannelMapping>> GetTestRecordsByTagAsync(string testTag);
+        
+        /// <summary>
+        /// 获取所有不同的测试标识
+        /// </summary>
+        /// <returns>测试标识集合</returns>
+        Task<List<string>> GetAllTestTagsAsync();
+        
+        /// <summary>
+        /// 根据测试标识删除测试记录
+        /// </summary>
+        /// <param name="testTag">测试标识</param>
+        /// <returns>删除操作是否成功</returns>
+        Task<bool> DeleteTestRecordsByTagAsync(string testTag);
+        
         #endregion
     }
 }

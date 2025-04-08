@@ -21,5 +21,28 @@ namespace FatFullVersion.Data
         {
 
         }
+        
+        /// <summary>
+        /// 配置实体映射关系
+        /// </summary>
+        /// <param name="modelBuilder">模型构建器</param>
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+            
+            // 配置ChannelMapping实体
+            modelBuilder.Entity<ChannelMapping>(entity =>
+            {
+                // 配置Id属性为主键
+                entity.HasKey(e => e.Id);
+                
+                // 配置TestTag索引，用于快速查找同一测试批次的记录
+                entity.HasIndex(e => e.TestTag);
+                
+                // 配置CreatedTime自动生成
+                entity.Property(e => e.CreatedTime)
+                      .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            });
+        }
     }
 } 

@@ -9,6 +9,7 @@ using FatFullVersion.Entities;
 using FatFullVersion.Entities.EntitiesEnum;
 using FatFullVersion.Entities.ValueObject;
 using FatFullVersion.IServices;
+using FatFullVersion.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace FatFullVersion.Services
@@ -148,5 +149,175 @@ namespace FatFullVersion.Services
                 return false;
             }
         }
+        
+        #region 测试记录操作
+        
+        /// <summary>
+        /// 保存测试记录集合
+        /// </summary>
+        /// <param name="records">测试记录集合</param>
+        /// <returns>保存操作是否成功</returns>
+        public async Task<bool> SaveTestRecordsAsync(IEnumerable<ChannelMapping> records)
+        {
+            try
+            {
+                if (records == null || !records.Any())
+                    return true;
+                
+                foreach (var record in records)
+                {
+                    // 确保每条记录都有Guid作为Id
+                    if (record.Id == Guid.Empty)
+                    {
+                        record.Id = Guid.NewGuid();
+                    }
+                    
+                    // 更新时间戳
+                    record.UpdatedTime = DateTime.Now;
+                    
+                    // 检查记录是否已存在
+                    var existing = await _context.ChannelMappings.FindAsync(record.Id);
+                    if (existing != null)
+                    {
+                        // 更新现有记录
+                        _context.Entry(existing).CurrentValues.SetValues(record);
+                    }
+                    else
+                    {
+                        // 添加新记录
+                        _context.ChannelMappings.Add(record);
+                    }
+                }
+                
+                return await _context.SaveChangesAsync() > 0;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"保存测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// 保存单个测试记录
+        /// </summary>
+        /// <param name="record">测试记录</param>
+        /// <returns>保存操作是否成功</returns>
+        public async Task<bool> SaveTestRecordAsync(ChannelMapping record)
+        {
+            try
+            {
+                if (record == null)
+                    return false;
+                
+                // 确保记录有Guid作为Id
+                if (record.Id == Guid.Empty)
+                {
+                    record.Id = Guid.NewGuid();
+                }
+                
+                // 更新时间戳
+                record.UpdatedTime = DateTime.Now;
+                
+                // 检查记录是否已存在
+                var existing = await _context.ChannelMappings.FindAsync(record.Id);
+                if (existing != null)
+                {
+                    // 更新现有记录
+                    _context.Entry(existing).CurrentValues.SetValues(record);
+                }
+                else
+                {
+                    // 添加新记录
+                    _context.ChannelMappings.Add(record);
+                }
+                
+                return await _context.SaveChangesAsync() > 0;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"保存单个测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// 根据测试标识获取测试记录
+        /// </summary>
+        /// <param name="testTag">测试标识</param>
+        /// <returns>测试记录集合</returns>
+        public async Task<List<ChannelMapping>> GetTestRecordsByTagAsync(string testTag)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(testTag))
+                    return new List<ChannelMapping>();
+                
+                return await _context.ChannelMappings
+                    .Where(c => c.TestTag == testTag)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"获取测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return new List<ChannelMapping>();
+            }
+        }
+        
+        /// <summary>
+        /// 获取所有不同的测试标识
+        /// </summary>
+        /// <returns>测试标识集合</returns>
+        public async Task<List<string>> GetAllTestTagsAsync()
+        {
+            try
+            {
+                return await _context.ChannelMappings
+                    .Where(c => !string.IsNullOrEmpty(c.TestTag))
+                    .Select(c => c.TestTag)
+                    .Distinct()
+                    .OrderByDescending(tag => tag) // 按照标签降序排序(通常新的测试记录标签更大)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"获取测试标识时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return new List<string>();
+            }
+        }
+        
+        /// <summary>
+        /// 根据测试标识删除测试记录
+        /// </summary>
+        /// <param name="testTag">测试标识</param>
+        /// <returns>删除操作是否成功</returns>
+        public async Task<bool> DeleteTestRecordsByTagAsync(string testTag)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(testTag))
+                    return false;
+                
+                // 获取符合条件的记录
+                var records = await _context.ChannelMappings
+                    .Where(c => c.TestTag == testTag)
+                    .ToListAsync();
+                
+                if (!records.Any())
+                    return true; // 没有找到记录，视为成功
+                
+                // 删除所有符合条件的记录
+                _context.ChannelMappings.RemoveRange(records);
+                
+                return await _context.SaveChangesAsync() > 0;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"删除测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+        }
+        
+        #endregion
     }
 }

@@ -240,7 +240,7 @@
                         Height="40"
                         Margin="5,5"
                         Padding="10"
-                        Command="{Binding ImportConfigCommand}"
+                        Command="{Binding RestoreConfigCommand}"
                         Content="恢复配置"
                         FontSize="16"
                         FontWeight="SemiBold"
@@ -846,6 +846,114 @@
                             Command="{Binding CancelBatchSelectionCommand}"
                             Content="取消"
                             Foreground="#333333" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Popup>
+
+        <!--  历史记录查看窗口  -->
+        <Popup
+            x:Name="HistoryRecordsPopup"
+            Width="600"
+            Height="600"
+            IsOpen="{Binding IsHistoryRecordsOpen, Mode=TwoWay}"
+            Placement="Center"
+            StaysOpen="True">
+            <Border
+                Padding="16"
+                Background="White"
+                BorderBrush="#AAAAAA"
+                BorderThickness="1"
+                CornerRadius="8">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock
+                        Grid.Row="0"
+                        Margin="0,0,0,16"
+                        FontSize="24"
+                        FontWeight="Bold"
+                        Text="历史测试记录" />
+
+                    <DataGrid
+                        Grid.Row="1"
+                        Margin="0,0,0,16"
+                        AlternatingRowBackground="#F5F5F5"
+                        AutoGenerateColumns="False"
+                        Background="White"
+                        BorderBrush="#CCCCCC"
+                        BorderThickness="1"
+                        CanUserAddRows="False"
+                        CanUserDeleteRows="False"
+                        FontSize="16"
+                        GridLinesVisibility="All"
+                        HeadersVisibility="Column"
+                        HorizontalGridLinesBrush="#DDDDDD"
+                        IsReadOnly="True"
+                        ItemsSource="{Binding TestBatches}"
+                        SelectedItem="{Binding SelectedTestBatch, Mode=TwoWay}"
+                        SelectionMode="Single"
+                        VerticalGridLinesBrush="#DDDDDD">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn
+                                Width="*"
+                                Binding="{Binding TestTag}"
+                                Header="测试标识" />
+                            <DataGridTextColumn
+                                Width="*"
+                                Binding="{Binding CreatedTime, StringFormat=\{0:yyyy-MM-dd HH:mm:ss\}}"
+                                Header="创建时间" />
+                            <DataGridTextColumn
+                                Width="*"
+                                Binding="{Binding LastUpdatedTime, StringFormat=\{0:yyyy-MM-dd HH:mm:ss\}}"
+                                Header="更新时间" />
+                            <DataGridTextColumn
+                                Width="Auto"
+                                Binding="{Binding TotalCount}"
+                                Header="总点位数" />
+                            <DataGridTextColumn
+                                Width="Auto"
+                                Binding="{Binding TestedCount}"
+                                Header="已测试数" />
+                            <DataGridTextColumn
+                                Width="Auto"
+                                Binding="{Binding PassedCount}"
+                                Header="通过数" />
+                            <DataGridTextColumn
+                                Width="Auto"
+                                Binding="{Binding FailedCount}"
+                                Header="失败数" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <StackPanel
+                        Grid.Row="2"
+                        HorizontalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Button
+                            Margin="0,0,16,0"
+                            Padding="16,8"
+                            Background="#4CAF50"
+                            Command="{Binding RestoreTestRecordsCommand}"
+                            Content="恢复选中记录"
+                            Foreground="White" />
+                        <Button
+                            Margin="0,0,16,0"
+                            Padding="16,8"
+                            Background="#FF9800"
+                            Command="{Binding DeleteTestBatchCommand}"
+                            Content="删除选中记录"
+                            Foreground="White" />
+                        <Button
+                            Padding="16,8"
+                            Background="#F44336"
+                            Command="{Binding CloseHistoryRecordsCommand}"
+                            Content="关闭"
+                            Foreground="White" />
                     </StackPanel>
                 </Grid>
             </Border>

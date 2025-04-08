@@ -50,21 +50,21 @@ namespace FatFullVersion.Services
                 }
 
                 // 检查所有记录是否都有测试标识
-                if (records.Any(r => string.IsNullOrEmpty(r.TestTag)))
-                {
-                    // 为没有测试标识的记录设置统一的标识
-                    var newTag = GenerateTestTag();
-                    foreach (var record in records.Where(r => string.IsNullOrEmpty(r.TestTag)))
-                    {
-                        record.TestTag = newTag;
-                    }
-                }
+                //if (records.Any(r => string.IsNullOrEmpty(r.TestTag)))
+                //{
+                //    // 为没有测试标识的记录设置统一的标识
+                //    var newTag = GenerateTestTag();
+                //    foreach (var record in records.Where(r => string.IsNullOrEmpty(r.TestTag)))
+                //    {
+                //        record.TestTag = newTag;
+                //    }
+                //}
 
-                // 确保所有记录都有唯一Id
-                foreach (var record in records.Where(r => string.IsNullOrEmpty(r.Id)))
-                {
-                    record.Id = Guid.NewGuid().ToString("N");
-                }
+                //// 确保所有记录都有唯一Id
+                //foreach (var record in records.Where(r => string.IsNullOrEmpty(r.Id)))
+                //{
+                //    record.Id = Guid.NewGuid().ToString("N");
+                //}
 
                 // 保存记录
                 return await _repository.SaveTestRecordsAsync(records);
@@ -89,16 +89,16 @@ namespace FatFullVersion.Services
                     return false;
 
                 // 如果没有测试标识，生成一个新的
-                if (string.IsNullOrEmpty(channelMapping.TestTag))
-                {
-                    channelMapping.TestTag = GenerateTestTag();
-                }
+                //if (string.IsNullOrEmpty(channelMapping.TestTag))
+                //{
+                //    channelMapping.TestTag = GenerateTestTag();
+                //}
 
                 // 确保有唯一Id
-                if (string.IsNullOrEmpty(channelMapping.Id))
-                {
-                    channelMapping.Id = Guid.NewGuid().ToString("N");
-                }
+                //if (string.IsNullOrEmpty(channelMapping.Id))
+                //{
+                //    channelMapping.Id = Guid.NewGuid().ToString("N");
+                //}
 
                 return await _repository.SaveTestRecordAsync(channelMapping);
             }
@@ -190,16 +190,6 @@ namespace FatFullVersion.Services
                 MessageBox.Show($"删除测试批次时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
-        }
-
-        /// <summary>
-        /// 生成新的测试批次标识
-        /// </summary>
-        /// <returns>新的测试批次标识</returns>
-        public string GenerateTestTag()
-        {
-            // 使用当前日期时间格式化为易读的标识
-            return $"TEST_{DateTime.Now:yyyyMMdd_HHmmss}";
         }
     }
 } 
