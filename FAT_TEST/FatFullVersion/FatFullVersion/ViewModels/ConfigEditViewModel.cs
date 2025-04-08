@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -38,7 +40,13 @@ namespace FatFullVersion.ViewModels
             DeleteComparisonTableCommand = new DelegateCommand<ComparisonTable>(DeleteComparisonTable);
             
             // 初始化通道类型列表
-            ChannelTypes = new ObservableCollection<TestPlcChannelType>(Enum.GetValues(typeof(TestPlcChannelType)).Cast<TestPlcChannelType>());
+            ChannelTypes = new ObservableCollection<ChannelTypeItem>
+            {
+                new ChannelTypeItem { Value = TestPlcChannelType.AI, DisplayName = "模拟量输入" },
+                new ChannelTypeItem { Value = TestPlcChannelType.AO, DisplayName = "模拟量输出" },
+                new ChannelTypeItem { Value = TestPlcChannelType.DI, DisplayName = "数字量输入" },
+                new ChannelTypeItem { Value = TestPlcChannelType.DO, DisplayName = "数字量输出" }
+            };
             
             // 初始化
             InitializeCommand.Execute();
@@ -79,8 +87,8 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 可用的通道类型列表
         /// </summary>
-        private ObservableCollection<TestPlcChannelType> _channelTypes;
-        public ObservableCollection<TestPlcChannelType> ChannelTypes
+        private ObservableCollection<ChannelTypeItem> _channelTypes;
+        public ObservableCollection<ChannelTypeItem> ChannelTypes
         {
             get => _channelTypes;
             set => SetProperty(ref _channelTypes, value);
@@ -327,5 +335,21 @@ namespace FatFullVersion.ViewModels
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// 通道类型项
+    /// </summary>
+    public class ChannelTypeItem
+    {
+        /// <summary>
+        /// 通道类型值
+        /// </summary>
+        public TestPlcChannelType Value { get; set; }
+
+        /// <summary>
+        /// 显示名称
+        /// </summary>
+        public string DisplayName { get; set; }
     }
 }
