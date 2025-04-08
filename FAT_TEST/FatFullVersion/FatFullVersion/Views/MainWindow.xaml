@@ -92,11 +92,6 @@
                             ToolTip="主页" />
                     </StackPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <TextBlock
-                            Margin="0,0,20,0"
-                            VerticalAlignment="Center"
-                            FontSize="14"
-                            Text="已成功连接数据库" />
                         <Button
                             x:Name="BtnMin"
                             Margin="5"

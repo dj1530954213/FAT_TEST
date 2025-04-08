@@ -253,7 +253,7 @@
                                             <CheckBox
                                                 Grid.Row="2"
                                                 Grid.Column="3"
-                                                Margin="180,0"
+                                                HorizontalAlignment="Center"
                                                 FontSize="20"
                                                 IsChecked="{Binding TestPlcConfig.AddressStartWithZero}"
                                                 Style="{StaticResource CheckBoxStyle}" />
@@ -268,7 +268,7 @@
                                             <CheckBox
                                                 Grid.Row="3"
                                                 Grid.Column="3"
-                                                Margin="180,0"
+                                                HorizontalAlignment="Center"
                                                 FontSize="20"
                                                 IsChecked="{Binding TestPlcConfig.IsCheckMessageId}"
                                                 Style="{StaticResource CheckBoxStyle}" />
@@ -283,7 +283,7 @@
                                             <CheckBox
                                                 Grid.Row="4"
                                                 Grid.Column="3"
-                                                Margin="180,0"
+                                                HorizontalAlignment="Center"
                                                 FontSize="20"
                                                 IsChecked="{Binding TestPlcConfig.IsStringReverse}"
                                                 Style="{StaticResource CheckBoxStyle}" />
@@ -298,7 +298,7 @@
                                             <CheckBox
                                                 Grid.Row="5"
                                                 Grid.Column="3"
-                                                Margin="180,0"
+                                                HorizontalAlignment="Center"
                                                 FontSize="20"
                                                 IsChecked="{Binding TestPlcConfig.IsPersistentConnection}"
                                                 Style="{StaticResource CheckBoxStyle}" />
@@ -467,7 +467,7 @@
                                             <CheckBox
                                                 Grid.Row="2"
                                                 Grid.Column="3"
-                                                Margin="180,0"
+                                                HorizontalAlignment="Center"
                                                 FontSize="20"
                                                 IsChecked="{Binding TargetPlcConfig.AddressStartWithZero}"
                                                 Style="{StaticResource CheckBoxStyle}" />
@@ -482,7 +482,7 @@
                                             <CheckBox
                                                 Grid.Row="3"
                                                 Grid.Column="3"
-                                                Margin="180,0"
+                                                HorizontalAlignment="Center"
                                                 FontSize="20"
                                                 IsChecked="{Binding TargetPlcConfig.IsCheckMessageId}"
                                                 Style="{StaticResource CheckBoxStyle}" />
@@ -497,7 +497,7 @@
                                             <CheckBox
                                                 Grid.Row="4"
                                                 Grid.Column="3"
-                                                Margin="180,0"
+                                                HorizontalAlignment="Center"
                                                 FontSize="20"
                                                 IsChecked="{Binding TargetPlcConfig.IsStringReverse}"
                                                 Style="{StaticResource CheckBoxStyle}" />
@@ -512,7 +512,7 @@
                                             <CheckBox
                                                 Grid.Row="5"
                                                 Grid.Column="3"
-                                                Margin="180,0"
+                                                HorizontalAlignment="Center"
                                                 FontSize="20"
                                                 IsChecked="{Binding TargetPlcConfig.IsPersistentConnection}"
                                                 Style="{StaticResource CheckBoxStyle}" />

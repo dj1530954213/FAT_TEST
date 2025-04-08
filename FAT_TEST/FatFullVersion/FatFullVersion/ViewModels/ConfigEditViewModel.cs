@@ -199,15 +199,7 @@ namespace FatFullVersion.ViewModels
                 
                 // 保存配置
                 bool result = await _repository.SavePlcConnectionConfigAsync(TestPlcConfig);
-
-                if (result)
-                {
-                    MessageBox.Show("测试PLC配置保存成功！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                else
-                {
-                    MessageBox.Show("测试PLC配置保存失败！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                await Task.Delay(1000);
             }
             catch (Exception ex)
             {
@@ -236,15 +228,7 @@ namespace FatFullVersion.ViewModels
                 
                 // 保存配置
                 bool result = await _repository.SavePlcConnectionConfigAsync(TargetPlcConfig);
-
-                if (result)
-                {
-                    MessageBox.Show("被测PLC配置保存成功！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                else
-                {
-                    MessageBox.Show("被测PLC配置保存失败！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                await Task.Delay(1000);
             }
             catch (Exception ex)
             {
@@ -270,19 +254,19 @@ namespace FatFullVersion.ViewModels
                 
                 // 保存所有通道比较表项
                 bool result = await _repository.SaveAllComparisonTablesAsync(ComparisonTables.ToList());
-
-                if (result)
-                {
-                    MessageBox.Show("通道比较表保存成功！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                await Task.Delay(1000);
+                //if (result)
+                //{
+                //    MessageBox.Show("通道比较表保存成功！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
                     
-                    // 重新加载数据
-                    var tables = await _repository.GetComparisonTablesAsync();
-                    ComparisonTables = new ObservableCollection<ComparisonTable>(tables);
-                }
-                else
-                {
-                    MessageBox.Show("通道比较表保存失败！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                //    // 重新加载数据
+                //    var tables = await _repository.GetComparisonTablesAsync();
+                //    ComparisonTables = new ObservableCollection<ComparisonTable>(tables);
+                //}
+                //else
+                //{
+                //    MessageBox.Show("通道比较表保存失败！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                //}
             }
             catch (Exception ex)
             {

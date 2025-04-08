@@ -219,7 +219,8 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
                     <Button
@@ -239,6 +240,18 @@
                         Height="40"
                         Margin="5,5"
                         Padding="10"
+                        Command="{Binding ImportConfigCommand}"
+                        Content="恢复配置"
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Style="{StaticResource MaterialDesignRaisedButton}"
+                        ToolTip="从数据库中恢复配置" />
+
+                    <Button
+                        Grid.Column="2"
+                        Height="40"
+                        Margin="5,5"
+                        Padding="10"
                         Command="{Binding SelectBatchCommand}"
                         Content="选择批次"
                         FontSize="16"
@@ -247,7 +260,7 @@
                         ToolTip="选择测试批次" />
 
                     <Button
-                        Grid.Column="2"
+                        Grid.Column="3"
                         Height="40"
                         Margin="5,5"
                         Padding="10"
@@ -260,7 +273,7 @@
                         ToolTip="完成接线确认" />
 
                     <Button
-                        Grid.Column="3"
+                        Grid.Column="4"
                         Height="40"
                         Margin="5,5"
                         Padding="10"
@@ -273,7 +286,7 @@
                         ToolTip="开始测试" />
 
                     <Button
-                        Grid.Column="4"
+                        Grid.Column="5"
                         Height="40"
                         Margin="5,5"
                         Padding="10"
