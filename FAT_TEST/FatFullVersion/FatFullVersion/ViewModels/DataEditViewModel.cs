@@ -908,12 +908,14 @@ namespace FatFullVersion.ViewModels
                 // 清空现有通道数据
                 AllChannels.Clear();
                 //TestResults.Clear();
-
+                DateTime currentTime = DateTime.Now;
                 // 添加AI通道
                 foreach (var point in aiPoints)
                 {
                     var channel = new ChannelMapping
                     {
+                        Id = Guid.NewGuid(),
+                        TestTag = $"{point.StationName}|创建时间:{currentTime.Year}年{currentTime.Month}月{currentTime.Day}日{currentTime.Hour}时{currentTime.Minute}分",
                         TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
@@ -960,6 +962,8 @@ namespace FatFullVersion.ViewModels
                 {
                     var channel = new ChannelMapping
                     {
+                        Id = Guid.NewGuid(),
+                        TestTag = $"{point.StationName}|创建时间:{currentTime.Year}年{currentTime.Month}月{currentTime.Day}日{currentTime.Hour}时{currentTime.Minute}分",
                         TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
@@ -996,6 +1000,8 @@ namespace FatFullVersion.ViewModels
                 {
                     var channel = new ChannelMapping
                     {
+                        Id = Guid.NewGuid(),
+                        TestTag = $"{point.StationName}|创建时间:{currentTime.Year}年{currentTime.Month}月{currentTime.Day}日{currentTime.Hour}时{currentTime.Minute}分",
                         TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
@@ -1027,6 +1033,8 @@ namespace FatFullVersion.ViewModels
                 {
                     var channel = new ChannelMapping
                     {
+                        Id = Guid.NewGuid(),
+                        TestTag = $"{point.StationName}|创建时间:{currentTime.Year}年{currentTime.Month}月{currentTime.Day}日{currentTime.Hour}时{currentTime.Minute}分",
                         TestId = point.SerialNumber,
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
@@ -1309,7 +1317,6 @@ namespace FatFullVersion.ViewModels
                     // 首次使用当前通道集合
                     await UpdateBatchInfoAsync();
                 }
-
                 // 显示批次选择窗口
                 IsBatchSelectionOpen = true;
             }
@@ -2131,6 +2138,7 @@ namespace FatFullVersion.ViewModels
                         batchChannels.ResultText = batchChannels.HardPointTestResult;
                     }
                 }
+                await _testRecordService.SaveTestRecordsAsync(AllChannels);
             }
             catch (Exception ex)
             {

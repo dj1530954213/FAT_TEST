@@ -60,7 +60,7 @@ namespace FatFullVersion
                 containerRegistry.Register<ApplicationDbContext>(() =>
                 {
                     var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                        .UseSqlite($"Data Source={System.IO.Path.Combine(AppContext.BaseDirectory, "app.db")}")
+                        .UseSqlite($"Data Source={System.IO.Path.Combine($"{AppContext.BaseDirectory}Data", "fattest.db")}")
                         .Options;
 
                     return new ApplicationDbContext(options);

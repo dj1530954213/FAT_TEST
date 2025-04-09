@@ -137,6 +137,12 @@ namespace FatFullVersion.IServices
         /// <returns>删除操作是否成功</returns>
         Task<bool> DeleteTestRecordsByTagAsync(string testTag);
         
+        /// <summary>
+        /// 获取所有测试记录
+        /// </summary>
+        /// <returns>所有测试记录集合</returns>
+        Task<List<ChannelMapping>> GetAllTestRecordsAsync();
+        
         #endregion
     }
 }

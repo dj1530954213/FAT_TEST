@@ -25,6 +25,12 @@ namespace FatFullVersion.Services
         public Repository(ApplicationDbContext context)
         {
             _context = context;
+            _context.Database.EnsureCreated(); // 确保数据库和表已创建
+            // 检查连接字符串配置
+            var connectionString = _context.Database.GetConnectionString();
+            Console.WriteLine($"当前连接字符串: {connectionString}");
+            var tableExists = _context.Database.ExecuteSqlRawAsync("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ChannelMappings'");
+            Console.WriteLine($"ChannelMappings表存在: {tableExists.Result > 0}");
         }
 
         public async Task<bool> InitializeDatabaseAsync()
@@ -175,6 +181,10 @@ namespace FatFullVersion.Services
                     // 更新时间戳
                     record.UpdatedTime = DateTime.Now;
                     
+                    // 处理可能存在的NaN值，将其转换为null
+                    // 检查所有数值类型的属性，替换NaN值
+                    ProcessNanValues(record);
+                    
                     // 检查记录是否已存在
                     var existing = await _context.ChannelMappings.FindAsync(record.Id);
                     if (existing != null)
@@ -188,7 +198,6 @@ namespace FatFullVersion.Services
                         _context.ChannelMappings.Add(record);
                     }
                 }
-                
                 return await _context.SaveChangesAsync() > 0;
             }
             catch (Exception ex)
@@ -218,6 +227,9 @@ namespace FatFullVersion.Services
                 
                 // 更新时间戳
                 record.UpdatedTime = DateTime.Now;
+                
+                // 处理NaN值
+                ProcessNanValues(record);
                 
                 // 检查记录是否已存在
                 var existing = await _context.ChannelMappings.FindAsync(record.Id);
@@ -253,9 +265,17 @@ namespace FatFullVersion.Services
                 if (string.IsNullOrEmpty(testTag))
                     return new List<ChannelMapping>();
                 
-                return await _context.ChannelMappings
+                var records = await _context.ChannelMappings
                     .Where(c => c.TestTag == testTag)
                     .ToListAsync();
+                
+                // 将数据库中的null值转换回NaN
+                foreach (var record in records)
+                {
+                    RestoreNanValues(record);
+                }
+                
+                return records;
             }
             catch (Exception ex)
             {
@@ -319,5 +339,128 @@ namespace FatFullVersion.Services
         }
         
         #endregion
+
+        /// <summary>
+        /// 处理ChannelMapping对象中的NaN值，将其转换为-999999999以便存储到数据库
+        /// </summary>
+        /// <param name="record">待处理的通道映射对象</param>
+        private void ProcessNanValues(ChannelMapping record)
+        {
+            // 将NaN值转换为-999999999
+            // float类型字段处理
+            if (float.IsNaN(record.RangeLowerLimitValue))
+                record.RangeLowerLimitValue = -999999999f;
+            
+            if (float.IsNaN(record.RangeUpperLimitValue))
+                record.RangeUpperLimitValue = -999999999f;
+            
+            if (float.IsNaN(record.SLLSetValueNumber))
+                record.SLLSetValueNumber = -999999999f;
+            
+            if (float.IsNaN(record.SLSetValueNumber))
+                record.SLSetValueNumber = -999999999f;
+            
+            if (float.IsNaN(record.SHSetValueNumber))
+                record.SHSetValueNumber = -999999999f;
+            
+            if (float.IsNaN(record.SHHSetValueNumber))
+                record.SHHSetValueNumber = -999999999f;
+            
+            // double类型字段处理
+            if (double.IsNaN(record.ExpectedValue))
+                record.ExpectedValue = -999999999d;
+            
+            if (double.IsNaN(record.ActualValue))
+                record.ActualValue = -999999999d;
+            
+            if (double.IsNaN(record.Value0Percent))
+                record.Value0Percent = -999999999d;
+            
+            if (double.IsNaN(record.Value25Percent))
+                record.Value25Percent = -999999999d;
+            
+            if (double.IsNaN(record.Value50Percent))
+                record.Value50Percent = -999999999d;
+            
+            if (double.IsNaN(record.Value75Percent))
+                record.Value75Percent = -999999999d;
+            
+            if (double.IsNaN(record.Value100Percent))
+                record.Value100Percent = -999999999d;
+        }
+        
+        /// <summary>
+        /// 将数据库中读取的ChannelMapping对象中的-999999999值转换回NaN
+        /// </summary>
+        /// <param name="record">待处理的通道映射对象</param>
+        private void RestoreNanValues(ChannelMapping record)
+        {
+            // 将-999999999转换回NaN
+            // 处理float类型的字段
+            if (record.RangeLowerLimitValue == -999999999f)
+                record.RangeLowerLimitValue = float.NaN;
+            
+            if (record.RangeUpperLimitValue == -999999999f)
+                record.RangeUpperLimitValue = float.NaN;
+            
+            if (record.SLLSetValueNumber == -999999999f)
+                record.SLLSetValueNumber = float.NaN;
+            
+            if (record.SLSetValueNumber == -999999999f)
+                record.SLSetValueNumber = float.NaN;
+            
+            if (record.SHSetValueNumber == -999999999f)
+                record.SHSetValueNumber = float.NaN;
+            
+            if (record.SHHSetValueNumber == -999999999f)
+                record.SHHSetValueNumber = float.NaN;
+            
+            // 处理double类型的字段
+            if (record.ExpectedValue == -999999999d)
+                record.ExpectedValue = double.NaN;
+            
+            if (record.ActualValue == -999999999d)
+                record.ActualValue = double.NaN;
+            
+            if (record.Value0Percent == -999999999d)
+                record.Value0Percent = double.NaN;
+            
+            if (record.Value25Percent == -999999999d)
+                record.Value25Percent = double.NaN;
+            
+            if (record.Value50Percent == -999999999d)
+                record.Value50Percent = double.NaN;
+            
+            if (record.Value75Percent == -999999999d)
+                record.Value75Percent = double.NaN;
+            
+            if (record.Value100Percent == -999999999d)
+                record.Value100Percent = double.NaN;
+        }
+
+        /// <summary>
+        /// 获取所有测试记录
+        /// </summary>
+        /// <returns>所有测试记录集合</returns>
+        public async Task<List<ChannelMapping>> GetAllTestRecordsAsync()
+        {
+            try
+            {
+                var records = await _context.ChannelMappings.ToListAsync();
+                
+                // 将数据库中的null值转换回NaN
+                foreach (var record in records)
+                {
+                    RestoreNanValues(record);
+                }
+                
+                return records;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"获取所有测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return new List<ChannelMapping>();
+            }
+        }
     }
 }

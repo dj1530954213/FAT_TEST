@@ -15,7 +15,7 @@ namespace FatFullVersion.Data
     {
         public DbSet<PlcConnectionConfig> PlcConnections { get; set; }
         public DbSet<ComparisonTable> ComparisonTables { get; set; }
-        public DbSet<ChannelMapping> ChannelMappings { get; set; }
+        public DbSet<Models.ChannelMapping> ChannelMappings { get; set; }
 
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
@@ -31,7 +31,7 @@ namespace FatFullVersion.Data
             base.OnModelCreating(modelBuilder);
             
             // 配置ChannelMapping实体
-            modelBuilder.Entity<ChannelMapping>(entity =>
+            modelBuilder.Entity<Models.ChannelMapping>(entity =>
             {
                 // 配置Id属性为主键
                 entity.HasKey(e => e.Id);
@@ -42,6 +42,9 @@ namespace FatFullVersion.Data
                 // 配置CreatedTime自动生成
                 entity.Property(e => e.CreatedTime)
                       .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                // 指定对应的表名
+                entity.ToTable("ChannelMappings");
             });
         }
     }
