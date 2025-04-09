@@ -199,12 +199,12 @@ namespace FatFullVersion.Views
             }
         }
 
-        #pragma warning disable CS0162 // 检测到无法访问的代码
-        private void InitializeComponent()
-        {
-            // 这是一个临时的空实现，以解决编译错误
-            // 在正确配置的WPF项目中，这个方法应该由XAML编译器自动生成
-        }
-        #pragma warning restore CS0162 // 检测到无法访问的代码
+        //#pragma warning disable CS0162 // 检测到无法访问的代码
+        //private void InitializeComponent()
+        //{
+        //    // 这是一个临时的空实现，以解决编译错误
+        //    // 在正确配置的WPF项目中，这个方法应该由XAML编译器自动生成
+        //}
+        //#pragma warning restore CS0162 // 检测到无法访问的代码
     }
 } 

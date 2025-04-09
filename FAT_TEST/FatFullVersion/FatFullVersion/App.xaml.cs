@@ -126,6 +126,9 @@ namespace FatFullVersion
 
                 // 注册测试任务管理器
                 containerRegistry.RegisterSingleton<ITestTaskManager, TestTaskManager>();
+
+                //注册历史恢复服务
+                containerRegistry.RegisterSingleton<ITestRecordService, TestRecordService>();
                 
                 // 注册视图用于导航
                 containerRegistry.RegisterForNavigation<DataEditView>();
