@@ -169,7 +169,7 @@ namespace FatFullVersion.Services
             {
                 if (records == null || !records.Any())
                     return true;
-                
+
                 foreach (var record in records)
                 {
                     // 确保每条记录都有Guid作为Id
@@ -177,14 +177,14 @@ namespace FatFullVersion.Services
                     {
                         record.Id = Guid.NewGuid();
                     }
-                    
+
                     // 更新时间戳
                     record.UpdatedTime = DateTime.Now;
-                    
+
                     // 处理可能存在的NaN值，将其转换为null
                     // 检查所有数值类型的属性，替换NaN值
                     ProcessNanValues(record);
-                    
+
                     // 检查记录是否已存在
                     var existing = await _context.ChannelMappings.FindAsync(record.Id);
                     if (existing != null)
@@ -198,12 +198,20 @@ namespace FatFullVersion.Services
                         _context.ChannelMappings.Add(record);
                     }
                 }
+
                 return await _context.SaveChangesAsync() > 0;
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"保存测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
+            }
+            finally
+            {
+                foreach (var record in records)
+                {
+                    RestoreNanValues(record);
+                }
             }
         }
         
@@ -349,44 +357,44 @@ namespace FatFullVersion.Services
             // 将NaN值转换为-999999999
             // float类型字段处理
             if (float.IsNaN(record.RangeLowerLimitValue))
-                record.RangeLowerLimitValue = -999999999f;
+                record.RangeLowerLimitValue = -999999999;
             
             if (float.IsNaN(record.RangeUpperLimitValue))
-                record.RangeUpperLimitValue = -999999999f;
+                record.RangeUpperLimitValue = -999999999;
             
             if (float.IsNaN(record.SLLSetValueNumber))
-                record.SLLSetValueNumber = -999999999f;
+                record.SLLSetValueNumber = -999999999;
             
             if (float.IsNaN(record.SLSetValueNumber))
-                record.SLSetValueNumber = -999999999f;
+                record.SLSetValueNumber = -999999999;
             
             if (float.IsNaN(record.SHSetValueNumber))
-                record.SHSetValueNumber = -999999999f;
+                record.SHSetValueNumber = -999999999;
             
             if (float.IsNaN(record.SHHSetValueNumber))
-                record.SHHSetValueNumber = -999999999f;
+                record.SHHSetValueNumber = -999999999;
             
             // double类型字段处理
             if (double.IsNaN(record.ExpectedValue))
-                record.ExpectedValue = -999999999d;
+                record.ExpectedValue = -999999999;
             
             if (double.IsNaN(record.ActualValue))
-                record.ActualValue = -999999999d;
+                record.ActualValue = -999999999;
             
             if (double.IsNaN(record.Value0Percent))
-                record.Value0Percent = -999999999d;
+                record.Value0Percent = -999999999;
             
             if (double.IsNaN(record.Value25Percent))
-                record.Value25Percent = -999999999d;
+                record.Value25Percent = -999999999;
             
             if (double.IsNaN(record.Value50Percent))
-                record.Value50Percent = -999999999d;
+                record.Value50Percent = -999999999;
             
             if (double.IsNaN(record.Value75Percent))
-                record.Value75Percent = -999999999d;
+                record.Value75Percent = -999999999;
             
             if (double.IsNaN(record.Value100Percent))
-                record.Value100Percent = -999999999d;
+                record.Value100Percent = -999999999;
         }
         
         /// <summary>
@@ -397,44 +405,44 @@ namespace FatFullVersion.Services
         {
             // 将-999999999转换回NaN
             // 处理float类型的字段
-            if (record.RangeLowerLimitValue == -999999999f)
+            if (record.RangeLowerLimitValue == -999999999)
                 record.RangeLowerLimitValue = float.NaN;
             
-            if (record.RangeUpperLimitValue == -999999999f)
+            if (record.RangeUpperLimitValue == -999999999)
                 record.RangeUpperLimitValue = float.NaN;
             
-            if (record.SLLSetValueNumber == -999999999f)
+            if (record.SLLSetValueNumber == -999999999)
                 record.SLLSetValueNumber = float.NaN;
             
-            if (record.SLSetValueNumber == -999999999f)
+            if (record.SLSetValueNumber == -999999999)
                 record.SLSetValueNumber = float.NaN;
             
-            if (record.SHSetValueNumber == -999999999f)
+            if (record.SHSetValueNumber == -999999999)
                 record.SHSetValueNumber = float.NaN;
             
-            if (record.SHHSetValueNumber == -999999999f)
+            if (record.SHHSetValueNumber == -999999999)
                 record.SHHSetValueNumber = float.NaN;
             
             // 处理double类型的字段
-            if (record.ExpectedValue == -999999999d)
+            if (record.ExpectedValue == -999999999)
                 record.ExpectedValue = double.NaN;
             
-            if (record.ActualValue == -999999999d)
+            if (record.ActualValue == -999999999)
                 record.ActualValue = double.NaN;
             
-            if (record.Value0Percent == -999999999d)
+            if (record.Value0Percent == -999999999)
                 record.Value0Percent = double.NaN;
             
-            if (record.Value25Percent == -999999999d)
+            if (record.Value25Percent == -999999999)
                 record.Value25Percent = double.NaN;
             
-            if (record.Value50Percent == -999999999d)
+            if (record.Value50Percent == -999999999)
                 record.Value50Percent = double.NaN;
             
-            if (record.Value75Percent == -999999999d)
+            if (record.Value75Percent == -999999999)
                 record.Value75Percent = double.NaN;
             
-            if (record.Value100Percent == -999999999d)
+            if (record.Value100Percent == -999999999)
                 record.Value100Percent = double.NaN;
         }
 

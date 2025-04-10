@@ -940,7 +940,7 @@ namespace FatFullVersion.ViewModels
                         ResultText = "未测试"
                     };
 
-                    #region 电表内参数空校验及处理
+                    #region 点表内参数空校验及处理
                     //低报、低低报
                     if (channel.SLLSetValue == "" && channel.SLSetValue == "")
                     {
@@ -1299,7 +1299,7 @@ namespace FatFullVersion.ViewModels
                     // 检查是否有批次信息
                     if (batchInfoList != null && batchInfoList.Any())
                     {
-                        Batches = new ObservableCollection<BatchInfo>(batchInfoList);
+                        Batches = new ObservableCollection<BatchInfo>(batchInfoList.OrderBy(b=>b.BatchName));
 
                         // 预先选择第一个批次，提升用户体验
                         if (Batches.Count > 0 && SelectedBatch == null)
@@ -3791,8 +3791,8 @@ namespace FatFullVersion.ViewModels
 
                     if (records != null && records.Any())
                     {
-                        // 更新AllChannels集合
-                        AllChannels = new ObservableCollection<ChannelMapping>(records);
+                        // 更新AllChannels集合，需要进行排序，否则排列顺序错乱
+                        AllChannels = new ObservableCollection<ChannelMapping>(records.OrderBy(c => c.TestId));
 
                         // 保存原始通道集合
                         OriginalAllChannels = new ObservableCollection<ChannelMapping>(records);
