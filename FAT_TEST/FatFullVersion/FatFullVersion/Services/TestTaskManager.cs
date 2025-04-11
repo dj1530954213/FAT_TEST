@@ -1024,9 +1024,18 @@ namespace FatFullVersion.Services
                     else if (task is DITestTask || task is DOTestTask)
                     {
                         // 数字量测试始终通过
-                        task.Result.Status = "通过";
-                        task.ChannelMapping.HardPointTestResult = "通过";
-                        task.ChannelMapping.TestResultStatus = 1; // 成功状态
+                        //task.Result.Status = "通过";
+                        //task.ChannelMapping.HardPointTestResult = "通过";
+                        //task.ChannelMapping.TestResultStatus = 1; // 成功状态
+                        if (task.Result.Status == "通过")
+                        {
+                            task.ChannelMapping.HardPointTestResult = "通过";
+                        }
+                        else
+                        {
+                            task.ChannelMapping.HardPointTestResult = "失败";
+                            task.ChannelMapping.TestResultStatus = 2;
+                        }
                     }
                 }//相当于对于已经测试过的点位进行判断
                 else if(task.Result.Status == "通过" || task.Result.Status == "失败")
@@ -1049,9 +1058,19 @@ namespace FatFullVersion.Services
                     else if (task is DITestTask || task is DOTestTask)
                     {
                         // 数字量测试始终通过
-                        task.Result.Status = "通过";
-                        task.ChannelMapping.HardPointTestResult = "通过";
-                        task.ChannelMapping.TestResultStatus = 0; // 成功状态
+                        //task.Result.Status = "通过";
+                        //task.ChannelMapping.HardPointTestResult = "通过";
+                        //task.ChannelMapping.TestResultStatus = 0; // 成功状态
+                        if (task.Result.Status == "通过")
+                        {
+                            task.ChannelMapping.HardPointTestResult = "通过";
+                            task.ChannelMapping.TestResultStatus = 0;
+                        }
+                        else
+                        {
+                            task.ChannelMapping.HardPointTestResult = "失败";
+                            task.ChannelMapping.TestResultStatus = 2;
+                        }
                     }
                 }
 
