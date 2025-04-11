@@ -1666,7 +1666,7 @@ namespace FatFullVersion.Services
                                 if (newTask.Result?.Status == "通过")
                                 {
                                     channelMapping.ResultText = "硬点通道测试通过";
-                                    channelMapping.TestResultStatus = 1; // 成功状态
+                                    channelMapping.TestResultStatus = 0; // 成功状态是只是完成了自动测试部分后续还有手动测试部分，所以将状态设置为0底色设置为白色
                                 }
                                 else
                                 {
