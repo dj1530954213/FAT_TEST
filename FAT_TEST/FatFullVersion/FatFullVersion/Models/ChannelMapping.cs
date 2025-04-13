@@ -999,5 +999,15 @@ namespace FatFullVersion.Models
             get { return _showValueStatus; }
             set { SetProperty(ref _showValueStatus, value); }
         }
+
+        private string _alarmValueSetStatus = "未测试";
+        /// <summary>
+        /// 报警值设定核对状态
+        /// </summary>
+        public string AlarmValueSetStatus
+        {
+            get { return _alarmValueSetStatus; }
+            set { SetProperty(ref _alarmValueSetStatus, value); }
+        }
     }
 }

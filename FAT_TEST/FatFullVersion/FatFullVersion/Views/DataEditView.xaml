@@ -1070,7 +1070,7 @@
         <Popup
             x:Name="AIManualTestPopup"
             Width="500"
-            Height="680"
+            Height="870"
             IsOpen="{Binding IsAIManualTestOpen, Mode=TwoWay}"
             Placement="Center"
             StaysOpen="True">
@@ -1235,7 +1235,67 @@
                             </Grid>
                         </GroupBox>
 
-                        <!--  第四区域：维护功能核对  -->
+                        <!--  第四区域：报警值设定核对  -->
+                        <GroupBox Margin="0,0,0,12" Header="报警值设定核对">
+                            <Grid Margin="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                                    <TextBlock
+                                        FontSize="20"
+                                        Foreground="Black"
+                                        Text="低报设定值:" />
+                                    <TextBlock
+                                        FontSize="20"
+                                        Foreground="Black"
+                                        Text="{Binding AILowSetValue, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock
+                                        Margin="20,0,0,0"
+                                        FontSize="20"
+                                        Foreground="Black"
+                                        Text="低低报设定值:" />
+                                    <TextBlock
+                                        FontSize="20"
+                                        Foreground="Black"
+                                        Text="{Binding AILowLowSetValue, UpdateSourceTrigger=PropertyChanged}" />
+                                </DockPanel>
+
+                                <DockPanel Grid.Row="1" Margin="0,0,0,8">
+                                    <TextBlock
+                                        FontSize="20"
+                                        Foreground="Black"
+                                        Text="高报设定值:" />
+                                    <TextBlock
+                                        FontSize="20"
+                                        Foreground="Black"
+                                        Text="{Binding AIHighSetValue, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock
+                                        Margin="20,0,0,0"
+                                        FontSize="20"
+                                        Foreground="Black"
+                                        Text="高高报设定值:" />
+                                    <TextBlock
+                                        FontSize="20"
+                                        Foreground="Black"
+                                        Text="{Binding AIHighSetValue, UpdateSourceTrigger=PropertyChanged}" />
+                                </DockPanel>
+
+                                <Button
+                                    Grid.Row="2"
+                                    Padding="16,8"
+                                    Background="{Binding CurrentChannel.AlarmValueSetStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                    Command="{Binding ConfirmAIAlarmValueSetCommand}"
+                                    CommandParameter="{Binding CurrentChannel}"
+                                    Content="确认通过"
+                                    Foreground="White" />
+                            </Grid>
+                        </GroupBox>
+
+                        <!--  第五区域：维护功能核对  -->
                         <GroupBox Margin="0,0,0,12" Header="维护功能核对">
                             <Grid Margin="6">
                                 <Grid.RowDefinitions>

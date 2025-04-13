@@ -389,6 +389,11 @@ namespace FatFullVersion.ViewModels
         public DelegateCommand<ChannelMapping> ConfirmAILowAlarmCommand { get; private set; }
 
         /// <summary>
+        /// 确认AI报警值设定命令
+        /// </summary>
+        public DelegateCommand<ChannelMapping> ConfirmAIAlarmValueSetCommand { get; private set; }
+
+        /// <summary>
         /// 发送AI维护功能命令
         /// </summary>
         public DelegateCommand<ChannelMapping> SendAIMaintenanceCommand { get; private set; }
@@ -530,6 +535,50 @@ namespace FatFullVersion.ViewModels
         {
             get => _aiSetValue;
             set => SetProperty(ref _aiSetValue, value);
+        }
+
+        /// <summary>
+        /// AI低报设定值
+        /// </summary>
+        private string _aILowSetValue;
+
+        public string AILowSetValue
+        {
+            get => _aILowSetValue;
+            set => SetProperty(ref _aILowSetValue, value);
+        }
+
+        /// <summary>
+        /// AI低低报设定值
+        /// </summary>
+        private string _aILowLowSetValue;
+
+        public string AILowLowSetValue
+        {
+            get => _aILowLowSetValue;
+            set => SetProperty(ref _aILowLowSetValue, value);
+        }
+
+        /// <summary>
+        /// AI高报设定值
+        /// </summary>
+        private string _aIHighSetValue;
+
+        public string AIHighSetValue
+        {
+            get => _aIHighSetValue;
+            set => SetProperty(ref _aIHighSetValue, value);
+        }
+
+        /// <summary>
+        /// AI高高报设定值
+        /// </summary>
+        private string _aIHighHighSetValue;
+
+        public string AIHighHighSetValue
+        {
+            get => _aIHighHighSetValue;
+            set => SetProperty(ref _aIHighHighSetValue, value);
         }
 
         /// <summary>
@@ -794,6 +843,7 @@ namespace FatFullVersion.ViewModels
             SendAILowLowAlarmCommand = new DelegateCommand<ChannelMapping>(ExecuteSendAILowLowAlarm);
             ResetAILowAlarmCommand = new DelegateCommand<ChannelMapping>(ExecuteResetAILowAlarm);
             ConfirmAILowAlarmCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAILowAlarm);
+            ConfirmAIAlarmValueSetCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAIAlarmValueSet);
             SendAIMaintenanceCommand = new DelegateCommand<ChannelMapping>(ExecuteSendAIMaintenance);
             ResetAIMaintenanceCommand = new DelegateCommand<ChannelMapping>(ExecuteResetAIMaintenance);
             ConfirmAIMaintenanceCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAIMaintenance);
@@ -922,12 +972,16 @@ namespace FatFullVersion.ViewModels
                         ModuleType = point.ModuleType,
                         // 设置通道映射的其他属性
                         SLLSetValue = point.SLLSetValue,
+                        SLLSetPointCommAddress = point.SLLSetPointCommAddress,
                         SLLSetValueNumber = point.SLLSetValueNumber,
                         SLSetValue = point.SLSetValue,
+                        SLSetPointCommAddress = point.SLSetPointCommAddress,
                         SLSetValueNumber = point.SLSetValueNumber,
                         SHSetValue = point.SHSetValue,
+                        SHSetPointCommAddress = point.SHSetPointCommAddress,
                         SHSetValueNumber = point.SHSetValueNumber,
                         SHHSetValue = point.SHHSetValue,
+                        SHHSetPointCommAddress = point.SHHSetPointCommAddress,
                         SHHSetValueNumber = point.SHHSetValueNumber,
                         PlcCommunicationAddress = point.CommunicationAddress,
                         MaintenanceEnableSwitchPointCommAddress = point.MaintenanceEnableSwitchPointCommAddress,
@@ -2518,7 +2572,9 @@ namespace FatFullVersion.ViewModels
                     channel.LowAlarmStatus != "通过" ||
                     channel.LowLowAlarmStatus != "通过" ||
                     channel.MaintenanceFunction != "通过" ||
-                    channel.ShowValueStatus != "通过")
+                    channel.ShowValueStatus != "通过" ||
+                    channel.AlarmValueSetStatus != "通过"
+                    )
                 {
                     allPassed = false;
                 }
@@ -2530,6 +2586,7 @@ namespace FatFullVersion.ViewModels
                     channel.TestResultStatus = 1; // 通过
                     channel.Status = "通过"; // 更新总体状态
                     channel.ResultText = "测试已通过"; // 更新结果文本
+                    channel.AlarmValueSetStatus = "通过";
 
                     // 设置最终测试时间为当前时间
                     channel.FinalTestTime = DateTime.Now;
@@ -2728,7 +2785,7 @@ namespace FatFullVersion.ViewModels
         /// 2. 初始化手动测试状态
         /// 3. 打开AI手动测试窗口
         /// </remarks>
-        private void OpenAIManualTest(ChannelMapping channel)
+        private async void OpenAIManualTest(ChannelMapping channel)
         {
             try
             {
@@ -2767,10 +2824,33 @@ namespace FatFullVersion.ViewModels
                     AISetValue = ((float)(new Random().NextDouble() * (channel.HighLimit - channel.LowLimit) + channel.LowLimit)).ToString();
                     // 设置AI手动测试窗口打开状态为true
                     IsAIManualTestOpen = true;
-
                     // 立即更新UI和点位统计
                     RaisePropertyChanged(nameof(AllChannels));
                     UpdatePointStatistics();
+                    while (IsAIManualTestOpen)
+                    {
+                        try
+                        {
+                            AILowSetValue =
+                                (await _targetPlc.ReadAnalogValueAsync(channel.SLSetPointCommAddress.Substring(1))).Data
+                                .ToString();
+                            AILowLowSetValue =
+                                (await _targetPlc.ReadAnalogValueAsync(channel.SLLSetPointCommAddress.Substring(1)))
+                                .Data.ToString();
+                            AIHighSetValue =
+                                (await _targetPlc.ReadAnalogValueAsync(channel.SHSetPointCommAddress.Substring(1))).Data
+                                .ToString();
+                            AIHighHighSetValue =
+                                (await _targetPlc.ReadAnalogValueAsync(channel.SHHSetPointCommAddress.Substring(1)))
+                                .Data.ToString();
+                            await Task.Delay(500);
+                        }
+                        catch (Exception e)
+                        {
+                            MessageBox.Show("报警值监控失败");
+                            break;
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -3080,6 +3160,40 @@ namespace FatFullVersion.ViewModels
             }
         }
         /// <summary>
+        /// 确认AI报警值设定测试
+        /// </summary>
+        /// <param name="channel">需要确认报警设定值的AI通道</param>
+        /// <remarks>
+        /// 该方法确认AI通道的报警值设定功能是否正常，执行以下操作：
+        /// 1. 将通道的报警值设定状态设置为“通过”
+        /// 2. 更新报警值设定测试状态
+        /// 3. 检查并更新通道的总体测试状态
+        /// </remarks>
+        private void ExecuteConfirmAIAlarmValueSet(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 更新通道的低报警状态为通过
+                    channel.AlarmValueSetStatus = "通过";
+
+                    // 更新UI
+                    RaisePropertyChanged(nameof(CurrentChannel));
+
+                    // 检查所有子测试是否完成
+                    CheckAllSubTestsCompleted(channel);
+
+                    // 更新点位统计
+                    UpdatePointStatistics();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认AI低报警失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        /// <summary>
         /// 发送AI维护功能测试信号
         /// </summary>
         /// <param name="channel">需要测试维护功能的AI通道</param>
@@ -3361,6 +3475,8 @@ namespace FatFullVersion.ViewModels
 
                     // 设置AO手动测试窗口打开状态为true
                     IsAOManualTestOpen = true;
+                    //打开每个测试窗口都将上一次的数据清空
+                    AOCurrentValue = "";
 
                     // 立即更新UI和点位统计
                     RaisePropertyChanged(nameof(AllChannels));
@@ -3422,8 +3538,8 @@ namespace FatFullVersion.ViewModels
                     // 设置当前监测的AO通道
                     CurrentChannel = channel;
                     CurrentTestResult = channel;
-                    // 启动AO监测逻辑
-                    while (channel.ShowValueStatus != "通过")
+                    // 启动AO监测逻辑，当窗口关闭或者
+                    while (channel.ShowValueStatus != "通过" && IsAOManualTestOpen)
                     {
                         AOCurrentValue = (await _testPlc.ReadAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1))).Data.ToString();
                         await Task.Delay(500);
