@@ -494,6 +494,11 @@ namespace FatFullVersion.ViewModels
         public DelegateCommand<ChannelMapping> ConfirmDOCommand { get; private set; }
 
         public DelegateCommand<ChannelMapping> StartAOMonitorCommand { get; private set; }
+        public DelegateCommand<ChannelMapping> SaveAO0Command { get; private set; }
+        public DelegateCommand<ChannelMapping> SaveAO25Command { get; private set; }
+        public DelegateCommand<ChannelMapping> SaveAO50Command { get; private set; }
+        public DelegateCommand<ChannelMapping> SaveAO75Command { get; private set; }
+        public DelegateCommand<ChannelMapping> SaveAO100Command { get; private set; }
         public DelegateCommand<ChannelMapping> ConfirmAOCommand { get; private set; }
 
         private ChannelMapping _currentChannel;
@@ -860,6 +865,11 @@ namespace FatFullVersion.ViewModels
 
             // AO手动测试命令
             StartAOMonitorCommand = new DelegateCommand<ChannelMapping>(ExecuteStartAOMonitor);
+            SaveAO0Command = new DelegateCommand<ChannelMapping>(ExecuteSaveAO0);
+            SaveAO25Command = new DelegateCommand<ChannelMapping>(ExecuteSaveAO25);
+            SaveAO50Command = new DelegateCommand<ChannelMapping>(ExecuteSaveAO50);
+            SaveAO75Command = new DelegateCommand<ChannelMapping>(ExecuteSaveAO75);
+            SaveAO100Command = new DelegateCommand<ChannelMapping>(ExecuteSaveAO100);
             ConfirmAOCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAO);
 
             // 尝试从通道映射信息中提取批次信息
@@ -3551,6 +3561,27 @@ namespace FatFullVersion.ViewModels
             {
                 MessageBox.Show($"启动AO监测失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private async void ExecuteSaveAO0(ChannelMapping channel)
+        {
+            channel.Value0Percent = Convert.ToDouble(AOCurrentValue);
+        }
+        private async void ExecuteSaveAO25(ChannelMapping channel)
+        {
+            channel.Value25Percent = Convert.ToDouble(AOCurrentValue);
+        }
+        private async void ExecuteSaveAO50(ChannelMapping channel)
+        {
+            channel.Value50Percent = Convert.ToDouble(AOCurrentValue);
+        }
+        private async void ExecuteSaveAO75(ChannelMapping channel)
+        {
+            channel.Value75Percent = Convert.ToDouble(AOCurrentValue);
+        }
+        private async void ExecuteSaveAO100(ChannelMapping channel)
+        {
+            channel.Value100Percent = Convert.ToDouble(AOCurrentValue);
         }
         /// <summary>
         /// 确认AO测试
