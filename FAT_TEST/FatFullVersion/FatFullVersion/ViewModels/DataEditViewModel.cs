@@ -23,6 +23,7 @@ using System.Security.Cryptography;
 using NPOI.SS.Formula.Functions;
 using static NPOI.POIFS.Crypt.CryptoFunctions;
 using static Org.BouncyCastle.Asn1.Cmp.Challenge;
+using FatFullVersion.Shared.Converters;
 
 namespace FatFullVersion.ViewModels
 {
@@ -2916,7 +2917,8 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送AI测试值的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(AISetValue));
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), 
+                    ChannelRangeConversion.RealValueToPercentage(channel, AISetValue));
             }
             catch (Exception ex)
             {
@@ -2974,7 +2976,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送AI高报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(channel.HighLimit) + 0.01f);
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.HighLimit) + 0.1f);
             }
             catch (Exception ex)
             {
@@ -2998,7 +3000,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送AI高报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(channel.HighHighLimit) + 0.01f);
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.HighHighLimit) + 0.1f);
             }
             catch (Exception ex)
             {
@@ -3021,7 +3023,8 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现重置AI高报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(AISetValue));
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1),
+                    ChannelRangeConversion.RealValueToPercentage(channel, AISetValue));
             }
             catch (Exception ex)
             {
@@ -3080,7 +3083,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送AI低报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(channel.LowLimit) - 0.01f);
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.LowLimit) - 0.1f);
             }
             catch (Exception ex)
             {
@@ -3104,7 +3107,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送AI低报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(channel.LowLowLimit) - 0.01f);
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.LowLowLimit) - 0.1f);
             }
             catch (Exception ex)
             {
@@ -3127,7 +3130,8 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现重置AI低报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), Convert.ToSingle(AISetValue));
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1),
+                    ChannelRangeConversion.RealValueToPercentage(channel, AISetValue));
             }
             catch (Exception ex)
             {
@@ -3551,7 +3555,8 @@ namespace FatFullVersion.ViewModels
                     // 启动AO监测逻辑，当窗口关闭或者
                     while (channel.ShowValueStatus != "通过" && IsAOManualTestOpen)
                     {
-                        AOCurrentValue = (await _testPlc.ReadAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1))).Data.ToString();
+                        float persentValue = (await _testPlc.ReadAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1))).Data;
+                        AOCurrentValue = ChannelRangeConversion.PercentageToRealValue(channel, persentValue).ToString();
                         await Task.Delay(500);
                     }
                     // 直接执行业务逻辑，不弹出消息框

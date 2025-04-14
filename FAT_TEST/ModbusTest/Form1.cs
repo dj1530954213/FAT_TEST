@@ -47,18 +47,18 @@ namespace ModbusTest
                         case "1":
                             //MessageBox.Show("开始测试1批次");
                             //AI点位映射
-                            await MockA("111","01",pc);
-                            await MockA("113", "03", pc);
-                            await MockA("115", "05", pc);
-                            await MockA("117", "07", pc);
-                            await MockA("119", "09", pc);
-                            await MockA("121", "11", pc);
+                            await MockATestToTarget("111","01",pc,0f,4f);
+                            await MockATestToTarget("113", "03", pc,0f,2f);
+                            await MockATestToTarget("115", "05", pc,-40f,80f);
+                            await MockATestToTarget("117", "07", pc,-40f,80f);
+                            await MockATestToTarget("119", "09", pc,0f,100f);
+                            await MockATestToTarget("121", "11", pc, 0f, 100f);
 
                             //AO点位映射
-                            await MockA("33", "101", pc);
-                            await MockA("35", "103", pc);
-                            await MockA("37", "105", pc);
-                            await MockA("39", "107", pc);
+                            await MockATargetToTest("33", "101", pc, 0f, 100f);
+                            await MockATargetToTest("35", "103", pc, 0f, 100f);
+                            await MockATargetToTest("37", "105", pc, 0f, 100f);
+                            await MockATargetToTest("39", "107", pc, 0f, 100f);
 
                             //DI点位映射
                             await MockD("131", "1");
@@ -117,18 +117,18 @@ namespace ModbusTest
                         case "2":
                             //MessageBox.Show("开始测试2批次");
                             //AI点位映射
-                            await MockA("111", "13", pc);
-                            await MockA("113", "15", pc);
-                            await MockA("115", "17", pc);
-                            await MockA("117", "19", pc);
-                            await MockA("119", "21", pc);
-                            await MockA("121", "23", pc);
+                            await MockATestToTarget("111", "13", pc, 0f, 100f);
+                            await MockATestToTarget("113", "15", pc, 0f, 100f);
+                            await MockATestToTarget("115", "17", pc, 0f, 100f);
+                            await MockATestToTarget("117", "19", pc, 0f, 10000f);
+                            await MockATestToTarget("119", "21", pc, 0f, 20000f);
+                            await MockATestToTarget("121", "23", pc, 0f, 100f);
 
                             //AO点位映射
-                            await MockA("41", "101", pc);
-                            await MockA("43", "103", pc);
-                            await MockA("45", "105", pc);
-                            await MockA("47", "107", pc);
+                            await MockATargetToTest("41", "101", pc, 0f, 100f);
+                            await MockATargetToTest("43", "103", pc, 0f, 100f);
+                            await MockATargetToTest("45", "105", pc, 0f, 100f);
+                            await MockATargetToTest("47", "107", pc, 0f, 100f);
 
                             //DI点位映射
                             await MockD("131", "21");
@@ -152,21 +152,29 @@ namespace ModbusTest
                             break;
                         case "3":
                             //AI点位映射
-                            await MockA("111", "25", pc);
-                            await MockA("113", "27", pc);
-                            await MockA("115", "29", pc);
-                            await MockA("117", "31", pc);
+                            await MockATestToTarget("111", "25", pc, 0f, 100f);
+                            await MockATestToTarget("113", "27", pc, 0f, 100f);
+                            await MockATestToTarget("115", "29", pc, 0f, 100f);
+                            await MockATestToTarget("117", "31", pc, 0f, 100f);
                             break;
                     }
                     await Task.Delay(2100);
                 }
             });
         }
-
-        public async Task MockA(string readAddress,string writeAddress,float pc)
+        //AI
+        public async Task MockATestToTarget(string readAddress,string writeAddress,float pc,float min,float max)
         {
             float value1 = await modbusTcpCommunication.ReadAnalogValueAsync(readAddress);
-            await modbusTcpCommunication.WriteAnalogValueAsync(writeAddress, value1 * (1 - pc));
+            float result = min + (max - min) * value1 / 100f;
+            await modbusTcpCommunication.WriteAnalogValueAsync(writeAddress, result);
+        }
+        //AO
+        public async Task MockATargetToTest(string readAddress, string writeAddress, float pc, float min, float max)
+        {
+            float value1 = await modbusTcpCommunication.ReadAnalogValueAsync(readAddress);
+            float result = (value1 - min) / (max - min) * 100;
+            await modbusTcpCommunication.WriteAnalogValueAsync(writeAddress, result);
         }
 
         public async Task MockD(string readAddress, string writeAddress)
