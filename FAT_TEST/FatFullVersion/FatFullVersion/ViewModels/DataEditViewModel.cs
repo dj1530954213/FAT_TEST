@@ -1018,6 +1018,12 @@ namespace FatFullVersion.ViewModels
                         channel.HighAlarmStatus = "通过";
                         channel.HighHighAlarmStatus = "通过";
                     }
+                    //如果所有报警值都没有设定则直接将报警值核对按钮设置为通过
+                    if (channel.SLLSetValue == "" && channel.SLSetValue == "" && channel.SHSetValue == "" &&
+                        channel.SHHSetValue == "")
+                    {
+                        channel.AlarmValueSetStatus = "通过";
+                    }
                     #endregion
                     AllChannels.Add(channel);
                 }
@@ -1057,6 +1063,7 @@ namespace FatFullVersion.ViewModels
                         HighAlarmStatus = "N/A",
                         HighHighAlarmStatus = "N/A"
                     };
+                    channel.MaintenanceFunction = "通过";
                     AllChannels.Add(channel);
                 }
 
@@ -2567,7 +2574,7 @@ namespace FatFullVersion.ViewModels
         /// 6. 刷新批次状态并检查是否所有测试已完成
         /// 7. 更新UI和点位统计数据
         /// </remarks>
-        private void CheckAllSubTestsCompleted(ChannelMapping channel)
+        private async void CheckAllSubTestsCompleted(ChannelMapping channel)
         {
             if (channel == null) return;
 
@@ -2602,6 +2609,9 @@ namespace FatFullVersion.ViewModels
                     // 设置最终测试时间为当前时间
                     channel.FinalTestTime = DateTime.Now;
 
+                    //手动测试环节单点通过后数据入库
+                    await _testRecordService.SaveTestRecordAsync(channel);
+
                     // 刷新批次状态
                     RefreshBatchStatus();
 
@@ -2629,6 +2639,9 @@ namespace FatFullVersion.ViewModels
 
                     // 设置最终测试时间为当前时间
                     channel.FinalTestTime = DateTime.Now;
+
+                    //手动测试环节单点通过后数据入库
+                    await _testRecordService.SaveTestRecordAsync(channel);
 
                     // 刷新批次状态
                     RefreshBatchStatus();
@@ -2832,7 +2845,8 @@ namespace FatFullVersion.ViewModels
                         channel.ResultText = "手动测试中";
                     }
                     //打开窗口时生成一个在低报和高报内的随机数
-                    AISetValue = ((float)(new Random().NextDouble() * (channel.HighLimit - channel.LowLimit) + channel.LowLimit)).ToString();
+                    //AISetValue = ((float)(new Random().NextDouble() * (channel.HighLimit - channel.LowLimit) + channel.LowLimit)).ToString();
+                    AISetValue = (Math.Round((new Random().NextDouble() * (channel.HighLimit - channel.LowLimit) + channel.LowLimit), 3)).ToString();
                     // 设置AI手动测试窗口打开状态为true
                     IsAIManualTestOpen = true;
                     // 立即更新UI和点位统计
@@ -3408,7 +3422,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现重置DI测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, true);
+                await _testPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, false);
             }
             catch (Exception ex)
             {
@@ -3556,7 +3570,7 @@ namespace FatFullVersion.ViewModels
                     while (channel.ShowValueStatus != "通过" && IsAOManualTestOpen)
                     {
                         float persentValue = (await _testPlc.ReadAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1))).Data;
-                        AOCurrentValue = ChannelRangeConversion.PercentageToRealValue(channel, persentValue).ToString();
+                        AOCurrentValue = ChannelRangeConversion.PercentageToRealValue(channel, persentValue).ToString("F3");
                         await Task.Delay(500);
                     }
                     // 直接执行业务逻辑，不弹出消息框
@@ -3725,7 +3739,7 @@ namespace FatFullVersion.ViewModels
                     CurrentChannel = channel;
                     CurrentTestResult = channel;
                     // 启动DO监测逻辑
-                    while (channel.ShowValueStatus != "通过")
+                    while (channel.ShowValueStatus != "通过" && IsDOManualTestOpen)
                     {
                         DOCurrentValue = (await _testPlc.ReadDigitalValueAsync(channel.TestPLCCommunicationAddress)).Data.ToString();
                         await Task.Delay(500);

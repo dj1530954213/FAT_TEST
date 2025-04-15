@@ -197,7 +197,7 @@ namespace FatFullVersion.Services
                             SetCellValue(dataRow, 6, result.ChannelTag, contentStyle);
                             
                             // 8. 行程最小值
-                            SetDoubleValue(dataRow, 7, Math.Round(result.RangeLowerLimitValue,3), contentStyle);
+                            SetDoubleValue(dataRow, 7, Math.Round(result.RangeLowerLimitValue, 3), contentStyle);
 
                             // 9. 行程最大值
                             SetDoubleValue(dataRow, 8, Math.Round(result.RangeUpperLimitValue, 3), contentStyle);
@@ -325,7 +325,7 @@ namespace FatFullVersion.Services
             }
             else
             {
-                cell.SetCellValue("-");
+                cell.SetCellValue("N/A");
             }
             cell.CellStyle = style;
         }
