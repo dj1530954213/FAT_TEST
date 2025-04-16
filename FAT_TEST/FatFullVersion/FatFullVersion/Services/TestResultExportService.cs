@@ -321,7 +321,14 @@ namespace FatFullVersion.Services
             var cell = row.CreateCell(index);
             if (value.HasValue)
             {
-                cell.SetCellValue(value.Value);
+                if (value is Double.NaN)
+                {
+                    cell.SetCellValue("N/A");
+                }
+                else
+                {
+                    cell.SetCellValue(value.Value);
+                }
             }
             else
             {
