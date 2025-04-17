@@ -556,7 +556,7 @@ namespace FatFullVersion.Services
             
             // 20. 等待1000ms
             await UpdateProgressMessageAsync("步骤20: 短暂延时...");
-            await Task.Delay(1000, cancellationToken);
+            await Task.Delay(5000, cancellationToken);
             
             // 21. 测试结束，写入初始值
             await UpdateProgressMessageAsync("步骤21: 测试结束，复位所有点位...");

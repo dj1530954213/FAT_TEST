@@ -20,6 +20,8 @@ namespace FatFullVersion.Views
         private readonly IPointDataService _pointDataService;
         private readonly IChannelMappingService _channelMappingService;
         private readonly IEventAggregator _eventAggregator;
+        private readonly IServiceLocator _serviceLocator;
+
         private readonly ITestTaskManager _testTaskManager;
         private readonly IPlcCommunication _testPlc;
         private readonly IPlcCommunication _targetPlc;
@@ -37,10 +39,11 @@ namespace FatFullVersion.Views
         public DataEditView(
             IPointDataService pointDataService,
             IChannelMappingService channelMappingService,
-            IEventAggregator eventAggregator,
             ITestTaskManager testTaskManager,
-            IPlcCommunication testPlc,
-            IPlcCommunication targetPlc,
+            IEventAggregator eventAggregator,
+            //IPlcCommunication testPlc,
+            //IPlcCommunication targetPlc,
+            IServiceLocator serviceLocator,
             IMessageService messageService, 
             ITestResultExportService testResultExportService,
             ITestRecordService testRecordService)
@@ -48,9 +51,13 @@ namespace FatFullVersion.Views
             _pointDataService = pointDataService;
             _channelMappingService = channelMappingService;
             _eventAggregator = eventAggregator;
+            _serviceLocator = serviceLocator;
             _testTaskManager = testTaskManager;
-            _testPlc = testPlc ?? throw new ArgumentNullException(nameof(testPlc));
-            _targetPlc = targetPlc ?? throw new ArgumentNullException(nameof(targetPlc));
+            //_testPlc = testPlc ?? throw new ArgumentNullException(nameof(testPlc));
+            //_targetPlc = targetPlc ?? throw new ArgumentNullException(nameof(targetPlc));
+            //调用依赖注入的时候需要显示的指定名称
+            _testPlc = serviceLocator.ResolveNamed<IPlcCommunication>("TestPlcCommunication");
+            _targetPlc = serviceLocator.ResolveNamed<IPlcCommunication>("TargetPlcCommunication");
             _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
             _testResultExportService = testResultExportService;
             _testRecordService = testRecordService ?? throw new ArgumentNullException(nameof(testRecordService));

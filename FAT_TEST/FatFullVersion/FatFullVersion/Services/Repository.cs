@@ -252,9 +252,9 @@ namespace FatFullVersion.Services
                 var existing = await _context.ChannelMappings.FindAsync(record.Id);
                 if (existing != null)
                 {
-                    var cleanedRecord = CloneAndCleanNan(record);
+                    //var cleanedRecord = CloneAndCleanNan(record);
                     // 更新现有记录
-                    //_context.Entry(existing).CurrentValues.SetValues(record);
+                    _context.Entry(existing).CurrentValues.SetValues(record);
                     existing = record;
                 }
                 else

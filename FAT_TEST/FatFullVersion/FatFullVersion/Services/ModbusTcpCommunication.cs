@@ -39,6 +39,11 @@ namespace FatFullVersion.Services
         private readonly bool _isTestPlc;
 
         /// <summary>
+        /// 跳出循环读取使用
+        /// </summary>
+        private bool _manualDisConnect;
+
+        /// <summary>
         /// 连接状态
         /// </summary>
         public bool IsConnected { get; private set; }
@@ -118,6 +123,7 @@ namespace FatFullVersion.Services
             if (result.IsSuccess)
             {
                 IsConnected = true;
+                _manualDisConnect = false;
                 return PlcCommunicationResult.CreateSuccessResult();
             }
             else
@@ -147,10 +153,11 @@ namespace FatFullVersion.Services
                         IsConnected = true;
                     }
                     await Task.Delay(500);
-                    if (address == "101")
+                    if (_manualDisConnect)
                     {
-                        Console.WriteLine("aaaaaa");
+                        break;
                     }
+
                 }
             });
         }
@@ -169,6 +176,7 @@ namespace FatFullVersion.Services
                     if (result.IsSuccess)
                     {
                         IsConnected = false;
+                        _manualDisConnect = true;
                         return PlcCommunicationResult.CreateSuccessResult();
                     }
                     else

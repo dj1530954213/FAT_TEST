@@ -2921,7 +2921,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送AI高报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.HighLimit) + 0.1f);
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.HighLimit) + 5f);
             }
             catch (Exception ex)
             {
@@ -2945,7 +2945,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送AI高报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.HighHighLimit) + 0.1f);
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.HighHighLimit) + 5f);
             }
             catch (Exception ex)
             {
@@ -3028,7 +3028,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送AI低报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.LowLimit) - 0.1f);
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.LowLimit) - 5f);
             }
             catch (Exception ex)
             {
@@ -3052,7 +3052,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送AI低报警测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.LowLowLimit) - 0.1f);
+                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.LowLowLimit) - 5f);
             }
             catch (Exception ex)
             {
@@ -3169,7 +3169,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送AI维护测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteDigitalValueAsync(channel.MaintenanceEnableSwitchPointCommAddress, true);
+                await _targetPlc.WriteDigitalValueAsync(channel.MaintenanceEnableSwitchPointCommAddress, true);
             }
             catch (Exception ex)
             {
@@ -3193,7 +3193,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现重置AI维护测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteDigitalValueAsync(channel.MaintenanceEnableSwitchPointCommAddress, false);
+                await _targetPlc.WriteDigitalValueAsync(channel.MaintenanceEnableSwitchPointCommAddress, false);
             }
             catch (Exception ex)
             {
@@ -3329,8 +3329,8 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送DI测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                var result = _testPlc;
-                await _targetPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, true);
+                var result = _targetPlc;
+                await _testPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, true);
             }
             catch (Exception ex)
             {
@@ -3354,7 +3354,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现重置DI测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _targetPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, false);
+                await _testPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, false);
             }
             catch (Exception ex)
             {
