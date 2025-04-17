@@ -267,12 +267,12 @@ namespace FatFullVersion.Services.ChannelTask
                 // 确保连接已建立
                 if (!TargetPlcCommunication.IsConnected)
                 {
-                    await TargetPlcCommunication.ConnectAsync();
+                    var result = await TargetPlcCommunication.ConnectAsync();
                 }
 
                 // 读取被测PLC的值
                 var readHighResult = await TargetPlcCommunication.ReadDigitalValueAsync(
-                    ChannelMapping.PlcCommunicationAddress.Substring(1));
+                    ChannelMapping.PlcCommunicationAddress);
                     
                 if (!readHighResult.IsSuccess)
                 {
@@ -365,7 +365,7 @@ namespace FatFullVersion.Services.ChannelTask
 
                 // 读取被测PLC的值
                 var readLowResult = await TargetPlcCommunication.ReadDigitalValueAsync(
-                    ChannelMapping.PlcCommunicationAddress.Substring(1));
+                    ChannelMapping.PlcCommunicationAddress);
                     
                 if (!readLowResult.IsSuccess)
                 {

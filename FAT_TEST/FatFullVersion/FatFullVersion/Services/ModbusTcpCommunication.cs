@@ -93,6 +93,7 @@ namespace FatFullVersion.Services
                 if (result.IsSuccess)
                 {
                     IsConnected = true;
+                    CheckConnection("101", "3001");
                     return PlcCommunicationResult.CreateSuccessResult();
                 }
                 else
@@ -106,6 +107,52 @@ namespace FatFullVersion.Services
                 IsConnected = false;
                 return PlcCommunicationResult.CreateExceptionResult(ex);
             }
+        }
+        /// <summary>
+        /// 重连接
+        /// </summary>
+        /// <returns></returns>
+        public async Task<PlcCommunicationResult> ReConnectAsync()
+        {
+            var result = await _modbus.ConnectServerAsync();
+            if (result.IsSuccess)
+            {
+                IsConnected = true;
+                return PlcCommunicationResult.CreateSuccessResult();
+            }
+            else
+            {
+                IsConnected = false;
+                return PlcCommunicationResult.CreateFailedResult(result.Message, result.ErrorCode);
+            }
+        }
+        /// <summary>
+        /// 循环检查连接是否正常
+        /// </summary>
+        /// <param name="defultAddress"></param>
+        public void CheckConnection(string testPlcDefultAddress,string TargetPlcDefultAddress)
+        {
+            Task.Run(async () =>
+            {
+                string address = _isTestPlc ? testPlcDefultAddress : TargetPlcDefultAddress;
+                while (true)
+                {
+                    var result = await ReadDigitalValueAsync(address);
+                    if (!result.IsSuccess)
+                    {
+                        IsConnected = false;
+                    }
+                    else
+                    {
+                        IsConnected = true;
+                    }
+                    await Task.Delay(500);
+                    if (address == "101")
+                    {
+                        Console.WriteLine("aaaaaa");
+                    }
+                }
+            });
         }
 
         /// <summary>
@@ -156,7 +203,7 @@ namespace FatFullVersion.Services
             {
                 if (!IsConnected)
                 {
-                    var connectResult = await ConnectAsync();
+                    var connectResult = await ReConnectAsync();
                     if (!connectResult.IsSuccess)
                     {
                         return PlcCommunicationResult<float>.CreateFailedResult(
@@ -194,7 +241,7 @@ namespace FatFullVersion.Services
             {
                 if (!IsConnected)
                 {
-                    var connectResult = await ConnectAsync();
+                    var connectResult = await ReConnectAsync();
                     if (!connectResult.IsSuccess)
                     {
                         return PlcCommunicationResult.CreateFailedResult(
@@ -231,7 +278,7 @@ namespace FatFullVersion.Services
             {
                 if (!IsConnected)
                 {
-                    var connectResult = await ConnectAsync();
+                    var connectResult = await ReConnectAsync();
                     if (!connectResult.IsSuccess)
                     {
                         return PlcCommunicationResult<bool>.CreateFailedResult(
@@ -269,7 +316,7 @@ namespace FatFullVersion.Services
             {
                 if (!IsConnected)
                 {
-                    var connectResult = await ConnectAsync();
+                    var connectResult = await ReConnectAsync();
                     if (!connectResult.IsSuccess)
                     {
                         return PlcCommunicationResult.CreateFailedResult(

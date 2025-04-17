@@ -739,18 +739,19 @@ namespace FatFullVersion.ViewModels
 
         #endregion
 
-        #region 1、构造函数和初始化数据结构
+        #region 构造函数和初始化
+
         /// <summary>
-        /// 数据编辑视图模型构造函数
+        /// DataEditViewModel构造函数
         /// </summary>
-        /// <param name="pointDataService">点位数据服务，用于导入和处理点表配置</param>
-        /// <param name="channelMappingService">通道映射服务，用于管理通道分配和批次信息</param>
-        /// <param name="testTaskManager">测试任务管理器，用于控制测试流程</param>
-        /// <param name="eventAggregator">事件聚合器，用于处理事件通信</param>
-        /// <param name="testPlc">测试PLC通信接口，用于与测试设备通信</param>
-        /// <param name="targetPlc">目标PLC通信接口，用于与被测设备通信</param>
-        /// <param name="testResultExportService">测试结果导出服务，用于导出测试数据</param>
-        /// <param name="testRecordService">测试记录服务，用于管理测试历史记录</param>
+        /// <param name="pointDataService">点位数据服务接口</param>
+        /// <param name="channelMappingService">通道映射服务接口</param>
+        /// <param name="testTaskManager">测试任务管理器接口</param>
+        /// <param name="eventAggregator">事件聚合器</param>
+        /// <param name="testPlc">测试PLC通信接口</param>
+        /// <param name="targetPlc">目标PLC通信接口</param>
+        /// <param name="testResultExportService">测试结果导出服务接口</param>
+        /// <param name="testRecordService">测试记录服务接口</param>
         public DataEditViewModel(
             IPointDataService pointDataService,
             IChannelMappingService channelMappingService,
@@ -774,17 +775,12 @@ namespace FatFullVersion.ViewModels
             // 初始化数据结构
             Initialize();
         }
+
         /// <summary>
-        /// 初始化数据结构和命令
+        /// 初始化ViewModel
         /// </summary>
         /// <remarks>
-        /// 该方法负责：
-        /// 1. 订阅测试结果更新事件
-        /// 2. 初始化所有数据集合
-        /// 3. 初始化测试队列相关属性
-        /// 4. 初始化UI显示属性
-        /// 5. 初始化所有命令对象
-        /// 6. 初始化批次数据
+        /// 初始化所有命令、事件订阅和数据集合，设置默认状态
         /// </remarks>
         private void Initialize()
         {
@@ -885,16 +881,13 @@ namespace FatFullVersion.ViewModels
 
         #endregion
 
-        #region 2、数据加载和处理
+        #region 数据加载和处理
+
         /// <summary>
-        /// 导入Excel点表配置文件
+        /// 导入配置
         /// </summary>
         /// <remarks>
-        /// 该方法执行以下操作：
-        /// 1. 调用点表数据服务导入Excel配置文件
-        /// 2. 清空原始通道集合引用
-        /// 3. 处理导入的数据，转换为通道映射对象
-        /// 4. 显示导入结果信息
+        /// 打开文件对话框并导入Excel配置数据，然后处理导入的数据
         /// </remarks>
         private async void ImportConfig()
         {
@@ -949,10 +942,15 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = string.Empty;
             }
         }
+
         /// <summary>
-        /// 处理导入的点表数据
+        /// 处理导入的数据
         /// </summary>
-        /// <param name="importedData">导入的点表数据列表</param>
+        /// <param name="importedData">从Excel导入的点位数据集合</param>
+        /// <returns>处理完成的任务</returns>
+        /// <remarks>
+        /// 将Excel数据转换为通道映射对象，应用业务规则，并更新UI
+        /// </remarks>
         private async Task ProcessImportedDataAsync(IEnumerable<ExcelPointData> importedData)
         {
             try
@@ -1164,12 +1162,12 @@ namespace FatFullVersion.ViewModels
                 IsLoading = false;
             }
         }
+
         /// <summary>
-        /// 恢复历史配置
+        /// 恢复配置
         /// </summary>
         /// <remarks>
-        /// 该方法用于显示历史测试记录窗口，允许用户查看和恢复之前保存的测试配置。
-        /// 它会调用LoadTestBatchesAsync方法加载所有历史测试批次，并打开历史记录窗口供用户选择。
+        /// 从数据库中恢复之前保存的通道配置数据
         /// </remarks>
         private async void RestoreConfig()
         {
@@ -1184,15 +1182,14 @@ namespace FatFullVersion.ViewModels
                 MessageBox.Show($"加载历史测试记录失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
         /// <summary>
-        /// 加载历史测试批次
+        /// 加载测试批次
         /// </summary>
+        /// <returns>加载完成的任务</returns>
         /// <remarks>
-        /// 该方法从测试记录服务中获取所有历史测试批次信息，并将其加载到TestBatches集合中。
-        /// 如果找到历史记录，则选择第一个批次作为默认选中项；如果没有找到历史记录，则显示提示信息。
-        /// 该方法在加载过程中会显示加载状态和消息。
+        /// 从数据库加载所有可用的测试批次信息
         /// </remarks>
-        /// <returns>表示异步操作的任务</returns>
         private async Task LoadTestBatchesAsync()
         {
             try
@@ -1224,15 +1221,12 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = string.Empty;
             }
         }
-        #endregion
 
-        #region 3、批次管理
         /// <summary>
         /// 初始化批次数据
         /// </summary>
         /// <remarks>
-        /// 该方法初始化批次数据集合，并尝试从通道映射信息中提取批次信息。
-        /// 它会创建一个新的批次集合，然后调用UpdateBatchInfoAsync方法来更新批次信息。
+        /// 初始化批次选择界面并获取可用的批次列表
         /// </remarks>
         private async void InitializeBatchData()
         {
@@ -1242,19 +1236,14 @@ namespace FatFullVersion.ViewModels
             // 尝试从通道映射信息中提取批次信息
             await UpdateBatchInfoAsync();
         }
+
         /// <summary>
-        /// 从测试分配服务中的ChannelMapping提取相关信息形成批次相关信息
+        /// 更新批次信息
         /// </summary>
+        /// <returns>更新完成的任务</returns>
         /// <remarks>
-        /// 该方法执行以下操作：
-        /// 1. 检查AllChannels是否有效
-        /// 2. 同步确保批次信息和PLC通道信息是最新的
-        /// 3. 使用通道映射服务提取批次信息
-        /// 4. 根据测试结果更新批次状态
-        /// 5. 更新批次集合并尝试保持选中状态
-        /// 6. 更新点位统计数据
+        /// 更新当前选中批次的详细信息，包括测试状态和统计数据
         /// </remarks>
-        /// <returns>表示异步操作的任务</returns>
         private async Task UpdateBatchInfoAsync()
         {
             try
@@ -1345,15 +1334,12 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = string.Empty;
             }
         }
+
         /// <summary>
-        /// 点击批次选择窗口后执行的逻辑
+        /// 执行批次选择
         /// </summary>
         /// <remarks>
-        /// 该方法执行以下操作：
-        /// 1. 设置加载状态和消息
-        /// 2. 如果有原始通道数据，使用它来提取批次信息
-        /// 3. 如果没有原始通道数据，则使用当前通道集合更新批次信息
-        /// 4. 显示批次选择窗口
+        /// 打开批次选择对话框并加载可用批次
         /// </remarks>
         private async void ExecuteSelectBatch()
         {
@@ -1403,16 +1389,12 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = string.Empty;
             }
         }
+
         /// <summary>
-        /// 批次选择窗口确定按钮逻辑
+        /// 确认批次选择
         /// </summary>
         /// <remarks>
-        /// 该方法执行以下操作：
-        /// 1. 验证是否选择了批次
-        /// 2. 关闭批次选择窗口
-        /// 3. 首次保存原始通道集合
-        /// 4. 同步所有通道的批次信息到测试结果
-        /// 5. 获取当前批次的所有通道并更新显示
+        /// 确认用户选择的批次，关闭对话框并应用选择
         /// </remarks>
         private void ConfirmBatchSelection()
         {
@@ -1488,24 +1470,23 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = string.Empty;
             }
         }
+
         /// <summary>
         /// 取消批次选择
         /// </summary>
         /// <remarks>
-        /// 该方法关闭批次选择窗口，不进行任何批次选择操作。
+        /// 取消批次选择操作并关闭对话框
         /// </remarks>
         private void CancelBatchSelection()
         {
             IsBatchSelectionOpen = false;
         }
+
         /// <summary>
-        /// 当选择批次发生变化时执行的逻辑
+        /// 批次选择完成后的处理
         /// </summary>
         /// <remarks>
-        /// 该方法在用户选择不同批次时触发，执行以下操作：
-        /// 1. 检查选中的批次是否有效
-        /// 2. 根据批次状态设置接线确认按钮和通道硬点自动测试按钮的状态
-        /// 3. 加载该批次的测试结果
+        /// 批次选择确认后，更新UI状态并加载批次相关数据
         /// </remarks>
         private void OnBatchSelected()
         {
@@ -1520,19 +1501,12 @@ namespace FatFullVersion.ViewModels
             // 加载该批次的测试结果
             LoadTestResults();
         }
+
         /// <summary>
         /// 刷新批次状态
         /// </summary>
         /// <remarks>
-        /// 该方法根据当前测试进度和结果更新批次状态。执行以下操作：
-        /// 1. 检查选中的批次是否有效
-        /// 2. 获取选定批次的所有通道
-        /// 3. 计算测试状态（总通道数、已测试通道数、通过通道数、失败通道数等）
-        /// 4. 检查硬点测试状态
-        /// 5. 根据测试状态更新批次状态文本
-        /// 6. 更新批次的测试时间
-        /// 7. 更新接线确认按钮状态
-        /// 8. 通知导出测试结果按钮更新状态
+        /// 刷新当前批次的测试状态、测试计数和进度信息
         /// </remarks>
         private void RefreshBatchStatus()
         {
@@ -1653,16 +1627,16 @@ namespace FatFullVersion.ViewModels
                 System.Diagnostics.Debug.WriteLine($"刷新批次状态时出错: {ex.Message}");
             }
         }
+
         #endregion
 
-        #region 4、通道管理
+        #region 通道管理
+
         /// <summary>
-        /// 根据选择的通道类型更新当前显示的通道集合
+        /// 更新当前显示的通道
         /// </summary>
         /// <remarks>
-        /// 该方法根据用户选择的通道类型(AI/AO/DI/DO)和当前选中的批次，
-        /// 从AllChannels集合中筛选出符合条件的通道，并更新CurrentChannels集合用于UI显示。
-        /// 如果没有选择通道类型或AllChannels为空，则不执行任何操作。
+        /// 根据选定的通道类型过滤并更新UI中显示的通道列表
         /// </remarks>
         private void UpdateCurrentChannels()
         {
@@ -1687,16 +1661,12 @@ namespace FatFullVersion.ViewModels
                 System.Diagnostics.Debug.WriteLine($"更新当前通道失败: {ex.Message}");
             }
         }
+
         /// <summary>
-        /// 执行分配通道操作
+        /// 执行通道分配
         /// </summary>
         /// <remarks>
-        /// 该方法调用通道映射服务对所有通道进行自动分配。执行以下操作：
-        /// 1. 检查AllChannels是否有效
-        /// 2. 调用通道映射服务进行通道分配
-        /// 3. 更新通道映射结果并同步到服务
-        /// 4. 更新当前显示的通道集合
-        /// 5. 保存原始通道集合以便后续使用
+        /// 根据PLC地址自动分配通道到相应的硬件点位
         /// </remarks>
         private async void ExecuteAllocateChannels()
         {
@@ -1748,15 +1718,12 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = string.Empty;
             }
         }
+
         /// <summary>
-        /// 清除所有通道分配信息
+        /// 清除通道分配
         /// </summary>
         /// <remarks>
-        /// 该方法清除所有通道的分配信息，包括批次关联和测试PLC通道标识。执行以下操作：
-        /// 1. 清空原始通道集合引用
-        /// 2. 调用通道映射服务清除所有通道分配信息
-        /// 3. 更新当前显示的通道集合
-        /// 4. 同步更新测试结果中的通道信息
+        /// 清除所有通道的硬件分配信息并重置状态
         /// </remarks>
         private async void ClearChannelAllocationsAsync()
         {
@@ -1799,16 +1766,16 @@ namespace FatFullVersion.ViewModels
                 IsLoading = false;
             }
         }
+
+        #endregion
+
+        #region 测试结果管理
+
         /// <summary>
-        /// 加载批次测试结果
+        /// 加载测试结果
         /// </summary>
         /// <remarks>
-        /// 该方法加载当前选中批次的所有通道测试结果。执行以下操作：
-        /// 1. 检查是否选择了批次
-        /// 2. 从通道映射服务中获取该批次的所有通道
-        /// 3. 更新现有的通道数据，只添加新的结果
-        /// 4. 刷新测试队列
-        /// 5. 更新点位统计
+        /// 从数据库加载指定批次的测试结果数据
         /// </remarks>
         private async void LoadTestResults()
         {
@@ -1887,16 +1854,12 @@ namespace FatFullVersion.ViewModels
                 IsLoading = false;
             }
         }
+
         /// <summary>
         /// 应用结果过滤器
         /// </summary>
         /// <remarks>
-        /// 该方法根据选择的过滤条件过滤测试结果。支持的过滤条件包括：
-        /// - 全部：显示所有结果
-        /// - 通过：只显示通过的测试结果
-        /// - 失败：只显示失败的测试结果
-        /// - 未测试：只显示未测试的结果
-        /// 应用过滤后会更新统计数据。
+        /// 根据选定的过滤条件筛选测试结果显示
         /// </remarks>
         private void ApplyResultFilter()
         {
@@ -1929,17 +1892,12 @@ namespace FatFullVersion.ViewModels
             // 更新统计数据
             UpdatePointStatistics();
         }
+
         /// <summary>
-        /// 计算并更新点位统计数据
+        /// 更新点位统计信息
         /// </summary>
         /// <remarks>
-        /// 该方法计算并更新各类点位的统计数据，包括：
-        /// - 全部点位数量
-        /// - 已测试点位数量
-        /// - 待测试点位数量
-        /// - 成功点位数量
-        /// - 失败点位数量
-        /// 这些统计数据用于在UI上显示当前测试进度和状态。
+        /// 统计并更新点位的总数、已测试数、待测试数、成功数和失败数
         /// </remarks>
         private void UpdatePointStatistics()
         {
@@ -1962,19 +1920,16 @@ namespace FatFullVersion.ViewModels
             SuccessPointCount = $"成功点位数量:{AllChannels.Count(r => r.TestResultStatus == 1)}";
             FailurePointCount = $"失败点位数量:{AllChannels.Count(r => r.TestResultStatus == 2)}";
         }
+
         #endregion
 
-        #region 5、测试执行和控制
+        #region 测试执行与控制
+
         /// <summary>
-        /// 完成接线确认
+        /// 完成接线
         /// </summary>
         /// <remarks>
-        /// 该方法在用户确认接线完成时调用，执行以下操作：
-        /// 1. 检查是否选择了测试批次
-        /// 2. 将ViewModel中的BatchInfo转换为Model中的BatchInfo
-        /// 3. 调用TestTaskManager的接线确认方法
-        /// 4. 如果确认成功，禁用接线确认按钮，启用通道硬点自动测试按钮
-        /// 5. 刷新批次状态
+        /// 处理完成接线按钮点击事件，准备进入测试阶段
         /// </remarks>
         private async void FinishWiring()
         {
@@ -2022,9 +1977,13 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = string.Empty;
             }
         }
+
         /// <summary>
-        /// 执行完成接线确认操作
+        /// 执行确认接线完成
         /// </summary>
+        /// <remarks>
+        /// 确认接线完成后，启用测试按钮并准备测试环境
+        /// </remarks>
         private void ExecuteConfirmWiringComplete()
         {
             try
@@ -2071,26 +2030,26 @@ namespace FatFullVersion.ViewModels
                 MessageBox.Show($"接线确认操作失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
         /// <summary>
-        /// 检查是否可以执行接线确认操作
+        /// 检查是否可以执行确认接线完成
         /// </summary>
+        /// <returns>如果满足条件返回true，否则返回false</returns>
+        /// <remarks>
+        /// 验证是否满足确认接线完成的前提条件
+        /// </remarks>
         private bool CanExecuteConfirmWiringComplete()
         {
             // 检查是否选择了批次且状态允许接线确认
             return SelectedBatch != null &&
                    (SelectedBatch.Status == "未开始" || SelectedBatch.Status == "进行中");
         }
+
         /// <summary>
         /// 开始测试
         /// </summary>
         /// <remarks>
-        /// 该方法启动通道硬点自动测试过程，执行以下操作：
-        /// 1. 检查是否可以开始测试
-        /// 2. 更新当前批次所有通道的硬点测试状态为"测试中"
-        /// 3. 显示等待测试的画面
-        /// 4. 设置批次状态为硬点通道测试中
-        /// 5. 开始所有测试任务
-        /// 6. 更新批次状态和结果中的通道硬点测试结果
+        /// 启动自动测试流程，初始化测试队列并执行测试任务
         /// </remarks>
         private async void StartTest()
         {
@@ -2222,15 +2181,13 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = string.Empty;
             }
         }
+
         /// <summary>
-        /// 重新测试指定通道
+        /// 重新测试
         /// </summary>
-        /// <param name="result">需要重新测试的通道</param>
+        /// <param name="result">需要重新测试的通道映射对象</param>
         /// <remarks>
-        /// 该方法对指定的通道进行重新测试，执行以下操作：
-        /// 1. 调用测试任务管理器重新测试该通道
-        /// 2. 如果重测成功，更新批次信息、UI和点位统计数据
-        /// 3. 更新测试结果状态
+        /// 对指定通道执行重新测试操作，重置其测试状态
         /// </remarks>
         private async void Retest(ChannelMapping result)
         {
@@ -2278,15 +2235,12 @@ namespace FatFullVersion.ViewModels
                 IsLoading = false;
             }
         }
+
         /// <summary>
         /// 刷新测试队列
         /// </summary>
         /// <remarks>
-        /// 该方法更新当前测试队列的状态和内容，执行以下操作：
-        /// 1. 检查是否选择了批次
-        /// 2. 获取选定批次的所有未测试通道
-        /// 3. 更新测试队列集合
-        /// 4. 更新队列状态和位置信息
+        /// 更新测试队列的状态和当前进度
         /// </remarks>
         private void RefreshTestQueue()
         {
@@ -2330,16 +2284,12 @@ namespace FatFullVersion.ViewModels
                 System.Diagnostics.Debug.WriteLine($"刷新测试队列时出错: {ex.Message}");
             }
         }
+
         /// <summary>
-        /// 处理测试结果更新事件
+        /// 测试结果更新事件处理
         /// </summary>
         /// <remarks>
-        /// 该方法在测试结果更新时触发，执行以下操作：
-        /// 1. 确保在UI线程上执行更新操作
-        /// 2. 检查当前选中的批次，同步更新该批次的通道数据
-        /// 3. 更新通道的硬点测试结果和结果文本
-        /// 4. 通知UI更新
-        /// 5. 更新点位统计和批次状态
+        /// 处理测试结果更新通知，更新UI和统计信息
         /// </remarks>
         private void OnTestResultsUpdated()
         {
@@ -2474,18 +2424,13 @@ namespace FatFullVersion.ViewModels
                 }
             });
         }
+
         /// <summary>
-        /// 更新测试结果的总体状态
+        /// 更新测试结果状态
         /// </summary>
-        /// <param name="channel">需要更新状态的通道</param>
+        /// <param name="channel">需要更新状态的通道对象</param>
         /// <remarks>
-        /// 该方法更新指定通道的测试结果状态，执行以下操作：
-        /// 1. 检查通道类型并根据不同类型进行相应处理
-        /// 2. 对于AI通道，检查所有子测试（高报、低报、维护功能等）是否都通过
-        /// 3. 对于DI/DO/AO通道，只检查ShowValueStatus是否为通过
-        /// 4. 如果所有测试都通过，设置总体测试状态为通过
-        /// 5. 刷新批次状态并检查是否所有测试已完成
-        /// 6. 保存通道测试记录到数据库
+        /// 更新指定通道的测试结果状态和相关显示
         /// </remarks>
         private async void UpdateTestResultStatus(ChannelMapping channel)
         {
@@ -2560,19 +2505,13 @@ namespace FatFullVersion.ViewModels
                 RaisePropertyChanged(nameof(AllChannels));
             }
         }
+
         /// <summary>
-        /// 检查通道的所有子测试是否完成，如果所有子测试都通过，设置总体测试结果为通过
+        /// 检查所有子测试是否完成
         /// </summary>
-        /// <param name="channel">要检查的通道</param>
+        /// <param name="channel">需要检查的通道对象</param>
         /// <remarks>
-        /// 该方法检查指定通道的所有子测试是否完成，执行以下操作：
-        /// 1. 根据通道类型检查不同的子测试状态
-        /// 2. 对于AI通道，检查高报、高高报、低报、低低报、维护功能和显示值核对状态
-        /// 3. 对于DI/DO/AO通道，只检查显示值核对是否通过
-        /// 4. 如果所有子测试都通过，设置总体测试状态为通过
-        /// 5. 设置最终测试时间为当前时间
-        /// 6. 刷新批次状态并检查是否所有测试已完成
-        /// 7. 更新UI和点位统计数据
+        /// 检查通道的所有子测试项是否都已完成，更新总体测试状态
         /// </remarks>
         private async void CheckAllSubTestsCompleted(ChannelMapping channel)
         {
@@ -2658,16 +2597,12 @@ namespace FatFullVersion.ViewModels
             // 更新点位统计数据
             UpdatePointStatistics();
         }
+
         /// <summary>
         /// 检查并完成所有测试
         /// </summary>
         /// <remarks>
-        /// 该方法检查是否所有通道都已完成测试，执行以下操作：
-        /// 1. 检查各类通道类型（AI/DI/DO/AO）的测试状态
-        /// 2. 对于AI通道，检查高报、低报、维护功能和显示值核对状态
-        /// 3. 对于DI/DO/AO通道，检查显示值核对状态
-        /// 4. 如果所有测试都已完成，调用测试任务管理器完成所有测试
-        /// 5. 通知导出测试结果按钮更新状态
+        /// 检查是否所有测试都已完成，如果是则更新总体测试状态
         /// </remarks>
         private void CheckAndCompleteAllTests()
         {
@@ -2745,18 +2680,14 @@ namespace FatFullVersion.ViewModels
                 ExportTestResultsCommand.RaiseCanExecuteChanged();
             }
         }
+
         /// <summary>
         /// 保存单个通道的测试记录
         /// </summary>
-        /// <param name="channel">通道记录</param>
-        /// <returns>保存操作是否成功</returns>
+        /// <param name="channel">需要保存记录的通道对象</param>
+        /// <returns>保存是否成功的布尔值任务</returns>
         /// <remarks>
-        /// 该方法将指定通道的测试记录保存到数据库，执行以下操作：
-        /// 1. 检查通道是否有效
-        /// 2. 确保通道有测试标识，如果没有则生成一个
-        /// 3. 记录最终测试时间
-        /// 4. 调用测试记录服务保存记录
-        /// 5. 返回保存操作的结果
+        /// 将单个通道的测试结果保存到数据库
         /// </remarks>
         private async Task<bool> SaveSingleChannelTestRecordAsync(ChannelMapping channel)
         {
@@ -3398,7 +3329,8 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现发送DI测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, true);
+                var result = _testPlc;
+                await _targetPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, true);
             }
             catch (Exception ex)
             {
@@ -3422,7 +3354,7 @@ namespace FatFullVersion.ViewModels
             {
                 // 实现重置DI测试信号的逻辑
                 // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, false);
+                await _targetPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, false);
             }
             catch (Exception ex)
             {
