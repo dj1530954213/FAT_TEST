@@ -15,21 +15,36 @@ namespace ModbusTest
         {
             modbus = new DCMCAJ.ModBus.ModbusTcpNet();
         }
-        public async Task<bool> ConnectAsync()
+        public async Task<bool> ConnectAsync(bool isTest)
         {
             modbus.Station = 1;
             modbus.AddressStartWithZero = false;
             modbus.IsCheckMessageId = true;
             modbus.IsStringReverse = false;
             modbus.DataFormat = DCMCAJ.Core.DataFormat.CDAB;
-            modbus.CommunicationPipe = new DCMCAJ.Core.Pipe.PipeTcpNet("127.0.0.1", 502)
+            if (isTest)
             {
-                ConnectTimeOut = 5000,    // 连接超时时间，单位毫秒
-                ReceiveTimeOut = 10000,    // 接收设备数据反馈的超时时间
-                SleepTime = 0,
-                SocketKeepAliveTime = -1,
-                IsPersistentConnection = true,
-            };
+                modbus.CommunicationPipe = new DCMCAJ.Core.Pipe.PipeTcpNet("127.0.0.1", 502)
+                {
+                    ConnectTimeOut = 5000,    // 连接超时时间，单位毫秒
+                    ReceiveTimeOut = 10000,    // 接收设备数据反馈的超时时间
+                    SleepTime = 0,
+                    SocketKeepAliveTime = -1,
+                    IsPersistentConnection = true,
+                };
+            }
+            else
+            {
+                modbus.CommunicationPipe = new DCMCAJ.Core.Pipe.PipeTcpNet("127.0.0.1", 503)
+                {
+                    ConnectTimeOut = 5000,    // 连接超时时间，单位毫秒
+                    ReceiveTimeOut = 10000,    // 接收设备数据反馈的超时时间
+                    SleepTime = 0,
+                    SocketKeepAliveTime = -1,
+                    IsPersistentConnection = true,
+                };
+            }
+            
             try
             {
                 var result = await modbus.ConnectServerAsync();

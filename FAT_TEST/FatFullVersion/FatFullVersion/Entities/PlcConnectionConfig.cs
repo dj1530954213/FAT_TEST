@@ -25,6 +25,7 @@ namespace FatFullVersion.Entities
         public int SocketKeepAliveTime { get; set; } = -1;
         public bool IsTestPlc { get; set; }
         public bool IsPersistentConnection { get; set; } = true;
+        public string KeepConnectionAliveTag { get; set; } = "101";
 
         public int CompareTo(PlcConnectionConfig? other)
         {

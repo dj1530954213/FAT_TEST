@@ -4,6 +4,7 @@ namespace ModbusTest
     {
         private static bool run = false;
         private ModbusTcpCommunication modbusTcpCommunication;
+        private ModbusTcpCommunication modbusTcpCommunicationTagret;
         public Form1()
         {
             InitializeComponent();
@@ -11,11 +12,13 @@ namespace ModbusTest
         private void Form1_Load(object sender, EventArgs e)
         {
             modbusTcpCommunication = new ModbusTcpCommunication();
+            modbusTcpCommunicationTagret = new ModbusTcpCommunication();
         }
 
         private async void button_connect_Click(object sender, EventArgs e)
         {
-            var result = await modbusTcpCommunication.ConnectAsync();
+            var result = await modbusTcpCommunication.ConnectAsync(true);
+            var result2 = await modbusTcpCommunication.ConnectAsync(false);
             if (result)
             {
                 MessageBox.Show("连接成功");
@@ -167,12 +170,12 @@ namespace ModbusTest
         {
             float value1 = await modbusTcpCommunication.ReadAnalogValueAsync(readAddress);
             float result = min + (max - min) * value1 / 100f;
-            await modbusTcpCommunication.WriteAnalogValueAsync(writeAddress, result);
+            await modbusTcpCommunicationTagret.WriteAnalogValueAsync(writeAddress, result);
         }
         //AO
         public async Task MockATargetToTest(string readAddress, string writeAddress, float pc, float min, float max)
         {
-            float value1 = await modbusTcpCommunication.ReadAnalogValueAsync(readAddress);
+            float value1 = await modbusTcpCommunicationTagret.ReadAnalogValueAsync(readAddress);
             float result = (value1 - min) / (max - min) * 100;
             await modbusTcpCommunication.WriteAnalogValueAsync(writeAddress, result);
         }
