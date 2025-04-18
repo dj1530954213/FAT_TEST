@@ -50,6 +50,16 @@ namespace FatFullVersion.ViewModels
             set { SetProperty(ref _message, value); }
         }
 
+        /// <summary>
+        /// 测试PLC通信实例，用于UI绑定
+        /// </summary>
+        public IPlcCommunication TestPlc => _testPlc;
+
+        /// <summary>
+        /// 被测PLC通信实例，用于UI绑定
+        /// </summary>
+        public IPlcCommunication TargetPlc => _targetPlc;
+
         // 当前状态消息
         private string _statusMessage;
 
@@ -82,11 +92,6 @@ namespace FatFullVersion.ViewModels
                 }
             }
         }
-
-        /// <summary>
-        /// 测试PLC通信实例
-        /// </summary>
-        protected readonly IPlcCommunication TestPlcCommunication;
 
         /// <summary>
         /// 被测PLC通信实例
@@ -2876,7 +2881,7 @@ namespace FatFullVersion.ViewModels
         /// <param name="channel">需要确认的AI通道</param>
         /// <remarks>
         /// 该方法确认AI通道的显示值是否正确，执行以下操作：
-        /// 1. 将通道的显示值状态设置为“通过”
+        /// 1. 将通道的显示值状态设置为"通过"
         /// 2. 更新手动测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
@@ -2982,7 +2987,7 @@ namespace FatFullVersion.ViewModels
         /// <param name="channel">需要确认高报的AI通道</param>
         /// <remarks>
         /// 该方法确认AI通道的高报功能是否正常，执行以下操作：
-        /// 1. 将通道的高报状态设置为“通过”
+        /// 1. 将通道的高报状态设置为"通过"
         /// 2. 更新高报测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
@@ -3089,7 +3094,7 @@ namespace FatFullVersion.ViewModels
         /// <param name="channel">需要确认低报的AI通道</param>
         /// <remarks>
         /// 该方法确认AI通道的低报功能是否正常，执行以下操作：
-        /// 1. 将通道的低报状态设置为“通过”
+        /// 1. 将通道的低报状态设置为"通过"
         /// 2. 更新低报测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
@@ -3124,7 +3129,7 @@ namespace FatFullVersion.ViewModels
         /// <param name="channel">需要确认报警设定值的AI通道</param>
         /// <remarks>
         /// 该方法确认AI通道的报警值设定功能是否正常，执行以下操作：
-        /// 1. 将通道的报警值设定状态设置为“通过”
+        /// 1. 将通道的报警值设定状态设置为"通过"
         /// 2. 更新报警值设定测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
@@ -3206,7 +3211,7 @@ namespace FatFullVersion.ViewModels
         /// <param name="channel">需要确认维护功能的AI通道</param>
         /// <remarks>
         /// 该方法确认AI通道的维护功能是否正常，执行以下操作：
-        /// 1. 将通道的维护功能状态设置为“通过”
+        /// 1. 将通道的维护功能状态设置为"通过"
         /// 2. 更新维护功能测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
@@ -3367,7 +3372,7 @@ namespace FatFullVersion.ViewModels
         /// <param name="channel">需要确认的DI通道</param>
         /// <remarks>
         /// 该方法确认DI通道的显示值是否正确，执行以下操作：
-        /// 1. 将通道的显示值状态设置为“通过”
+        /// 1. 将通道的显示值状态设置为"通过"
         /// 2. 更新DI测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
@@ -3540,7 +3545,7 @@ namespace FatFullVersion.ViewModels
         /// <param name="channel">需要确认的AO通道</param>
         /// <remarks>
         /// 该方法确认AO通道的显示值是否正确，执行以下操作：
-        /// 1. 将通道的显示值状态设置为“通过”
+        /// 1. 将通道的显示值状态设置为"通过"
         /// 2. 更新AO测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
@@ -3690,7 +3695,7 @@ namespace FatFullVersion.ViewModels
         /// <param name="channel">需要确认的DO通道</param>
         /// <remarks>
         /// 该方法确认DO通道的显示值是否正确，执行以下操作：
-        /// 1. 将通道的显示值状态设置为“通过”
+        /// 1. 将通道的显示值状态设置为"通过"
         /// 2. 更新DO测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>

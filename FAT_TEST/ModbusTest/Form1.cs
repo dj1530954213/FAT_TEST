@@ -64,56 +64,56 @@ namespace ModbusTest
                             await MockATargetToTest("39", "107", pc, 0f, 100f);
 
                             //DI点位映射
-                            await MockD("131", "1");
-                            await MockD("132", "2");
-                            await MockD("133", "3");
-                            await MockD("134", "4");
-                            await MockD("135", "5");
-                            await MockD("136", "6");
-                            await MockD("137", "7");
-                            await MockD("138", "8");
-                            await MockD("139", "9");
-                            await MockD("140", "10");
-                            await MockD("141", "11");
-                            await MockD("142", "12");
-                            await MockD("143", "13");
-                            await MockD("144", "14");
-                            await MockD("145", "15");
-                            await MockD("146", "16");
-                            await MockD("147", "17");
-                            await MockD("148", "18");
-                            await MockD("149", "19");
-                            await MockD("150", "20");
+                            await MockDTestToTarget("131", "1");
+                            await MockDTestToTarget("132", "2");
+                            await MockDTestToTarget("133", "3");
+                            await MockDTestToTarget("134", "4");
+                            await MockDTestToTarget("135", "5");
+                            await MockDTestToTarget("136", "6");
+                            await MockDTestToTarget("137", "7");
+                            await MockDTestToTarget("138", "8");
+                            await MockDTestToTarget("139", "9");
+                            await MockDTestToTarget("140", "10");
+                            await MockDTestToTarget("141", "11");
+                            await MockDTestToTarget("142", "12");
+                            await MockDTestToTarget("143", "13");
+                            await MockDTestToTarget("144", "14");
+                            await MockDTestToTarget("145", "15");
+                            await MockDTestToTarget("146", "16");
+                            await MockDTestToTarget("147", "17");
+                            await MockDTestToTarget("148", "18");
+                            await MockDTestToTarget("149", "19");
+                            await MockDTestToTarget("150", "20");
 
                             //DO点位映射
-                            await MockD("33", "101");
-                            await MockD("34", "102");
-                            await MockD("35", "103");
-                            await MockD("36", "104");
-                            await MockD("37", "105");
-                            await MockD("38", "106");
-                            await MockD("39", "107");
-                            await MockD("40", "108");
-                            await MockD("41", "109");
-                            await MockD("42", "110");
-                            await MockD("43", "111");
-                            await MockD("44", "112");
-                            await MockD("45", "113");
-                            await MockD("46", "114");
-                            await MockD("47", "115");
-                            await MockD("48", "116");
-                            await MockD("49", "117");
-                            await MockD("50", "118");
-                            await MockD("51", "119");
-                            await MockD("52", "120");
-                            await MockD("53", "121");
-                            await MockD("54", "122");
-                            await MockD("55", "123");
-                            await MockD("56", "124");
-                            await MockD("57", "125");
-                            await MockD("58", "126");
-                            await MockD("59", "127");
-                            await MockD("60", "128");
+                            await MockDTargetToTest("33", "101");
+                            await MockDTargetToTest("34", "102");
+                            await MockDTargetToTest("35", "103");
+                            await MockDTargetToTest("36", "104");
+                            await MockDTargetToTest("37", "105");
+                            await MockDTargetToTest("38", "106");
+                            await MockDTargetToTest("39", "107");
+                            await MockDTargetToTest("40", "108");
+                            await MockDTargetToTest("41", "109");
+                            await MockDTargetToTest("42", "110");
+                            await MockDTargetToTest("43", "111");
+                            await MockDTargetToTest("44", "112");
+                            await MockDTargetToTest("45", "113");
+                            await MockDTargetToTest("46", "114");
+                            await MockDTargetToTest("47", "115");
+                            await MockDTargetToTest("48", "116");
+                            await MockDTargetToTest("49", "117");
+                            await MockDTargetToTest("50", "118");
+                            await MockDTargetToTest("51", "119");
+                            await MockDTargetToTest("52", "120");
+                            await MockDTargetToTest("53", "121");
+                            await MockDTargetToTest("54", "122");
+                            await MockDTargetToTest("55", "123");
+                            await MockDTargetToTest("56", "124");
+                            await MockDTargetToTest("57", "125");
+                            await MockDTargetToTest("58", "126");
+                            await MockDTargetToTest("59", "127");
+                            await MockDTargetToTest("60", "128");
 
 
                             break;
@@ -134,24 +134,24 @@ namespace ModbusTest
                             await MockATargetToTest("47", "107", pc, 0f, 100f);
 
                             //DI点位映射
-                            await MockD("131", "21");
-                            await MockD("132", "22");
-                            await MockD("133", "23");
-                            await MockD("134", "24");
-                            await MockD("135", "25");
-                            await MockD("136", "26");
-                            await MockD("137", "27");
-                            await MockD("138", "28");
-                            await MockD("139", "29");
-                            await MockD("140", "30");
-                            await MockD("141", "31");
-                            await MockD("142", "32");
+                            await MockDTestToTarget("131", "21");
+                            await MockDTestToTarget("132", "22");
+                            await MockDTestToTarget("133", "23");
+                            await MockDTestToTarget("134", "24");
+                            await MockDTestToTarget("135", "25");
+                            await MockDTestToTarget("136", "26");
+                            await MockDTestToTarget("137", "27");
+                            await MockDTestToTarget("138", "28");
+                            await MockDTestToTarget("139", "29");
+                            await MockDTestToTarget("140", "30");
+                            await MockDTestToTarget("141", "31");
+                            await MockDTestToTarget("142", "32");
 
                             //DO点位映射
-                            await MockD("61", "101");
-                            await MockD("62", "102");
-                            await MockD("63", "103");
-                            await MockD("64", "104");
+                            await MockDTargetToTest("61", "101");
+                            await MockDTargetToTest("62", "102");
+                            await MockDTargetToTest("63", "103");
+                            await MockDTargetToTest("64", "104");
                             break;
                         case "3":
                             //AI点位映射
@@ -180,9 +180,15 @@ namespace ModbusTest
             await modbusTcpCommunication.WriteAnalogValueAsync(writeAddress, result);
         }
 
-        public async Task MockD(string readAddress, string writeAddress)
+        public async Task MockDTestToTarget(string readAddress, string writeAddress)
         {
             bool value3 = await modbusTcpCommunication.ReadDigitalValueAsync(readAddress);
+            await modbusTcpCommunicationTagret.WriteDigitalValueAsync(writeAddress, value3);
+        }
+
+        public async Task MockDTargetToTest(string readAddress, string writeAddress)
+        {
+            bool value3 = await modbusTcpCommunicationTagret.ReadDigitalValueAsync(readAddress);
             await modbusTcpCommunication.WriteDigitalValueAsync(writeAddress, value3);
         }
 

@@ -24,6 +24,9 @@
         <converter:MonitorStatusToColorConverter x:Key="MonitorStatusToColorConverter" />
         <converter:AlarmStatusToColorConverter x:Key="AlarmStatusToColorConverter" />
         <converter:HardPointTestResultToEnabledConverter x:Key="HardPointTestResultToEnabledConverter" />
+        <converter:BooleanToColorConverter x:Key="BooleanToColorConverter" />
+        <converter:BooleanToIconConverter x:Key="BooleanToIconConverter" />
+        <converter:BooleanToStatusConverter x:Key="BooleanToStatusConverter" />
 
         <!--  公共DataGrid样式  -->
         <Style x:Key="DataGridCellStyle" TargetType="{x:Type DataGridCell}">
@@ -321,6 +324,8 @@
             <DockPanel>
                 <Grid Margin="0,0,0,12" DockPanel.Dock="Top">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
@@ -331,9 +336,133 @@
                         Foreground="#333333"
                         Text="测试队列显示区域" />
 
+                    <!--  测试PLC连接状态  -->
+                    <StackPanel
+                        Grid.Column="1"
+                        Margin="0,0,12,0"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Border
+                            x:Name="TestPlcStatusBorder"
+                            Margin="0,0,12,0"
+                            Padding="8,4"
+                            Background="{Binding TestPlc.IsConnected, Converter={StaticResource BooleanToColorConverter}, ConverterParameter='#1E88E5;#F44336'}"
+                            CornerRadius="3"
+                            ToolTip="{Binding TestPlc.IsConnected, Converter={StaticResource BooleanToStatusConverter}, ConverterParameter='已连接;未连接'}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TestPlc.IsConnected}" Value="False">
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation
+                                                            AutoReverse="True"
+                                                            RepeatBehavior="Forever"
+                                                            Storyboard.TargetProperty="Opacity"
+                                                            From="1.0"
+                                                            To="0.5"
+                                                            Duration="0:0:0.7" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation
+                                                            Storyboard.TargetProperty="Opacity"
+                                                            To="1.0"
+                                                            Duration="0:0:0.1" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.ExitActions>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="20"
+                                    Height="20"
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    Foreground="White"
+                                    Kind="{Binding TestPlc.IsConnected, Converter={StaticResource BooleanToIconConverter}, ConverterParameter='CheckCircle;Alert'}" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="14"
+                                    Foreground="White"
+                                    Text="测试PLC" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!--  被测PLC连接状态  -->
+                    <StackPanel
+                        Grid.Column="2"
+                        Margin="0,0,12,0"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Border
+                            x:Name="TargetPlcStatusBorder"
+                            Margin="0,0,12,0"
+                            Padding="8,4"
+                            Background="{Binding TargetPlc.IsConnected, Converter={StaticResource BooleanToColorConverter}, ConverterParameter='#1E88E5;#F44336'}"
+                            CornerRadius="3"
+                            ToolTip="{Binding TargetPlc.IsConnected, Converter={StaticResource BooleanToStatusConverter}, ConverterParameter='已连接;未连接'}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TargetPlc.IsConnected}" Value="False">
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation
+                                                            AutoReverse="True"
+                                                            RepeatBehavior="Forever"
+                                                            Storyboard.TargetProperty="Opacity"
+                                                            From="1.0"
+                                                            To="0.5"
+                                                            Duration="0:0:0.7" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <BeginStoryboard>
+                                                    <Storyboard>
+                                                        <DoubleAnimation
+                                                            Storyboard.TargetProperty="Opacity"
+                                                            To="1.0"
+                                                            Duration="0:0:0.1" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.ExitActions>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon
+                                    Width="20"
+                                    Height="20"
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    Foreground="White"
+                                    Kind="{Binding TargetPlc.IsConnected, Converter={StaticResource BooleanToIconConverter}, ConverterParameter='CheckCircle;Alert'}" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="14"
+                                    Foreground="White"
+                                    Text="被测PLC" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
                     <ComboBox
                         Name="ChannelTypeComboBox"
-                        Grid.Column="1"
+                        Grid.Column="3"
                         Width="120"
                         Margin="0,0,8,0"
                         FontSize="18"

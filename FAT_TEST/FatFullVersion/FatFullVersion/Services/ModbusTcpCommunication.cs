@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,13 +11,14 @@ using DCMCAJ;
 using FatFullVersion.IServices;
 using FatFullVersion.Entities;
 using DataFormat = DCMCAJ.Core.DataFormat;
+using Prism.Mvvm;
 
 namespace FatFullVersion.Services
 {
     /// <summary>
     /// Modbus TCP通信实现类，提供与PLC通信的具体实现
     /// </summary>
-    public class ModbusTcpCommunication : IPlcCommunication
+    public class ModbusTcpCommunication : BindableBase, IPlcCommunication
     {
         /// <summary>
         /// Modbus TCP通信对象
@@ -43,10 +45,15 @@ namespace FatFullVersion.Services
         /// </summary>
         private bool _manualDisConnect;
 
+        private bool _isConnected;
         /// <summary>
         /// 连接状态
         /// </summary>
-        public bool IsConnected { get; private set; }
+        public bool IsConnected 
+        { 
+            get => _isConnected; 
+            private set => SetProperty(ref _isConnected, value); 
+        }
 
         /// <summary>
         /// 构造函数
@@ -98,7 +105,7 @@ namespace FatFullVersion.Services
                 if (result.IsSuccess)
                 {
                     IsConnected = true;
-                    CheckConnection("101", "3001");
+                    CheckConnection(_connectionConfig.KeepConnectionAliveTag);
                     return PlcCommunicationResult.CreateSuccessResult();
                 }
                 else
@@ -136,28 +143,31 @@ namespace FatFullVersion.Services
         /// 循环检查连接是否正常
         /// </summary>
         /// <param name="defultAddress"></param>
-        public void CheckConnection(string testPlcDefultAddress,string TargetPlcDefultAddress)
+        public void CheckConnection(string keepAliveTag)
         {
             Task.Run(async () =>
             {
-                string address = _isTestPlc ? testPlcDefultAddress : TargetPlcDefultAddress;
+                string address = keepAliveTag;
                 while (true)
                 {
                     var result = await ReadDigitalValueAsync(address);
-                    if (!result.IsSuccess)
+                    bool connected = result.IsSuccess;
+                    
+                    // 在UI线程上更新属性以确保正确触发通知
+                    if (connected != IsConnected)
                     {
-                        IsConnected = false;
+                        // 使用Dispatcher确保在UI线程上更新属性
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            IsConnected = connected;
+                        });
                     }
-                    else
-                    {
-                        IsConnected = true;
-                    }
+                    
                     await Task.Delay(500);
                     if (_manualDisConnect)
                     {
                         break;
                     }
-
                 }
             });
         }
