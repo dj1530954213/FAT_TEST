@@ -1622,14 +1622,14 @@
 
                         <!--  操作按钮区域  -->
                         <StackPanel Margin="0,8">
-                            <Button
+                            <!--<Button
                                 Margin="0,0,0,8"
                                 Padding="12,8"
                                 Background="#5B9BD5"
                                 Command="{Binding StartDOMonitorCommand}"
                                 CommandParameter="{Binding CurrentChannel}"
                                 Content="开始检测"
-                                Foreground="White" />
+                                Foreground="White" />-->
 
                             <Button
                                 Padding="16,8"
@@ -1661,8 +1661,8 @@
         <!--  AO手动测试窗口  -->
         <Popup
             x:Name="AOManualTestPopup"
-            Width="570"
-            Height="820"
+            Width="500"
+            Height="280"
             IsOpen="{Binding IsAOManualTestOpen, Mode=TwoWay}"
             Placement="Center"
             StaysOpen="True">
@@ -1709,7 +1709,7 @@
                                 Text="{Binding AOCurrentValue}" />
                         </Border>
 
-                        <StackPanel Margin="0,8">
+                        <!--<StackPanel Margin="0,8">
                             <Button
                                 Margin="0,0,0,8"
                                 Padding="12,8"
@@ -1824,7 +1824,7 @@
                                     Foreground="Black"
                                     Text="{Binding CurrentChannel.Value100Percent, UpdateSourceTrigger=PropertyChanged}" />
                             </Border>
-                        </StackPanel>
+                        </StackPanel>-->
 
                         <!--  操作按钮区域  -->
                         <StackPanel Margin="0,8">

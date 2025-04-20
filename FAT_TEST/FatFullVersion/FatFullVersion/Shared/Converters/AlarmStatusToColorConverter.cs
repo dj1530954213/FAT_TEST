@@ -21,7 +21,7 @@ namespace FatFullVersion.Shared.Converters
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             // 输出调试信息，帮助诊断问题
-            System.Diagnostics.Debug.WriteLine($"AlarmStatusToColorConverter: value={value}");
+            //System.Diagnostics.Debug.WriteLine($"AlarmStatusToColorConverter: value={value}");
 
             if (value == null)
             {
