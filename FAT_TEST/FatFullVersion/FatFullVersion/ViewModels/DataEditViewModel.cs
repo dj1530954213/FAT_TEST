@@ -1000,6 +1000,10 @@ namespace FatFullVersion.ViewModels
                         PlcCommunicationAddress = point.CommunicationAddress,
                         MaintenanceEnableSwitchPointCommAddress = point.MaintenanceEnableSwitchPointCommAddress,
 
+                        //线制和有源无源
+                        WireSystem = point.WireSystem,
+                        PowerSupplyType = point.PowerSupplyType,
+
                         DataType = point.DataType,
                         RangeLowerLimitValue = (float)point.RangeLowerLimitValue,
                         RangeUpperLimitValue = (float)point.RangeUpperLimitValue,
@@ -1057,6 +1061,11 @@ namespace FatFullVersion.ViewModels
                         DataType = point.DataType,
                         RangeLowerLimitValue = (float)point.RangeLowerLimitValue,
                         RangeUpperLimitValue = (float)point.RangeUpperLimitValue,
+
+                        //线制和有源无源
+                        WireSystem = point.WireSystem,
+                        PowerSupplyType = point.PowerSupplyType,
+
                         // AO点位相关设置
                         TestResultStatus = 0, // 未测试
                         ResultText = "未测试",
@@ -1086,6 +1095,11 @@ namespace FatFullVersion.ViewModels
                         DataType = point.DataType,
                         TestResultStatus = 0, // 未测试
                         ResultText = "未测试",
+
+                        //线制和有源无源
+                        WireSystem = point.WireSystem,
+                        PowerSupplyType = point.PowerSupplyType,
+
                         // 为DI点位设置NaN值
                         RangeLowerLimitValue = float.NaN,
                         RangeUpperLimitValue = float.NaN,
@@ -1119,6 +1133,11 @@ namespace FatFullVersion.ViewModels
                         DataType = point.DataType,
                         TestResultStatus = 0, // 未测试
                         ResultText = "未测试",
+
+                        //线制和有源无源
+                        WireSystem = point.WireSystem,
+                        PowerSupplyType = point.PowerSupplyType,
+
                         // 为DO点位设置NaN值
                         RangeLowerLimitValue = float.NaN,
                         RangeUpperLimitValue = float.NaN,

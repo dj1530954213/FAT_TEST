@@ -273,15 +273,23 @@ namespace FatFullVersion.Services.ChannelTask
                 // 读取被测PLC的值
                 var readHighResult = await TargetPlcCommunication.ReadDigitalValueAsync(
                     ChannelMapping.PlcCommunicationAddress);
-                    
                 if (!readHighResult.IsSuccess)
                 {
                     Console.WriteLine($"DI读取高信号失败: {readHighResult.ErrorMessage}");
                 }
                 else
                 {
-                    bool actualHighValue = readHighResult.Data;
-                    
+                    bool actualHighValue;
+                    //对常闭点位进行取反处理
+                    if (ChannelMapping.WireSystem == "常闭")
+                    {
+                        actualHighValue = !readHighResult.Data;
+                    }
+                    else
+                    {
+                        actualHighValue = readHighResult.Data;
+                    }
+
                     // 记录实际值
                     if (actualHighValue)
                     {
@@ -373,8 +381,16 @@ namespace FatFullVersion.Services.ChannelTask
                 }
                 else
                 {
-                    bool actualLowValue = readLowResult.Data;
-                    
+                    bool actualLowValue;
+                    if (ChannelMapping.WireSystem == "常闭")
+                    {
+                        actualLowValue = !readLowResult.Data;
+                    }
+                    else
+                    {
+                        actualLowValue = readLowResult.Data;
+                    }
+
                     // 记录实际值 - 低信号测试需要值为false才通过
                     if (!actualLowValue)
                     {
