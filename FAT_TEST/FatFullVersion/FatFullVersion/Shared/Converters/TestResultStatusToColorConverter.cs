@@ -17,7 +17,7 @@ namespace FatFullVersion.Shared.Converters
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             // 添加调试输出
-            System.Diagnostics.Debug.WriteLine($"TestResultStatusToColorConverter: value={value}");
+            //System.Diagnostics.Debug.WriteLine($"TestResultStatusToColorConverter: value={value}");
             
             if (value is int status)
             {

@@ -18,8 +18,8 @@ namespace ModbusTest
         private async void button_connect_Click(object sender, EventArgs e)
         {
             var result = await modbusTcpCommunication.ConnectAsync(true);
-            var result2 = await modbusTcpCommunication.ConnectAsync(false);
-            if (result)
+            var result2 = await modbusTcpCommunicationTagret.ConnectAsync(false);
+            if (result && result2)
             {
                 MessageBox.Show("连接成功");
             }
@@ -44,7 +44,10 @@ namespace ModbusTest
                 run = true;
                 while (run)
                 {
-                    richTextBox_result.Text = $"批次{textBox_batch.Text}";
+                    //this.BeginInvoke(() =>
+                    //{
+                    //    richTextBox_result.Text += $"开始{textBox_batch.Text}批次映射";
+                    //});
                     switch (textBox_batch.Text)
                     {
                         case "1":
