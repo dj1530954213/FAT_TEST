@@ -29,7 +29,27 @@ namespace FatFullVersion.Entities.EntitiesEnum
         /// <summary>
         /// 数字量输出
         /// </summary>
-        DO = 3
+        DO = 3,
+
+        /// <summary>
+        /// 模拟量输入无源
+        /// </summary>
+        AINone = 4,
+
+        /// <summary>
+        /// 模拟量输出无源
+        /// </summary>
+        AONone = 5,
+
+        /// <summary>
+        /// 数字量输入无源
+        /// </summary>
+        DINone = 6,
+
+        /// <summary>
+        /// 数字量输出无源
+        /// </summary>
+        DONone = 7
     }
 
     /// <summary>

@@ -113,7 +113,7 @@ namespace FatFullVersion.IServices
         /// <param name="moduleType">通道类型</param>
         /// <param name="allChannels">所有通道集合</param>
         /// <returns>过滤后的通道列表</returns>
-        IEnumerable<ChannelMapping> GetChannelsByType(string moduleType, IEnumerable<ChannelMapping> allChannels);
+        IEnumerable<ChannelMapping> GetChannelsByType(string moduleType,string powerType, IEnumerable<ChannelMapping> allChannels);
 
         /// <summary>
         /// 从Excel导入的数据创建通道映射

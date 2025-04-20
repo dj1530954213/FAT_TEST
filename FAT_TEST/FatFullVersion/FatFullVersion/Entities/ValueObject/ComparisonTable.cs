@@ -29,6 +29,11 @@ namespace FatFullVersion.Entities.ValueObject
         public TestPlcChannelType ChannelType { get; set; }
 
         /// <summary>
+        /// 供电类型
+        /// </summary>
+        public string PowerSupplyType { get; set; }
+
+        /// <summary>
         /// 无参构造函数，供EF Core使用
         /// </summary>
         public ComparisonTable()
