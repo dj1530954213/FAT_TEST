@@ -623,28 +623,28 @@ namespace FatFullVersion.Services
                         ?.ToList() ?? new List<ComparisonTable>();
 
                     // 1. 为AI通道分配批次和测试PLC的AO通道(AI-AO)
-                    AllocateChannelsWithConfig(aiChannels, aoMappings, channelCounts.totalAoChannels);
+                    AllocateChannelsWithConfig(aiChannels, aoNoneMappings, aoNoneMappings.Count);
 
                     // 2. 为AO通道分配批次和测试PLC的AI通道(AO-AI)
-                    AllocateChannelsWithConfig(aoChannels, aiMappings, channelCounts.totalAiChannels);
+                    AllocateChannelsWithConfig(aoChannels, aiNoneMappings, aiNoneMappings.Count);
 
                     // 3. 为DI通道分配批次和测试PLC的DO通道(DI-DO)
-                    AllocateChannelsWithConfig(diChannels, doMappings, channelCounts.totalDoChannels);
+                    AllocateChannelsWithConfig(diChannels, doNoneMappings, doNoneMappings.Count);
 
                     // 4. 为DO通道分配批次和测试PLC的DI通道(DO-DI)
-                    AllocateChannelsWithConfig(doChannels, diMappings, channelCounts.totalDiChannels);
+                    AllocateChannelsWithConfig(doChannels, diNoneMappings, diNoneMappings.Count);
 
                     // 1. 为AI通道分配批次和测试PLC的AO通道(AI-AO)
-                    AllocateChannelsWithConfig(aiNoneChannels, aoNoneMappings, channelCounts.totalAoChannels);
+                    AllocateChannelsWithConfig(aiNoneChannels, aoMappings, aoMappings.Count);
 
                     // 2. 为AO通道分配批次和测试PLC的AI通道(AO-AI)
-                    AllocateChannelsWithConfig(aoNoneChannels, aiNoneMappings, channelCounts.totalAiChannels);
+                    AllocateChannelsWithConfig(aoNoneChannels, aiMappings, aiMappings.Count);
 
                     // 3. 为DI通道分配批次和测试PLC的DO通道(DI-DO)
-                    AllocateChannelsWithConfig(diNoneChannels, doNoneMappings, channelCounts.totalDoChannels);
+                    AllocateChannelsWithConfig(diNoneChannels, doMappings, doMappings.Count);
 
                     // 4. 为DO通道分配批次和测试PLC的DI通道(DO-DI)
-                    AllocateChannelsWithConfig(doNoneChannels, diNoneMappings, channelCounts.totalDiChannels);
+                    AllocateChannelsWithConfig(doNoneChannels, diMappings, diMappings.Count);
                 });
                     
                 // 返回合并后的结果
