@@ -3945,11 +3945,21 @@ namespace FatFullVersion.ViewModels
 
                     if (records != null && records.Any())
                     {
+                        // 清空当前的AllChannels和OriginalAllChannels集合避免回复的数据与此重叠导致数据错乱
+                        if (AllChannels is not null)
+                        {
+                            AllChannels.Clear();
+                        }
+
+                        if (OriginalAllChannels is not null)
+                        {
+                            OriginalAllChannels.Clear();
+                        }
                         // 更新AllChannels集合，需要进行排序，否则排列顺序错乱
                         AllChannels = new ObservableCollection<ChannelMapping>(records.OrderBy(c => c.TestId));
 
                         // 保存原始通道集合
-                        OriginalAllChannels = new ObservableCollection<ChannelMapping>(records);
+                        OriginalAllChannels = new ObservableCollection<ChannelMapping>(records.OrderBy(c=>c.TestId));
 
                         // 更新批次信息
                         await UpdateBatchInfoAsync();

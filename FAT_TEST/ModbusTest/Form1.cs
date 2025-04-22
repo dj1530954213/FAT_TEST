@@ -79,48 +79,48 @@ namespace ModbusTest
                             await MockATargetToTest("47", "115", pc, 0f, 100f);
 
                             //DI点位映射
-                            await MockDTestToTarget("401", "1");
-                            await MockDTestToTarget("402", "2");
-                            await MockDTestToTarget("403", "3");
-                            await MockDTestToTarget("404", "4");
-                            await MockDTestToTarget("405", "5");
-                            await MockDTestToTarget("406", "6");
-                            await MockDTestToTarget("407", "7");
-                            await MockDTestToTarget("408", "8");
-                            await MockDTestToTarget("409", "9");
-                            await MockDTestToTarget("410", "10");
-                            await MockDTestToTarget("411", "11");
-                            await MockDTestToTarget("412", "12");
-                            await MockDTestToTarget("413", "13");
-                            await MockDTestToTarget("414", "14");
-                            await MockDTestToTarget("415", "15");
-                            await MockDTestToTarget("416", "16");
+                            await MockDTestToTarget("401", "1",true);
+                            await MockDTestToTarget("402", "2",false);
+                            await MockDTestToTarget("403", "3",false);
+                            await MockDTestToTarget("404", "4",false);
+                            await MockDTestToTarget("405", "5",false);
+                            await MockDTestToTarget("406", "6",false);
+                            await MockDTestToTarget("407", "7",false);
+                            await MockDTestToTarget("408", "8",false);
+                            await MockDTestToTarget("409", "9", false);
+                            await MockDTestToTarget("410", "10",false);
+                            await MockDTestToTarget("411", "11",false);
+                            await MockDTestToTarget("412", "12",false);
+                            await MockDTestToTarget("413", "13",false);
+                            await MockDTestToTarget("414", "14",false);
+                            await MockDTestToTarget("415", "15",false);
+                            await MockDTestToTarget("416", "16", false);
 
-                            await MockDTestToTarget("301", "32");
+                            await MockDTestToTarget("301", "32", false);
 
                             
 
                             //DO点位映射
-                            await MockDTargetToTest("33", "101");
-                            await MockDTargetToTest("34", "102");
-                            await MockDTargetToTest("35", "201");
-                            await MockDTargetToTest("36", "202");
-                            await MockDTargetToTest("37", "203");
-                            await MockDTargetToTest("38", "204");
-                            await MockDTargetToTest("39", "205");
-                            await MockDTargetToTest("40", "206");
-                            await MockDTargetToTest("41", "207");
-                            await MockDTargetToTest("42", "208");
-                            await MockDTargetToTest("43", "209");
-                            await MockDTargetToTest("44", "210");
-                            await MockDTargetToTest("45", "211");
-                            await MockDTargetToTest("46", "212");
-                            await MockDTargetToTest("47", "213");
-                            await MockDTargetToTest("48", "214");
-                            await MockDTargetToTest("49", "103");
-                            await MockDTargetToTest("50", "104");
-                            await MockDTargetToTest("51", "215");
-                            await MockDTargetToTest("52", "216");
+                            await MockDTargetToTest("33", "101",false);
+                            await MockDTargetToTest("34", "102",false);
+                            await MockDTargetToTest("35", "201",false);
+                            await MockDTargetToTest("36", "202",false);
+                            await MockDTargetToTest("37", "203",false);
+                            await MockDTargetToTest("38", "204",false);
+                            await MockDTargetToTest("39", "205",false);
+                            await MockDTargetToTest("40", "206",false);
+                            await MockDTargetToTest("41", "207",false);
+                            await MockDTargetToTest("42", "208",false);
+                            await MockDTargetToTest("43", "209",false);
+                            await MockDTargetToTest("44", "210",false);
+                            await MockDTargetToTest("45", "211",false);
+                            await MockDTargetToTest("46", "212",false);
+                            await MockDTargetToTest("47", "213",false);
+                            await MockDTargetToTest("48", "214",false);
+                            await MockDTargetToTest("49", "103",false);
+                            await MockDTargetToTest("50", "104",false);
+                            await MockDTargetToTest("51", "215",false);
+                            await MockDTargetToTest("52", "216", false);
 
 
 
@@ -130,42 +130,42 @@ namespace ModbusTest
                             //MessageBox.Show("开始测试2批次");
                             //AI点位映射
                             await MockATestToTarget("301", "17", pc, 0f, 100f);
-                            await MockATestToTarget("302", "19", pc, 0f, 10000f);
+                            await MockATestToTarget("303", "19", pc, 0f, 10000f);
 
                             //AO点位映射
 
 
                             //DI点位映射
-                            await MockDTestToTarget("401", "17");
-                            await MockDTestToTarget("402", "18");
-                            await MockDTestToTarget("403", "19");
-                            await MockDTestToTarget("404", "20");
-                            await MockDTestToTarget("405", "21");
-                            await MockDTestToTarget("406", "22");
-                            await MockDTestToTarget("407", "23");
-                            await MockDTestToTarget("408", "24");
-                            await MockDTestToTarget("409", "25");
-                            await MockDTestToTarget("410", "26");
-                            await MockDTestToTarget("411", "27");
-                            await MockDTestToTarget("412", "28");
-                            await MockDTestToTarget("413", "29");
-                            await MockDTestToTarget("414", "30");
-                            await MockDTestToTarget("415", "31");
+                            await MockDTestToTarget("401", "17",false);
+                            await MockDTestToTarget("402", "18",false);
+                            await MockDTestToTarget("403", "19",false);
+                            await MockDTestToTarget("404", "20",false);
+                            await MockDTestToTarget("405", "21",false);
+                            await MockDTestToTarget("406", "22",false);
+                            await MockDTestToTarget("407", "23",false);
+                            await MockDTestToTarget("408", "24",false);
+                            await MockDTestToTarget("409", "25",false);
+                            await MockDTestToTarget("410", "26",false);
+                            await MockDTestToTarget("411", "27",false);
+                            await MockDTestToTarget("412", "28",false);
+                            await MockDTestToTarget("413", "29",false);
+                            await MockDTestToTarget("414", "30",false);
+                            await MockDTestToTarget("415", "31", false);
 
 
                             //DO点位映射
-                            await MockDTargetToTest("53", "201");
-                            await MockDTargetToTest("54", "202");
-                            await MockDTargetToTest("55", "203");
-                            await MockDTargetToTest("56", "204");
-                            await MockDTargetToTest("57", "205");
-                            await MockDTargetToTest("58", "206");
-                            await MockDTargetToTest("59", "207");
-                            await MockDTargetToTest("60", "208");
-                            await MockDTargetToTest("61", "209");
-                            await MockDTargetToTest("62", "210");
-                            await MockDTargetToTest("63", "211");
-                            await MockDTargetToTest("64", "212");
+                            await MockDTargetToTest("53", "201",false);
+                            await MockDTargetToTest("54", "202",false);
+                            await MockDTargetToTest("55", "203",false);
+                            await MockDTargetToTest("56", "204",false);
+                            await MockDTargetToTest("57", "205",false);
+                            await MockDTargetToTest("58", "206",false);
+                            await MockDTargetToTest("59", "207",false);
+                            await MockDTargetToTest("60", "208",false);
+                            await MockDTargetToTest("61", "209",false);
+                            await MockDTargetToTest("62", "210",false);
+                            await MockDTargetToTest("63", "211",false);
+                            await MockDTargetToTest("64", "212", false);
 
                             break;
                         case "3":
@@ -192,16 +192,16 @@ namespace ModbusTest
             await modbusTcpCommunication.WriteAnalogValueAsync(writeAddress, result);
         }
 
-        public async Task MockDTestToTarget(string readAddress, string writeAddress)
+        public async Task MockDTestToTarget(string readAddress, string writeAddress,bool diff)
         {
             bool value3 = await modbusTcpCommunication.ReadDigitalValueAsync(readAddress);
-            await modbusTcpCommunicationTagret.WriteDigitalValueAsync(writeAddress, value3);
+            await modbusTcpCommunicationTagret.WriteDigitalValueAsync(writeAddress, diff? !value3 : value3);
         }
 
-        public async Task MockDTargetToTest(string readAddress, string writeAddress)
+        public async Task MockDTargetToTest(string readAddress, string writeAddress,bool diff)
         {
             bool value3 = await modbusTcpCommunicationTagret.ReadDigitalValueAsync(readAddress);
-            await modbusTcpCommunication.WriteDigitalValueAsync(writeAddress, value3);
+            await modbusTcpCommunication.WriteDigitalValueAsync(writeAddress, diff ? !value3 : value3);
         }
 
         private void button_stop_Click(object sender, EventArgs e)

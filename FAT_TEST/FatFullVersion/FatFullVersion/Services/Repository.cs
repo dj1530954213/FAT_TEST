@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -12,6 +13,8 @@ using FatFullVersion.Entities.ValueObject;
 using FatFullVersion.IServices;
 using FatFullVersion.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Logging;
 
 namespace FatFullVersion.Services
 {
@@ -22,6 +25,7 @@ namespace FatFullVersion.Services
     public class Repository : IRepository
     {
         private readonly ApplicationDbContext _context;
+        private readonly ILogger<Repository> _logger;
 
         public Repository(ApplicationDbContext context)
         {
@@ -156,9 +160,9 @@ namespace FatFullVersion.Services
                 return false;
             }
         }
-        
+
         #region 测试记录操作
-        
+
         /// <summary>
         /// 保存测试记录集合
         /// </summary>
@@ -215,7 +219,6 @@ namespace FatFullVersion.Services
                 }
             }
         }
-        
         /// <summary>
         /// 保存单个测试记录
         /// </summary>
@@ -252,10 +255,8 @@ namespace FatFullVersion.Services
                 var existing = await _context.ChannelMappings.FindAsync(record.Id);
                 if (existing != null)
                 {
-                    //var cleanedRecord = CloneAndCleanNan(record);
                     // 更新现有记录
                     _context.Entry(existing).CurrentValues.SetValues(record);
-                    existing = record;
                 }
                 else
                 {
@@ -365,47 +366,6 @@ namespace FatFullVersion.Services
         /// <param name="record">待处理的通道映射对象</param>
         private void ProcessNanValues(ChannelMapping record)
         {
-            // 将NaN值转换为-999999999
-            // float类型字段处理
-            //if (float.IsNaN(record.RangeLowerLimitValue))
-            //    record.RangeLowerLimitValue = -999999999;
-
-            //if (float.IsNaN(record.RangeUpperLimitValue))
-            //    record.RangeUpperLimitValue = -999999999;
-
-            //if (float.IsNaN(record.SLLSetValueNumber))
-            //    record.SLLSetValueNumber = -999999999;
-
-            //if (float.IsNaN(record.SLSetValueNumber))
-            //    record.SLSetValueNumber = -999999999;
-
-            //if (float.IsNaN(record.SHSetValueNumber))
-            //    record.SHSetValueNumber = -999999999;
-
-            //if (float.IsNaN(record.SHHSetValueNumber))
-            //    record.SHHSetValueNumber = -999999999;
-
-            //// double类型字段处理
-            //if (double.IsNaN(record.ExpectedValue))
-            //    record.ExpectedValue = -999999999;
-
-            //if (double.IsNaN(record.ActualValue))
-            //    record.ActualValue = -999999999;
-
-            //if (double.IsNaN(record.Value0Percent))
-            //    record.Value0Percent = -999999999;
-
-            //if (double.IsNaN(record.Value25Percent))
-            //    record.Value25Percent = -999999999;
-
-            //if (double.IsNaN(record.Value50Percent))
-            //    record.Value50Percent = -999999999;
-
-            //if (double.IsNaN(record.Value75Percent))
-            //    record.Value75Percent = -999999999;
-
-            //if (double.IsNaN(record.Value100Percent))
-            //    record.Value100Percent = -999999999;
 
             var props = typeof(ChannelMapping).GetProperties(BindingFlags.Public | BindingFlags.Instance);
 

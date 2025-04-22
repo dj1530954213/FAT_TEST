@@ -15,6 +15,7 @@ using Prism.Events;
 using FatFullVersion.Data;
 using System.IO;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace FatFullVersion
 {
@@ -59,6 +60,8 @@ namespace FatFullVersion
                 // 注册 EF Core 的 DbContext
                 containerRegistry.Register<ApplicationDbContext>(() =>
                 {
+                    string str =
+                        $"Data Source={System.IO.Path.Combine($"{AppContext.BaseDirectory}Data", "fattest.db")}";
                     var options = new DbContextOptionsBuilder<ApplicationDbContext>()
                         .UseSqlite($"Data Source={System.IO.Path.Combine($"{AppContext.BaseDirectory}Data", "fattest.db")}")
                         .Options;
@@ -161,7 +164,8 @@ namespace FatFullVersion
                 throw; // 如果注册服务失败，则应用无法正常运行，需要抛出异常终止
             }
         }
-        
+
+
         //模块注册点
         protected override void ConfigureModuleCatalog(IModuleCatalog moduleCatalog)
         {

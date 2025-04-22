@@ -7,8 +7,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FatFullVersion", "FatFullVe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FatFullVersion.Core", "FatFullVersion\FatFullVersion.Core\FatFullVersion.Core.csproj", "{2531F9BC-758E-42E7-AB15-AAD66719274E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MaterialDesign3Demo", "C:\Users\15309\Desktop\GItHub文件\WPFUI\MaterialDesignInXamlToolkit\src\MaterialDesign3.Demo.Wpf\MaterialDesign3Demo.csproj", "{A87A46D9-E8F6-4E4B-A8B7-F096B738A080}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Files", "Files", "{0E442B8A-F919-4AA9-83A5-DA3FDE4B6684}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModbusTest", "ModbusTest\ModbusTest.csproj", "{382DF77B-F8E9-4786-A3B9-916D6F05ED9A}"
@@ -37,14 +35,6 @@ Global
 		{2531F9BC-758E-42E7-AB15-AAD66719274E}.Release|Any CPU.Build.0 = Release|Any CPU
 		{2531F9BC-758E-42E7-AB15-AAD66719274E}.Release|x64.ActiveCfg = Release|Any CPU
 		{2531F9BC-758E-42E7-AB15-AAD66719274E}.Release|x64.Build.0 = Release|Any CPU
-		{A87A46D9-E8F6-4E4B-A8B7-F096B738A080}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A87A46D9-E8F6-4E4B-A8B7-F096B738A080}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A87A46D9-E8F6-4E4B-A8B7-F096B738A080}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{A87A46D9-E8F6-4E4B-A8B7-F096B738A080}.Debug|x64.Build.0 = Debug|Any CPU
-		{A87A46D9-E8F6-4E4B-A8B7-F096B738A080}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A87A46D9-E8F6-4E4B-A8B7-F096B738A080}.Release|Any CPU.Build.0 = Release|Any CPU
-		{A87A46D9-E8F6-4E4B-A8B7-F096B738A080}.Release|x64.ActiveCfg = Release|Any CPU
-		{A87A46D9-E8F6-4E4B-A8B7-F096B738A080}.Release|x64.Build.0 = Release|Any CPU
 		{382DF77B-F8E9-4786-A3B9-916D6F05ED9A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{382DF77B-F8E9-4786-A3B9-916D6F05ED9A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{382DF77B-F8E9-4786-A3B9-916D6F05ED9A}.Debug|x64.ActiveCfg = Debug|Any CPU
