@@ -109,14 +109,16 @@ namespace FatFullVersion.IServices
         /// <param name="records">测试记录集合</param>
         /// <returns>保存操作是否成功</returns>
         Task<bool> SaveTestRecordsAsync(IEnumerable<ChannelMapping> records);
-        
+        Task<bool> SaveTestRecordsWithSqlAsync(IEnumerable<ChannelMapping> records);
         /// <summary>
         /// 保存单个测试记录
         /// </summary>
         /// <param name="record">测试记录</param>
         /// <returns>保存操作是否成功</returns>
         Task<bool> SaveTestRecordAsync(ChannelMapping record);
-        
+        Task<bool> SaveTestRecordWithSqlAsync(ChannelMapping record);
+
+
         /// <summary>
         /// 根据测试标识获取测试记录
         /// </summary>

@@ -496,5 +496,348 @@ namespace FatFullVersion.Services
             };
             return clone;
         }
+
+        /// <summary>
+        /// 使用原生SQL语句保存测试记录
+        /// </summary>
+        /// <param name="record">测试记录</param>
+        /// <returns>保存操作是否成功</returns>
+        public async Task<bool> SaveTestRecordWithSqlAsync(ChannelMapping record)
+        {
+            try
+            {
+                if (record == null)
+                    return false;
+                
+                // 确保记录有Guid作为Id
+                if (record.Id == Guid.Empty)
+                {
+                    record.Id = Guid.NewGuid();
+                }
+                
+                // 更新时间戳
+                record.UpdatedTime = DateTime.Now;
+                
+                // 处理NaN值
+                ProcessNanValues(record);
+
+                // 检查记录是否已存在
+                var existing = await _context.ChannelMappings.FirstOrDefaultAsync(c => c.Id == record.Id);
+                
+                if (existing != null)
+                {
+                    // 如果记录存在，使用SQL更新
+                    var query = @"
+                    UPDATE ChannelMappings
+                    SET TestTag = @TestTag,
+                        ModuleName = @ModuleName,
+                        ModuleType = @ModuleType,
+                        PowerSupplyType = @PowerSupplyType,
+                        WireSystem = @WireSystem,
+                        Tag = @Tag,
+                        StationName = @StationName,
+                        VariableName = @VariableName,
+                        VariableDescription = @VariableDescription,
+                        DataType = @DataType,
+                        ChannelTag = @ChannelTag,
+                        AccessProperty = @AccessProperty,
+                        SaveHistory = @SaveHistory,
+                        PowerFailureProtection = @PowerFailureProtection,
+                        RangeLowerLimit = @RangeLowerLimit,
+                        RangeLowerLimitValue = @RangeLowerLimitValue,
+                        RangeUpperLimit = @RangeUpperLimit,
+                        RangeUpperLimitValue = @RangeUpperLimitValue,
+                        SLLSetValue = @SLLSetValue,
+                        SLLSetValueNumber = @SLLSetValueNumber,
+                        SLLSetPoint = @SLLSetPoint,
+                        SLLSetPointPLCAddress = @SLLSetPointPLCAddress,
+                        SLLSetPointCommAddress = @SLLSetPointCommAddress,
+                        SLSetValue = @SLSetValue,
+                        SLSetValueNumber = @SLSetValueNumber,
+                        SLSetPoint = @SLSetPoint,
+                        SLSetPointPLCAddress = @SLSetPointPLCAddress,
+                        SLSetPointCommAddress = @SLSetPointCommAddress,
+                        SHSetValue = @SHSetValue,
+                        SHSetValueNumber = @SHSetValueNumber,
+                        SHSetPoint = @SHSetPoint,
+                        SHSetPointPLCAddress = @SHSetPointPLCAddress,
+                        SHSetPointCommAddress = @SHSetPointCommAddress,
+                        SHHSetValue = @SHHSetValue,
+                        SHHSetValueNumber = @SHHSetValueNumber,
+                        SHHSetPoint = @SHHSetPoint,
+                        SHHSetPointPLCAddress = @SHHSetPointPLCAddress,
+                        SHHSetPointCommAddress = @SHHSetPointCommAddress,
+                        LLAlarm = @LLAlarm,
+                        LLAlarmPLCAddress = @LLAlarmPLCAddress,
+                        LLAlarmCommAddress = @LLAlarmCommAddress,
+                        LAlarm = @LAlarm,
+                        LAlarmPLCAddress = @LAlarmPLCAddress,
+                        LAlarmCommAddress = @LAlarmCommAddress,
+                        HAlarm = @HAlarm,
+                        HAlarmPLCAddress = @HAlarmPLCAddress,
+                        HAlarmCommAddress = @HAlarmCommAddress,
+                        HHAlarm = @HHAlarm,
+                        HHAlarmPLCAddress = @HHAlarmPLCAddress,
+                        HHAlarmCommAddress = @HHAlarmCommAddress,
+                        MaintenanceValueSetting = @MaintenanceValueSetting,
+                        MaintenanceValueSetPoint = @MaintenanceValueSetPoint,
+                        MaintenanceValueSetPointPLCAddress = @MaintenanceValueSetPointPLCAddress,
+                        MaintenanceValueSetPointCommAddress = @MaintenanceValueSetPointCommAddress,
+                        MaintenanceEnableSwitchPoint = @MaintenanceEnableSwitchPoint,
+                        MaintenanceEnableSwitchPointPLCAddress = @MaintenanceEnableSwitchPointPLCAddress,
+                        MaintenanceEnableSwitchPointCommAddress = @MaintenanceEnableSwitchPointCommAddress,
+                        PLCAbsoluteAddress = @PLCAbsoluteAddress,
+                        PlcCommunicationAddress = @PlcCommunicationAddress,
+                        UpdatedTime = @UpdatedTime,
+                        TestBatch = @TestBatch,
+                        TestPLCChannelTag = @TestPLCChannelTag,
+                        TestPLCCommunicationAddress = @TestPLCCommunicationAddress,
+                        MonitorStatus = @MonitorStatus,
+                        TestId = @TestId,
+                        TestResultStatus = @TestResultStatus,
+                        ResultText = @ResultText,
+                        HardPointTestResult = @HardPointTestResult,
+                        TestTime = @TestTime,
+                        FinalTestTime = @FinalTestTime,
+                        Status = @Status,
+                        StartTime = @StartTime,
+                        EndTime = @EndTime,
+                        ExpectedValue = @ExpectedValue,
+                        ActualValue = @ActualValue,
+                        Value0Percent = @Value0Percent,
+                        Value25Percent = @Value25Percent,
+                        Value50Percent = @Value50Percent,
+                        Value75Percent = @Value75Percent,
+                        Value100Percent = @Value100Percent,
+                        LowLowAlarmStatus = @LowLowAlarmStatus,
+                        LowAlarmStatus = @LowAlarmStatus,
+                        HighAlarmStatus = @HighAlarmStatus,
+                        HighHighAlarmStatus = @HighHighAlarmStatus,
+                        MaintenanceFunction = @MaintenanceFunction,
+                        ErrorMessage = @ErrorMessage,
+                        CurrentValue = @CurrentValue,
+                        ShowValueStatus = @ShowValueStatus,
+                        AlarmValueSetStatus = @AlarmValueSetStatus
+                    WHERE Id = @Id";
+
+                    var parameters = CreateSqlParameters(record);
+
+                    // 执行SQL语句
+                    var result = await _context.Database.ExecuteSqlRawAsync(query, parameters.Select(p => 
+                        new Microsoft.Data.Sqlite.SqliteParameter(p.Key, p.Value)).ToArray());
+
+                    // 恢复NaN值
+                    RestoreNanValues(record);
+                    
+                    return result > 0;
+                }
+                else
+                {
+                    // 如果记录不存在，使用SQL插入
+                    var query = @"
+                    INSERT INTO ChannelMappings (
+                        Id, TestTag, ModuleName, ModuleType, PowerSupplyType, 
+                        WireSystem, Tag, StationName, VariableName, VariableDescription, 
+                        DataType, ChannelTag, AccessProperty, SaveHistory, PowerFailureProtection, 
+                        RangeLowerLimit, RangeLowerLimitValue, RangeUpperLimit, RangeUpperLimitValue, 
+                        SLLSetValue, SLLSetValueNumber, SLLSetPoint, SLLSetPointPLCAddress, SLLSetPointCommAddress, 
+                        SLSetValue, SLSetValueNumber, SLSetPoint, SLSetPointPLCAddress, SLSetPointCommAddress, 
+                        SHSetValue, SHSetValueNumber, SHSetPoint, SHSetPointPLCAddress, SHSetPointCommAddress, 
+                        SHHSetValue, SHHSetValueNumber, SHHSetPoint, SHHSetPointPLCAddress, SHHSetPointCommAddress, 
+                        LLAlarm, LLAlarmPLCAddress, LLAlarmCommAddress, 
+                        LAlarm, LAlarmPLCAddress, LAlarmCommAddress, 
+                        HAlarm, HAlarmPLCAddress, HAlarmCommAddress, 
+                        HHAlarm, HHAlarmPLCAddress, HHAlarmCommAddress, 
+                        MaintenanceValueSetting, MaintenanceValueSetPoint, MaintenanceValueSetPointPLCAddress, MaintenanceValueSetPointCommAddress, 
+                        MaintenanceEnableSwitchPoint, MaintenanceEnableSwitchPointPLCAddress, MaintenanceEnableSwitchPointCommAddress, 
+                        PLCAbsoluteAddress, PlcCommunicationAddress, 
+                        CreatedTime, UpdatedTime, 
+                        TestBatch, TestPLCChannelTag, TestPLCCommunicationAddress, 
+                        MonitorStatus, TestId, TestResultStatus, ResultText, HardPointTestResult, 
+                        TestTime, FinalTestTime, Status, StartTime, EndTime, 
+                        ExpectedValue, ActualValue, 
+                        Value0Percent, Value25Percent, Value50Percent, Value75Percent, Value100Percent, 
+                        LowLowAlarmStatus, LowAlarmStatus, HighAlarmStatus, HighHighAlarmStatus, 
+                        MaintenanceFunction, ErrorMessage, CurrentValue, ShowValueStatus, AlarmValueSetStatus
+                    ) VALUES (
+                        @Id, @TestTag, @ModuleName, @ModuleType, @PowerSupplyType, 
+                        @WireSystem, @Tag, @StationName, @VariableName, @VariableDescription, 
+                        @DataType, @ChannelTag, @AccessProperty, @SaveHistory, @PowerFailureProtection, 
+                        @RangeLowerLimit, @RangeLowerLimitValue, @RangeUpperLimit, @RangeUpperLimitValue, 
+                        @SLLSetValue, @SLLSetValueNumber, @SLLSetPoint, @SLLSetPointPLCAddress, @SLLSetPointCommAddress, 
+                        @SLSetValue, @SLSetValueNumber, @SLSetPoint, @SLSetPointPLCAddress, @SLSetPointCommAddress, 
+                        @SHSetValue, @SHSetValueNumber, @SHSetPoint, @SHSetPointPLCAddress, @SHSetPointCommAddress, 
+                        @SHHSetValue, @SHHSetValueNumber, @SHHSetPoint, @SHHSetPointPLCAddress, @SHHSetPointCommAddress, 
+                        @LLAlarm, @LLAlarmPLCAddress, @LLAlarmCommAddress, 
+                        @LAlarm, @LAlarmPLCAddress, @LAlarmCommAddress, 
+                        @HAlarm, @HAlarmPLCAddress, @HAlarmCommAddress, 
+                        @HHAlarm, @HHAlarmPLCAddress, @HHAlarmCommAddress, 
+                        @MaintenanceValueSetting, @MaintenanceValueSetPoint, @MaintenanceValueSetPointPLCAddress, @MaintenanceValueSetPointCommAddress, 
+                        @MaintenanceEnableSwitchPoint, @MaintenanceEnableSwitchPointPLCAddress, @MaintenanceEnableSwitchPointCommAddress, 
+                        @PLCAbsoluteAddress, @PlcCommunicationAddress, 
+                        @CreatedTime, @UpdatedTime, 
+                        @TestBatch, @TestPLCChannelTag, @TestPLCCommunicationAddress, 
+                        @MonitorStatus, @TestId, @TestResultStatus, @ResultText, @HardPointTestResult, 
+                        @TestTime, @FinalTestTime, @Status, @StartTime, @EndTime, 
+                        @ExpectedValue, @ActualValue, 
+                        @Value0Percent, @Value25Percent, @Value50Percent, @Value75Percent, @Value100Percent, 
+                        @LowLowAlarmStatus, @LowAlarmStatus, @HighAlarmStatus, @HighHighAlarmStatus, 
+                        @MaintenanceFunction, @ErrorMessage, @CurrentValue, @ShowValueStatus, @AlarmValueSetStatus
+                    )";
+
+                    var parameters = CreateSqlParameters(record);
+                    parameters.Add("@CreatedTime", record.CreatedTime);
+
+                    // 执行SQL语句
+                    var result = await _context.Database.ExecuteSqlRawAsync(query, parameters.Select(p => 
+                        new Microsoft.Data.Sqlite.SqliteParameter(p.Key, p.Value)).ToArray());
+
+                    // 恢复NaN值
+                    RestoreNanValues(record);
+                    
+                    return result > 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"保存测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 创建SQL参数列表
+        /// </summary>
+        /// <param name="record">通道映射记录</param>
+        /// <returns>参数字典</returns>
+        private Dictionary<string, object> CreateSqlParameters(ChannelMapping record)
+        {
+            return new Dictionary<string, object>
+            {
+                { "@Id", record.Id },
+                { "@TestTag", record.TestTag ?? (object)DBNull.Value },
+                { "@ModuleName", record.ModuleName ?? (object)DBNull.Value },
+                { "@ModuleType", record.ModuleType ?? (object)DBNull.Value },
+                { "@PowerSupplyType", record.PowerSupplyType ?? (object)DBNull.Value },
+                { "@WireSystem", record.WireSystem ?? (object)DBNull.Value },
+                { "@Tag", record.Tag ?? (object)DBNull.Value },
+                { "@StationName", record.StationName ?? (object)DBNull.Value },
+                { "@VariableName", record.VariableName ?? (object)DBNull.Value },
+                { "@VariableDescription", record.VariableDescription ?? (object)DBNull.Value },
+                { "@DataType", record.DataType ?? (object)DBNull.Value },
+                { "@ChannelTag", record.ChannelTag ?? (object)DBNull.Value },
+                { "@AccessProperty", record.AccessProperty ?? (object)DBNull.Value },
+                { "@SaveHistory", record.SaveHistory ?? (object)DBNull.Value },
+                { "@PowerFailureProtection", record.PowerFailureProtection ?? (object)DBNull.Value },
+                { "@RangeLowerLimit", record.RangeLowerLimit ?? (object)DBNull.Value },
+                { "@RangeLowerLimitValue", record.RangeLowerLimitValue },
+                { "@RangeUpperLimit", record.RangeUpperLimit ?? (object)DBNull.Value },
+                { "@RangeUpperLimitValue", record.RangeUpperLimitValue },
+                { "@SLLSetValue", record.SLLSetValue ?? (object)DBNull.Value },
+                { "@SLLSetValueNumber", record.SLLSetValueNumber },
+                { "@SLLSetPoint", record.SLLSetPoint ?? (object)DBNull.Value },
+                { "@SLLSetPointPLCAddress", record.SLLSetPointPLCAddress ?? (object)DBNull.Value },
+                { "@SLLSetPointCommAddress", record.SLLSetPointCommAddress ?? (object)DBNull.Value },
+                { "@SLSetValue", record.SLSetValue ?? (object)DBNull.Value },
+                { "@SLSetValueNumber", record.SLSetValueNumber },
+                { "@SLSetPoint", record.SLSetPoint ?? (object)DBNull.Value },
+                { "@SLSetPointPLCAddress", record.SLSetPointPLCAddress ?? (object)DBNull.Value },
+                { "@SLSetPointCommAddress", record.SLSetPointCommAddress ?? (object)DBNull.Value },
+                { "@SHSetValue", record.SHSetValue ?? (object)DBNull.Value },
+                { "@SHSetValueNumber", record.SHSetValueNumber },
+                { "@SHSetPoint", record.SHSetPoint ?? (object)DBNull.Value },
+                { "@SHSetPointPLCAddress", record.SHSetPointPLCAddress ?? (object)DBNull.Value },
+                { "@SHSetPointCommAddress", record.SHSetPointCommAddress ?? (object)DBNull.Value },
+                { "@SHHSetValue", record.SHHSetValue ?? (object)DBNull.Value },
+                { "@SHHSetValueNumber", record.SHHSetValueNumber },
+                { "@SHHSetPoint", record.SHHSetPoint ?? (object)DBNull.Value },
+                { "@SHHSetPointPLCAddress", record.SHHSetPointPLCAddress ?? (object)DBNull.Value },
+                { "@SHHSetPointCommAddress", record.SHHSetPointCommAddress ?? (object)DBNull.Value },
+                { "@LLAlarm", record.LLAlarm ?? (object)DBNull.Value },
+                { "@LLAlarmPLCAddress", record.LLAlarmPLCAddress ?? (object)DBNull.Value },
+                { "@LLAlarmCommAddress", record.LLAlarmCommAddress ?? (object)DBNull.Value },
+                { "@LAlarm", record.LAlarm ?? (object)DBNull.Value },
+                { "@LAlarmPLCAddress", record.LAlarmPLCAddress ?? (object)DBNull.Value },
+                { "@LAlarmCommAddress", record.LAlarmCommAddress ?? (object)DBNull.Value },
+                { "@HAlarm", record.HAlarm ?? (object)DBNull.Value },
+                { "@HAlarmPLCAddress", record.HAlarmPLCAddress ?? (object)DBNull.Value },
+                { "@HAlarmCommAddress", record.HAlarmCommAddress ?? (object)DBNull.Value },
+                { "@HHAlarm", record.HHAlarm ?? (object)DBNull.Value },
+                { "@HHAlarmPLCAddress", record.HHAlarmPLCAddress ?? (object)DBNull.Value },
+                { "@HHAlarmCommAddress", record.HHAlarmCommAddress ?? (object)DBNull.Value },
+                { "@MaintenanceValueSetting", record.MaintenanceValueSetting ?? (object)DBNull.Value },
+                { "@MaintenanceValueSetPoint", record.MaintenanceValueSetPoint ?? (object)DBNull.Value },
+                { "@MaintenanceValueSetPointPLCAddress", record.MaintenanceValueSetPointPLCAddress ?? (object)DBNull.Value },
+                { "@MaintenanceValueSetPointCommAddress", record.MaintenanceValueSetPointCommAddress ?? (object)DBNull.Value },
+                { "@MaintenanceEnableSwitchPoint", record.MaintenanceEnableSwitchPoint ?? (object)DBNull.Value },
+                { "@MaintenanceEnableSwitchPointPLCAddress", record.MaintenanceEnableSwitchPointPLCAddress ?? (object)DBNull.Value },
+                { "@MaintenanceEnableSwitchPointCommAddress", record.MaintenanceEnableSwitchPointCommAddress ?? (object)DBNull.Value },
+                { "@PLCAbsoluteAddress", record.PLCAbsoluteAddress ?? (object)DBNull.Value },
+                { "@PlcCommunicationAddress", record.PlcCommunicationAddress ?? (object)DBNull.Value },
+                { "@UpdatedTime", record.UpdatedTime },
+                { "@TestBatch", record.TestBatch ?? (object)DBNull.Value },
+                { "@TestPLCChannelTag", record.TestPLCChannelTag ?? (object)DBNull.Value },
+                { "@TestPLCCommunicationAddress", record.TestPLCCommunicationAddress ?? (object)DBNull.Value },
+                { "@MonitorStatus", record.MonitorStatus ?? (object)DBNull.Value },
+                { "@TestId", record.TestId },
+                { "@TestResultStatus", record.TestResultStatus },
+                { "@ResultText", record.ResultText ?? (object)DBNull.Value },
+                { "@HardPointTestResult", record.HardPointTestResult ?? (object)DBNull.Value },
+                { "@TestTime", record.TestTime.HasValue ? (object)record.TestTime.Value : DBNull.Value },
+                { "@FinalTestTime", record.FinalTestTime.HasValue ? (object)record.FinalTestTime.Value : DBNull.Value },
+                { "@Status", record.Status ?? (object)DBNull.Value },
+                { "@StartTime", record.StartTime },
+                { "@EndTime", record.EndTime },
+                { "@ExpectedValue", record.ExpectedValue },
+                { "@ActualValue", record.ActualValue },
+                { "@Value0Percent", record.Value0Percent },
+                { "@Value25Percent", record.Value25Percent },
+                { "@Value50Percent", record.Value50Percent },
+                { "@Value75Percent", record.Value75Percent },
+                { "@Value100Percent", record.Value100Percent },
+                { "@LowLowAlarmStatus", record.LowLowAlarmStatus ?? (object)DBNull.Value },
+                { "@LowAlarmStatus", record.LowAlarmStatus ?? (object)DBNull.Value },
+                { "@HighAlarmStatus", record.HighAlarmStatus ?? (object)DBNull.Value },
+                { "@HighHighAlarmStatus", record.HighHighAlarmStatus ?? (object)DBNull.Value },
+                { "@MaintenanceFunction", record.MaintenanceFunction ?? (object)DBNull.Value },
+                { "@ErrorMessage", record.ErrorMessage ?? (object)DBNull.Value },
+                { "@CurrentValue", record.CurrentValue ?? (object)DBNull.Value },
+                { "@ShowValueStatus", record.ShowValueStatus ?? (object)DBNull.Value },
+                { "@AlarmValueSetStatus", record.AlarmValueSetStatus ?? (object)DBNull.Value }
+            };
+        }
+
+        /// <summary>
+        /// 使用原生SQL语句批量保存多条测试记录
+        /// </summary>
+        /// <param name="records">测试记录集合</param>
+        /// <returns>保存操作是否成功</returns>
+        public async Task<bool> SaveTestRecordsWithSqlAsync(IEnumerable<ChannelMapping> records)
+        {
+            try
+            {
+                if (records == null || !records.Any())
+                    return true;
+
+                int successCount = 0;
+                foreach (var record in records)
+                {
+                    // 调用单个记录的SQL保存方法
+                    bool success = await SaveTestRecordWithSqlAsync(record);
+                    if (success)
+                    {
+                        successCount++;
+                    }
+                }
+
+                // 如果有任何记录保存成功，就返回true
+                return successCount > 0;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"批量保存测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+        }
     }
 }

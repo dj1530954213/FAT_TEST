@@ -2573,7 +2573,8 @@ namespace FatFullVersion.ViewModels
                     channel.FinalTestTime = DateTime.Now;
 
                     //手动测试环节单点通过后数据入库
-                    await _testRecordService.SaveTestRecordsAsync(AllChannels);
+                    await _testRecordService.SaveTestRecordAsync(channel);
+                    //await _testRecordService.SaveTestRecordsAsync(AllChannels);
 
                     // 刷新批次状态
                     RefreshBatchStatus();
@@ -2604,7 +2605,8 @@ namespace FatFullVersion.ViewModels
                     channel.FinalTestTime = DateTime.Now;
 
                     //手动测试环节单点通过后数据入库
-                    await _testRecordService.SaveTestRecordsAsync(AllChannels);
+                    await _testRecordService.SaveTestRecordAsync(channel);
+                    //await _testRecordService.SaveTestRecordsAsync(AllChannels);
 
                     // 刷新批次状态
                     RefreshBatchStatus();

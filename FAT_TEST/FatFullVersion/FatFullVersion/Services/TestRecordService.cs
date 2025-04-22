@@ -67,7 +67,9 @@ namespace FatFullVersion.Services
                 //}
 
                 // 保存记录
-                return await _repository.SaveTestRecordsAsync(records);
+                //return await _repository.SaveTestRecordsAsync(records);
+
+                return await _repository.SaveTestRecordsWithSqlAsync(records);
             }
             catch (Exception ex)
             {
@@ -100,7 +102,7 @@ namespace FatFullVersion.Services
                 //    channelMapping.Id = Guid.NewGuid().ToString("N");
                 //}
 
-                return await _repository.SaveTestRecordAsync(channelMapping);
+                return await _repository.SaveTestRecordWithSqlAsync(channelMapping);
             }
             catch (Exception ex)
             {
