@@ -23,12 +23,17 @@ namespace FatFullVersion.Shared.Converters
             if (value is string moduleType)
             {
                 // 所有通道类型都显示手动测试按钮
-                return moduleType?.ToLower() switch
+                string lowerModuleType = moduleType?.ToLower();
+                return lowerModuleType switch
                 {
                     "ai" => Visibility.Visible,
                     "di" => Visibility.Visible,
                     "do" => Visibility.Visible,
                     "ao" => Visibility.Visible,
+                    "ainone" => Visibility.Visible,
+                    "dinone" => Visibility.Visible,
+                    "donone" => Visibility.Visible,
+                    "aonone" => Visibility.Visible,
                     _ => Visibility.Collapsed
                 };
             }

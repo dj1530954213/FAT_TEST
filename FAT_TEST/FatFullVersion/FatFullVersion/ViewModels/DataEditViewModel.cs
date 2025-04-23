@@ -157,6 +157,29 @@ namespace FatFullVersion.ViewModels
         /// </summary>
         public IEnumerable<ChannelMapping> GetDOChannels() => AllChannels?.Where(c => c.ModuleType?.ToLower() == "do");
 
+        /// <summary>
+        /// 获取所有AI无源类型的通道
+        /// </summary>
+        public IEnumerable<ChannelMapping> GetAINoneChannels() => AllChannels?.Where(c => c.ModuleType?.ToLower() == "ainone");
+
+        /// <summary>
+        /// 获取所有AO无源类型的通道
+        /// </summary>
+        public IEnumerable<ChannelMapping> GetAONoneChannels() => AllChannels?.Where(c => c.ModuleType?.ToLower() == "aonone");
+
+        /// <summary>
+        /// 获取所有DI无源类型的通道
+        /// </summary>
+        public IEnumerable<ChannelMapping> GetDINoneChannels() => AllChannels?.Where(c => c.ModuleType?.ToLower() == "dinone");
+
+        /// <summary>
+        /// 获取所有DO无源类型的通道
+        /// </summary>
+        public IEnumerable<ChannelMapping> GetDONoneChannels() => AllChannels?.Where(c => c.ModuleType?.ToLower() == "donone");
+
+        /// <summary>
+        /// 获取所有AI无源类型的通道
+        /// </summary>
         // 测试结果数据
         //private ObservableCollection<ChannelMapping> _testResults;
         //public ObservableCollection<ChannelMapping> TestResults
@@ -2091,6 +2114,14 @@ namespace FatFullVersion.ViewModels
                         c.ModuleType?.ToLower() == "di" && c.TestBatch.Equals(SelectedBatch.BatchName)),
                     "DO通道" => AllChannels.Where(c =>
                         c.ModuleType?.ToLower() == "do" && c.TestBatch.Equals(SelectedBatch.BatchName)),
+                    //"AINone通道" => AllChannels.Where(c =>
+                    //    c.ModuleType?.ToLower() == "ainone" && c.TestBatch.Equals(SelectedBatch.BatchName)),
+                    //"AONone通道" => AllChannels.Where(c =>
+                    //    c.ModuleType?.ToLower() == "aonone" && c.TestBatch.Equals(SelectedBatch.BatchName)),
+                    //"DINone通道" => AllChannels.Where(c =>
+                    //    c.ModuleType?.ToLower() == "dinone" && c.TestBatch.Equals(SelectedBatch.BatchName)),
+                    //"DONone通道" => AllChannels.Where(c =>
+                    //    c.ModuleType?.ToLower() == "donone" && c.TestBatch.Equals(SelectedBatch.BatchName)),
                     _ => Enumerable.Empty<ChannelMapping>()
                 };
 

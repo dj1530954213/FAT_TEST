@@ -12,22 +12,22 @@ namespace FatFullVersion.Entities.EntitiesEnum
     public enum TestPlcChannelType
     {
         /// <summary>
-        /// 模拟量输入
+        /// 模拟量输入有源
         /// </summary>
         AI = 0,
 
         /// <summary>
-        /// 模拟量输出
+        /// 模拟量输出有源
         /// </summary>
         AO = 1,
 
         /// <summary>
-        /// 数字量输入
+        /// 数字量输入有源
         /// </summary>
         DI = 2,
 
         /// <summary>
-        /// 数字量输出
+        /// 数字量输出有源
         /// </summary>
         DO = 3,
 

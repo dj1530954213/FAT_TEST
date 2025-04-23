@@ -25,11 +25,15 @@ namespace FatFullVersion.Shared.Converters
             {
                 return channelType switch
                 {
-                    TestPlcChannelType.AI => new ChannelTypeItem { Value = TestPlcChannelType.AI, DisplayName = "模拟量输入" },
-                    TestPlcChannelType.AO => new ChannelTypeItem { Value = TestPlcChannelType.AO, DisplayName = "模拟量输出" },
-                    TestPlcChannelType.DI => new ChannelTypeItem { Value = TestPlcChannelType.DI, DisplayName = "数字量输入" },
-                    TestPlcChannelType.DO => new ChannelTypeItem { Value = TestPlcChannelType.DO, DisplayName = "数字量输出" },
-                    _ => new ChannelTypeItem { Value = TestPlcChannelType.DI, DisplayName = "数字量输入" }
+                    TestPlcChannelType.AI => new ChannelTypeItem { Value = TestPlcChannelType.AI, DisplayName = "模拟量输入有源" },
+                    TestPlcChannelType.AO => new ChannelTypeItem { Value = TestPlcChannelType.AO, DisplayName = "模拟量输出有源" },
+                    TestPlcChannelType.DI => new ChannelTypeItem { Value = TestPlcChannelType.DI, DisplayName = "数字量输入有源" },
+                    TestPlcChannelType.DO => new ChannelTypeItem { Value = TestPlcChannelType.DO, DisplayName = "数字量输出有源" },
+                    TestPlcChannelType.AINone => new ChannelTypeItem { Value = TestPlcChannelType.AINone, DisplayName = "模拟量输入无源" },
+                    TestPlcChannelType.AONone => new ChannelTypeItem { Value = TestPlcChannelType.AONone, DisplayName = "模拟量输出无源" },
+                    TestPlcChannelType.DINone => new ChannelTypeItem { Value = TestPlcChannelType.DINone, DisplayName = "数字量输入无源" },
+                    TestPlcChannelType.DONone => new ChannelTypeItem { Value = TestPlcChannelType.DONone, DisplayName = "数字量输出无源" },
+                    _ => new ChannelTypeItem { Value = TestPlcChannelType.DI, DisplayName = "数字量输入有源" }
                 };
             }
 
@@ -54,10 +58,14 @@ namespace FatFullVersion.Shared.Converters
             {
                 return str switch
                 {
-                    "模拟量输入" => TestPlcChannelType.AI,
-                    "模拟量输出" => TestPlcChannelType.AO,
-                    "数字量输入" => TestPlcChannelType.DI,
-                    "数字量输出" => TestPlcChannelType.DO,
+                    "模拟量输入有源" => TestPlcChannelType.AI,
+                    "模拟量输出有源" => TestPlcChannelType.AO,
+                    "数字量输入有源" => TestPlcChannelType.DI,
+                    "数字量输出有源" => TestPlcChannelType.DO,
+                    "模拟量输入无源" => TestPlcChannelType.AINone,
+                    "模拟量输出无源" => TestPlcChannelType.AONone,
+                    "数字量输入无源" => TestPlcChannelType.DINone,
+                    "数字量输出无源" => TestPlcChannelType.DONone,
                     _ => TestPlcChannelType.DI
                 };
             }

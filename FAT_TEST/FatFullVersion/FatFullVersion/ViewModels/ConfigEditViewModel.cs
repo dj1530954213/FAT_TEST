@@ -42,10 +42,14 @@ namespace FatFullVersion.ViewModels
             // 初始化通道类型列表
             ChannelTypes = new ObservableCollection<ChannelTypeItem>
             {
-                new ChannelTypeItem { Value = TestPlcChannelType.AI, DisplayName = "模拟量输入" },
-                new ChannelTypeItem { Value = TestPlcChannelType.AO, DisplayName = "模拟量输出" },
-                new ChannelTypeItem { Value = TestPlcChannelType.DI, DisplayName = "数字量输入" },
-                new ChannelTypeItem { Value = TestPlcChannelType.DO, DisplayName = "数字量输出" }
+                new ChannelTypeItem { Value = TestPlcChannelType.AI, DisplayName = "模拟量输入有源" },
+                new ChannelTypeItem { Value = TestPlcChannelType.AO, DisplayName = "模拟量输出有源" },
+                new ChannelTypeItem { Value = TestPlcChannelType.DI, DisplayName = "数字量输入有源" },
+                new ChannelTypeItem { Value = TestPlcChannelType.DO, DisplayName = "数字量输出有源" },
+                new ChannelTypeItem { Value = TestPlcChannelType.AINone, DisplayName = "模拟量输入无源" },
+                new ChannelTypeItem { Value = TestPlcChannelType.AONone, DisplayName = "模拟量输出无源" },
+                new ChannelTypeItem { Value = TestPlcChannelType.DINone, DisplayName = "数字量输入无源" },
+                new ChannelTypeItem { Value = TestPlcChannelType.DONone, DisplayName = "数字量输出无源" }
             };
             
             // 初始化

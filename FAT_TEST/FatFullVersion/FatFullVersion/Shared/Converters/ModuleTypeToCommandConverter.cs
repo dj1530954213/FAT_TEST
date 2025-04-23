@@ -22,7 +22,15 @@ namespace FatFullVersion.Shared.Converters
         {
             if (values.Length >= 2 && values[0] is string moduleType && values[1] is ViewModels.DataEditViewModel viewModel)
             {
-                return moduleType?.ToLower() switch
+                string lowerModuleType = moduleType?.ToLower();
+                
+                // 处理无源模块类型，转换为对应的基本类型
+                if (lowerModuleType?.Contains("none") == true)
+                {
+                    lowerModuleType = lowerModuleType.Replace("none", "");
+                }
+                
+                return lowerModuleType switch
                 {
                     "ai" => viewModel.OpenAIManualTestCommand,
                     "di" => viewModel.OpenDIManualTestCommand,
