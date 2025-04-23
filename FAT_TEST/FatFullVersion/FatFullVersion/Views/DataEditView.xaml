@@ -224,6 +224,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
                     <Button
@@ -272,10 +273,22 @@
                         FontSize="16"
                         FontWeight="SemiBold"
                         Style="{StaticResource MaterialDesignRaisedButton}"
-                        ToolTip="选择测试批次" />
+                        ToolTip="导出通道表" />
 
                     <Button
                         Grid.Column="4"
+                        Height="40"
+                        Margin="5,5"
+                        Padding="10"
+                        Command="{Binding SkipModuleCommand}"
+                        Content="跳过模块配置"
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Style="{StaticResource MaterialDesignRaisedButton}"
+                        ToolTip="跳过模块配置" />
+
+                    <Button
+                        Grid.Column="5"
                         Height="40"
                         Margin="5,5"
                         Padding="10"
@@ -288,7 +301,7 @@
                         ToolTip="完成接线确认" />
 
                     <Button
-                        Grid.Column="5"
+                        Grid.Column="6"
                         Height="40"
                         Margin="5,5"
                         Padding="10"
@@ -301,7 +314,7 @@
                         ToolTip="开始测试" />
 
                     <Button
-                        Grid.Column="6"
+                        Grid.Column="7"
                         Height="40"
                         Margin="5,5"
                         Padding="10"
@@ -1862,6 +1875,186 @@
                             Command="{Binding CloseAOManualTestCommand}"
                             Content="关闭"
                             Foreground="White" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Popup>
+
+        <!--  跳过模块窗口  -->
+        <Popup
+            x:Name="SkipModulePopup"
+            Width="500"
+            Height="500"
+            IsOpen="{Binding IsSkipModuleOpen, Mode=TwoWay}"
+            Placement="Center"
+            StaysOpen="True">
+            <Border
+                Padding="16"
+                Background="White"
+                BorderBrush="#AAAAAA"
+                BorderThickness="1"
+                CornerRadius="6">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock
+                        Foreground="Black"
+                        Grid.Row="0"
+                        Margin="0,0,0,12"
+                        FontSize="20"
+                        FontWeight="Bold"
+                        Text="跳过模块测试" />
+
+                    <Grid Grid.Row="1" Margin="0,0,0,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        
+                        <!-- 搜索框和选择按钮 -->
+                        <Grid Grid.Row="0" Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Foreground="Black"
+                                Grid.Column="0"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                FontSize="18"
+                                Text="搜索:" />
+                            <TextBox
+                                Foreground="Black"
+                                Grid.Column="1"
+                                Padding="8,4"
+                                BorderBrush="#CCCCCC"
+                                BorderThickness="1"
+                                FontSize="18"
+                                Text="{Binding ModuleSearchFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            
+                            <Button
+                                Grid.Column="2"
+                                Margin="8,0,4,0"
+                                Padding="8,4"
+                                Command="{Binding SelectAllModulesCommand}"
+                                Content="全选"
+                                FontSize="14" />
+                            
+                            <Button
+                                Grid.Column="3"
+                                Margin="4,0,0,0"
+                                Padding="8,4"
+                                Command="{Binding UnselectAllModulesCommand}"
+                                Content="取消全选"
+                                FontSize="14" />
+                        </Grid>
+                        
+                        <!-- 模块列表 -->
+                        <Grid Grid.Row="1">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            
+                            <!-- 模块数量提示 -->
+                            <TextBlock 
+                                Grid.Row="0" 
+                                Margin="4,0,0,4" 
+                                Text="{Binding Modules.Count, StringFormat='找到 {0} 个模块'}" 
+                                Foreground="#666666"
+                                FontSize="12"/>
+                            
+                            <!-- 模块列表容器 -->
+                            <Grid Grid.Row="1">
+                                <!-- 加载指示器 -->
+                                <ProgressBar 
+                                    Foreground="Black"
+                                    IsIndeterminate="True" 
+                                    Height="10" 
+                                    VerticalAlignment="Top"
+                                    Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                
+                                <!-- 模块列表 -->
+                                <ListBox
+                                    BorderBrush="#CCCCCC"
+                                    Background="DimGray"
+                                    BorderThickness="1"
+                                    ItemsSource="{Binding FilteredModules}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="4" Orientation="Horizontal">
+                                                <CheckBox
+                                                    Foreground="Black"
+                                                    IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                    Content="{Binding ModuleName, StringFormat='{}模块: {0}'}"
+                                                    FontSize="14" />
+                                                <StackPanel Margin="50,4,0,0" Orientation="Horizontal">
+                                                    <TextBlock Text="类型: " Foreground="Black" />
+                                                    <TextBlock Text="{Binding ModuleType}" Foreground="Black" />
+                                                    <TextBlock Text=", 通道数: " Margin="8,0,0,0" Foreground="Black" />
+                                                    <TextBlock Text="{Binding ChannelCount}" Foreground="Black" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+
+                    <Grid Grid.Row="2" Margin="0,0,0,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock
+                            Foreground="Black"
+                            Grid.Row="0"
+                            Margin="0,0,0,4"
+                            FontSize="18"
+                            Text="跳过原因:" />
+
+                        <TextBox
+                            Foreground="Black"
+                            Grid.Row="1"
+                            Height="60"
+                            Padding="8"
+                            AcceptsReturn="True"
+                            BorderBrush="#CCCCCC"
+                            BorderThickness="1"
+                            FontSize="18"
+                            Text="{Binding SkipReason, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            TextWrapping="Wrap"
+                            VerticalScrollBarVisibility="Auto" />
+                    </Grid>
+
+                    <StackPanel
+                        Grid.Row="3"
+                        HorizontalAlignment="Right"
+                        Orientation="Horizontal">
+                        <Button
+                            Margin="0,0,8,0"
+                            Padding="16,8"
+                            Background="#4472C4"
+                            Command="{Binding ConfirmSkipModuleCommand}"
+                            Content="确认"
+                            Foreground="White" />
+
+                        <Button
+                            Padding="16,8"
+                            Background="#E6E6E6"
+                            Command="{Binding CancelSkipModuleCommand}"
+                            Content="取消"
+                            Foreground="#333333" />
                     </StackPanel>
                 </Grid>
             </Border>

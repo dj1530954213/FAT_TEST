@@ -321,6 +321,7 @@ namespace FatFullVersion.ViewModels
         public DelegateCommand RestoreConfigCommand { get; private set; }
         public DelegateCommand SelectBatchCommand { get; private set; }
         public DelegateCommand ExportChannelMapCommand { get; private set; }
+        public DelegateCommand SkipModuleCommand { get; private set; }
         public DelegateCommand FinishWiringCommand { get; private set; }
         public DelegateCommand StartTestCommand { get; private set; }
         public DelegateCommand<ChannelMapping> RetestCommand { get; private set; }
@@ -743,6 +744,141 @@ namespace FatFullVersion.ViewModels
         public DelegateCommand DeleteTestBatchCommand { get; private set; }
         public DelegateCommand CloseHistoryRecordsCommand { get; private set; }
 
+        // 添加模块跳过相关属性和命令
+        private bool _isSkipModuleOpen;
+        /// <summary>
+        /// 模块跳过窗口是否打开
+        /// </summary>
+        public bool IsSkipModuleOpen
+        {
+            get { return _isSkipModuleOpen; }
+            set { SetProperty(ref _isSkipModuleOpen, value); }
+        }
+
+        private ObservableCollection<ModuleInfo> _modules;
+        /// <summary>
+        /// 模块列表
+        /// </summary>
+        public ObservableCollection<ModuleInfo> Modules
+        {
+            get { return _modules; }
+            set { SetProperty(ref _modules, value); }
+        }
+
+        private string _skipReason;
+        /// <summary>
+        /// 跳过原因
+        /// </summary>
+        public string SkipReason
+        {
+            get { return _skipReason; }
+            set { SetProperty(ref _skipReason, value); }
+        }
+
+        // 初始化模块跳过相关命令
+        public DelegateCommand ConfirmSkipModuleCommand { get; private set; }
+        public DelegateCommand CancelSkipModuleCommand { get; private set; }
+
+        private string _moduleSearchFilter;
+        /// <summary>
+        /// 模块搜索过滤条件
+        /// </summary>
+        public string ModuleSearchFilter
+        {
+            get { return _moduleSearchFilter; }
+            set 
+            { 
+                if (SetProperty(ref _moduleSearchFilter, value))
+                {
+                    RaisePropertyChanged(nameof(FilteredModules));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 过滤后的模块列表
+        /// </summary>
+        public ObservableCollection<ModuleInfo> FilteredModules
+        {
+            get
+            {
+                if (Modules == null)
+                    return new ObservableCollection<ModuleInfo>();
+
+                if (string.IsNullOrWhiteSpace(ModuleSearchFilter))
+                    return Modules;
+
+                var filtered = Modules.Where(m => 
+                    m.ModuleName.Contains(ModuleSearchFilter, StringComparison.OrdinalIgnoreCase) || 
+                    m.ModuleType.Contains(ModuleSearchFilter, StringComparison.OrdinalIgnoreCase));
+                
+                return new ObservableCollection<ModuleInfo>(filtered);
+            }
+        }
+
+        private bool _selectAllModules;
+        /// <summary>
+        /// 是否全选模块
+        /// </summary>
+        public bool SelectAllModules
+        {
+            get { return _selectAllModules; }
+            set 
+            { 
+                if (SetProperty(ref _selectAllModules, value))
+                {
+                    // 更新所有模块的选中状态
+                    if (Modules != null)
+                    {
+                        foreach (var module in Modules)
+                        {
+                            module.IsSelected = value;
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 全选模块命令
+        /// </summary>
+        public DelegateCommand SelectAllModulesCommand { get; private set; }
+        
+        /// <summary>
+        /// 取消全选模块命令
+        /// </summary>
+        public DelegateCommand UnselectAllModulesCommand { get; private set; }
+
+        /// <summary>
+        /// 全选所有模块
+        /// </summary>
+        private void ExecuteSelectAllModules()
+        {
+            if (Modules != null)
+            {
+                foreach (var module in Modules)
+                {
+                    module.IsSelected = true;
+                }
+                SelectAllModules = true;
+            }
+        }
+
+        /// <summary>
+        /// 取消全选所有模块
+        /// </summary>
+        private void ExecuteUnselectAllModules()
+        {
+            if (Modules != null)
+            {
+                foreach (var module in Modules)
+                {
+                    module.IsSelected = false;
+                }
+                SelectAllModules = false;
+            }
+        }
+
         #endregion
 
         #region 构造函数和初始化
@@ -799,6 +935,12 @@ namespace FatFullVersion.ViewModels
             //TestResults = new ObservableCollection<ChannelMapping>();
             Batches = new ObservableCollection<BatchInfo>();
             TestQueue = new ObservableCollection<ChannelMapping>();
+            Modules = new ObservableCollection<ModuleInfo>();
+
+            // 初始化搜索过滤和选中状态
+            ModuleSearchFilter = string.Empty;
+            SelectAllModules = false;
+            SkipReason = string.Empty;
 
             // 初始化测试队列相关属性
             TestQueuePosition = 0;
@@ -821,6 +963,7 @@ namespace FatFullVersion.ViewModels
             ImportConfigCommand = new DelegateCommand(ImportConfig);
             SelectBatchCommand = new DelegateCommand(ExecuteSelectBatch);
             ExportChannelMapCommand = new DelegateCommand(ExportChannelMap);
+            SkipModuleCommand = new DelegateCommand(SkipModule);
             FinishWiringCommand = new DelegateCommand(FinishWiring);
             StartTestCommand = new DelegateCommand(StartTest);
             RetestCommand = new DelegateCommand<ChannelMapping>(Retest);
@@ -884,6 +1027,14 @@ namespace FatFullVersion.ViewModels
             RestoreTestRecordsCommand = new DelegateCommand(RestoreTestRecords);
             DeleteTestBatchCommand = new DelegateCommand(DeleteTestBatch);
             CloseHistoryRecordsCommand = new DelegateCommand(CloseHistoryRecords);
+
+            // 初始化模块跳过相关命令
+            ConfirmSkipModuleCommand = new DelegateCommand(ConfirmSkipModule);
+            CancelSkipModuleCommand = new DelegateCommand(CancelSkipModule);
+
+            // 初始化模块全选/取消全选命令
+            SelectAllModulesCommand = new DelegateCommand(ExecuteSelectAllModules);
+            UnselectAllModulesCommand = new DelegateCommand(ExecuteUnselectAllModules);
         }
 
         #endregion
@@ -986,6 +1137,7 @@ namespace FatFullVersion.ViewModels
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
+                        ModuleName = point.ModuleName,
                         StationName = point.StationName,
                         VariableDescription = point.VariableDescription,
                         // 设置通道映射的其他属性
@@ -1050,6 +1202,7 @@ namespace FatFullVersion.ViewModels
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
+                        ModuleName = point.ModuleName,
                         StationName = point.StationName,
                         VariableDescription = point.VariableDescription,
                         // 设置通道映射的其他属性
@@ -1096,6 +1249,7 @@ namespace FatFullVersion.ViewModels
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
+                        ModuleName = point.ModuleName,
                         StationName = point.StationName,
                         VariableDescription = point.VariableDescription,
                         PlcCommunicationAddress = point.CommunicationAddress,
@@ -1137,6 +1291,7 @@ namespace FatFullVersion.ViewModels
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
                         StationName = point.StationName,
+                        ModuleName = point.ModuleName,
                         VariableDescription = point.VariableDescription,
                         PlcCommunicationAddress = point.CommunicationAddress,
 
@@ -1463,6 +1618,206 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = string.Empty;
                 IsLoading = false;
             }
+        }
+
+        /// <summary>
+        /// 跳过选择的模块，不测试并添加备注项
+        /// </summary>
+        private void SkipModule()
+        {
+            // 检查是否有可用通道
+            if (AllChannels == null || !AllChannels.Any())
+            {
+                MessageBox.Show("没有可用的通道信息", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                // 输出调试信息
+                System.Diagnostics.Debug.WriteLine($"开始提取模块信息: AllChannels包含 {AllChannels.Count} 个通道");
+                int validChannels = AllChannels.Count(c => !string.IsNullOrEmpty(c.ChannelTag));
+                System.Diagnostics.Debug.WriteLine($"有效ChannelTag的通道数量: {validChannels}");
+                
+                // 输出前10个通道的ChannelTag示例
+                var sampleChannels = AllChannels.Where(c => !string.IsNullOrEmpty(c.ChannelTag)).Take(10);
+                foreach (var channel in sampleChannels)
+                {
+                    System.Diagnostics.Debug.WriteLine($"通道示例: {channel.ChannelTag}, 模块类型: {channel.ModuleType}");
+                }
+                
+                // 清空搜索过滤和选中状态
+                ModuleSearchFilter = string.Empty;
+                SelectAllModules = false;
+                SkipReason = string.Empty;
+                
+                // 打开模块跳过窗口
+                IsSkipModuleOpen = true;
+                
+                // 从所有通道中提取模块信息
+                RefreshModules();
+                
+                // 打印模块列表信息
+                System.Diagnostics.Debug.WriteLine($"模块提取结果: {(Modules == null ? "Modules为null" : $"找到{Modules.Count}个模块")}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"跳过模块操作异常: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"异常详情: {ex}");
+                MessageBox.Show($"跳过模块操作失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 刷新模块列表
+        /// </summary>
+        private void RefreshModules()
+        {
+            if (AllChannels == null || !AllChannels.Any())
+                return;
+
+            try
+            {
+                // 按模块为单位汇总模块信息，从ChannelTag中提取机架、槽位、模块类型信息
+                var moduleGroups = AllChannels
+                    .Where(c => !string.IsNullOrEmpty(c.ChannelTag))
+                    .Select(c => new
+                    {
+                        Channel = c,
+                        Parts = c.ChannelTag.Split('_')
+                    })
+                    .Where(x => x.Parts.Length >= 3) // 确保至少包含机架_槽_模块类型
+                    .GroupBy(x => new
+                    {
+                        Rack = x.Parts[0],
+                        Slot = x.Parts[1],
+                        ModuleType = x.Parts[2]
+                    })
+                    .Select(g => new ModuleInfo
+                    {
+                        // 生成模块名称: "机架1_槽2_AI"
+                        ModuleName = $"{g.Key.Rack}机架_{g.Key.Slot}槽_{g.Key.ModuleType}",
+                        ChannelCount = g.Count(),
+                        ModuleType = g.Key.ModuleType,
+                        IsSelected = false
+                    })
+                    .OrderBy(m => m.ModuleName)
+                    .ToList();
+
+                Modules = new ObservableCollection<ModuleInfo>(moduleGroups);
+                
+                // 通知UI更新
+                RaisePropertyChanged(nameof(Modules));
+                RaisePropertyChanged(nameof(FilteredModules));
+                
+                // 输出调试信息
+                System.Diagnostics.Debug.WriteLine($"已加载 {Modules.Count} 个模块");
+                foreach (var module in Modules)
+                {
+                    System.Diagnostics.Debug.WriteLine($"模块: {module.ModuleName}, 类型: {module.ModuleType}, 通道数: {module.ChannelCount}");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"提取模块信息失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 确认跳过选中的模块
+        /// </summary>
+        private void ConfirmSkipModule()
+        {
+            if (Modules == null || !Modules.Any(m => m.IsSelected))
+            {
+                MessageBox.Show("请至少选择一个要跳过的模块", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(SkipReason))
+            {
+                MessageBox.Show("请输入跳过原因", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                // 获取选中的模块信息
+                var selectedModules = Modules.Where(m => m.IsSelected).ToList();
+
+                foreach (var module in selectedModules)
+                {
+                    // 从模块名称中提取机架、槽位、模块类型信息
+                    // 模块名称格式: "机架1_槽2_AI"
+                    string moduleInfo = module.ModuleName.Replace("机架", "").Replace("槽", "");
+                    string[] parts = moduleInfo.Split('_');
+                    if (parts.Length >= 3)
+                    {
+                        string rack = parts[0];
+                        string slot = parts[1];
+                        string moduleType = parts[2];
+
+                        // 查找该模块的所有通道
+                        var moduleChannels = AllChannels
+                            .Where(c => !string.IsNullOrEmpty(c.ChannelTag) && 
+                                   c.ChannelTag.StartsWith($"{rack}_{slot}_{moduleType}_"))
+                            .ToList();
+
+                        foreach (var channel in moduleChannels)
+                        {
+                            // 设置硬点测试结果为通过
+                            channel.HardPointTestResult = "通过";
+                            // 设置测试结果状态为通过(1)
+                            channel.TestResultStatus = 1;
+                            // 更新结果文本
+                            channel.ResultText = $"已跳过测试，原因: {SkipReason}";
+                        }
+                    }
+                }
+
+                // 刷新批次状态
+                RefreshBatchStatus();
+                
+                // 更新统计信息
+                UpdatePointStatistics();
+                
+                // 通知UI更新
+                RaisePropertyChanged(nameof(AllChannels));
+                UpdateCurrentChannels();
+
+                // 保存测试结果到数据库
+                try
+                {
+                    _ = _testRecordService.SaveTestRecordsAsync(AllChannels);
+                }
+                catch (Exception saveEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"保存跳过模块测试结果时出错: {saveEx.Message}");
+                    // 不影响用户操作流程，仅记录错误
+                }
+
+                // 关闭窗口
+                IsSkipModuleOpen = false;
+                
+                // 清空跳过原因
+                SkipReason = string.Empty;
+
+                MessageBox.Show("已成功跳过选中模块的测试", "操作成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"处理跳过模块时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 取消跳过模块
+        /// </summary>
+        private void CancelSkipModule()
+        {
+            IsSkipModuleOpen = false;
+            SkipReason = string.Empty;
+            ModuleSearchFilter = string.Empty;
         }
 
         /// <summary>

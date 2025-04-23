@@ -181,99 +181,199 @@ namespace FatFullVersion.Services
                         foreach (var result in testResults)
                         {
                             var dataRow = sheet.CreateRow(rowIndex++);
-                            
-                            // 设置单元格值
-                            // 1. 测试ID
-                            SetCellValue(dataRow, 0, result.TestId.ToString(), contentStyle);
-                            
-                            // 2. 测试批次
-                            SetCellValue(dataRow, 1, result.TestBatch, contentStyle);
-                            
-                            // 3. 变量名称
-                            SetCellValue(dataRow, 2, result.VariableName, contentStyle);
-                            
-                            // 4. 点表类型
-                            SetCellValue(dataRow, 3, result.ModuleType, contentStyle);
-                            
-                            // 5. 数据类型
-                            SetCellValue(dataRow, 4, result.DataType, contentStyle);
-                            
-                            // 6. 测试PLC通道位号
-                            SetCellValue(dataRow, 5, result.TestPLCChannelTag, contentStyle);
-                            
-                            // 7. 被测PLC通道位号
-                            SetCellValue(dataRow, 6, result.ChannelTag, contentStyle);
-                            
-                            // 8. 行程最小值
-                            SetDoubleValue(dataRow, 7, Math.Round(result.RangeLowerLimitValue, 3), contentStyle);
-
-                            // 9. 行程最大值
-                            SetDoubleValue(dataRow, 8, Math.Round(result.RangeUpperLimitValue, 3), contentStyle);
-
-                            // 10. 0%对比值
-                            SetDoubleValue(dataRow, 9, Math.Round(result.Value0Percent, 3), contentStyle);
-
-                            // 11. 25%对比值
-                            SetDoubleValue(dataRow, 10, Math.Round(result.Value25Percent, 3), contentStyle);
-                            
-                            // 12. 50%对比值
-                            SetDoubleValue(dataRow, 11, Math.Round(result.Value50Percent, 3), contentStyle);
-                            
-                            // 13. 75%对比值
-                            SetDoubleValue(dataRow, 12, Math.Round(result.Value75Percent, 3), contentStyle);
-                            
-                            // 14. 100%对比值
-                            SetDoubleValue(dataRow, 13, Math.Round(result.Value100Percent, 3), contentStyle);
-                            
-                            // 15. 低低报反馈状态
-                            SetCellValue(dataRow, 14, result.LowLowAlarmStatus, contentStyle);
-                            
-                            // 16. 低报反馈状态
-                            SetCellValue(dataRow, 15, result.LowAlarmStatus, contentStyle);
-                            
-                            // 17. 高报反馈状态
-                            SetCellValue(dataRow, 16, result.HighAlarmStatus, contentStyle);
-                            
-                            // 18. 高高报反馈状态
-                            SetCellValue(dataRow, 17, result.HighHighAlarmStatus, contentStyle);
-                            
-                            // 19. 维护功能检测
-                            SetCellValue(dataRow, 18, result.MaintenanceFunction, contentStyle);
-                            
-                            // 20. 开始测试时间
-                            var testTimeStr = result.TestTime.HasValue 
-                                ? result.TestTime.Value.ToString("yyyy-MM-dd HH:mm:ss") 
-                                : "-";
-                            SetCellValue(dataRow, 19, testTimeStr, contentStyle);
-                            
-                            // 21. 最终测试时间
-                            var finalTestTimeStr = result.FinalTestTime.HasValue 
-                                ? result.FinalTestTime.Value.ToString("yyyy-MM-dd HH:mm:ss") 
-                                : "-";
-                            SetCellValue(dataRow, 20, finalTestTimeStr, contentStyle);
-                            
-                            // 22. 测试时长(秒)
-                            var durationCell = dataRow.CreateCell(21);
-                            TimeSpan usedTime = TimeSpan.FromSeconds(Math.Round(result.TotalTestDuration, 0));
-                            durationCell.SetCellValue($"{(int)usedTime.Hours:D2}小时{usedTime.Minutes:D2}分{usedTime.Seconds:D2}秒");
-                            durationCell.CellStyle = contentStyle;
-                            
-                            // 23. 通道硬点测试结果
-                            var resultCell = dataRow.CreateCell(22);
-                            resultCell.SetCellValue(result.HardPointTestResult ?? "未测试");
-                            
-                            if (!string.IsNullOrEmpty(result.HardPointTestResult) && 
-                                (result.HardPointTestResult == "通过" || result.HardPointTestResult == "已通过"))
+                            //对于是否是跳过测试的结果进行判断
+                            if (result.ResultText.Contains("跳过"))
                             {
-                                resultCell.CellStyle = passedStyle;
+                                // 设置单元格值
+                                // 1. 测试ID
+                                SetCellValue(dataRow, 0, result.TestId.ToString(), contentStyle);
+                            
+                                // 2. 测试批次
+                                SetCellValue(dataRow, 1, result.TestBatch, contentStyle);
+                            
+                                // 3. 变量名称
+                                SetCellValue(dataRow, 2, result.VariableName, contentStyle);
+                            
+                                // 4. 点表类型
+                                SetCellValue(dataRow, 3, result.ModuleType, contentStyle);
+                            
+                                // 5. 数据类型
+                                SetCellValue(dataRow, 4, result.DataType, contentStyle);
+                            
+                                // 6. 测试PLC通道位号
+                                SetCellValue(dataRow, 5, result.TestPLCChannelTag, contentStyle);
+                            
+                                // 7. 被测PLC通道位号
+                                SetCellValue(dataRow, 6, result.ChannelTag, contentStyle);
+                            
+                                // 8. 行程最小值
+                                SetDoubleValue(dataRow, 7, Math.Round(result.RangeLowerLimitValue, 3), contentStyle);
+
+                                // 9. 行程最大值
+                                SetDoubleValue(dataRow, 8, Math.Round(result.RangeUpperLimitValue, 3), contentStyle);
+
+                                // 10. 0%对比值
+                                SetCellValue(dataRow, 9, "NaN", contentStyle);
+
+                                // 11. 25%对比值
+                                SetCellValue(dataRow, 10, "NaN", contentStyle);
+
+                                // 12. 50%对比值
+                                SetCellValue(dataRow, 11, "NaN", contentStyle);
+
+                                // 13. 75%对比值
+                                SetCellValue(dataRow, 12, "NaN", contentStyle);
+
+                                // 14. 100%对比值
+                                SetCellValue(dataRow, 13, "NaN", contentStyle);
+                            
+                                // 15. 低低报反馈状态
+                                SetCellValue(dataRow, 14, "未测试", contentStyle);
+                            
+                                // 16. 低报反馈状态
+                                SetCellValue(dataRow, 15, "未测试", contentStyle);
+                            
+                                // 17. 高报反馈状态
+                                SetCellValue(dataRow, 16, "未测试", contentStyle);
+                            
+                                // 18. 高高报反馈状态
+                                SetCellValue(dataRow, 17, "未测试", contentStyle);
+                            
+                                // 19. 维护功能检测
+                                SetCellValue(dataRow, 18, "未测试", contentStyle);
+                            
+                                // 20. 开始测试时间
+                                var testTimeStr = result.TestTime.HasValue 
+                                    ? result.TestTime.Value.ToString("yyyy-MM-dd HH:mm:ss") 
+                                    : "-";
+                                SetCellValue(dataRow, 19, "未测试", contentStyle);
+                            
+                                // 21. 最终测试时间
+                                var finalTestTimeStr = result.FinalTestTime.HasValue 
+                                    ? result.FinalTestTime.Value.ToString("yyyy-MM-dd HH:mm:ss") 
+                                    : "-";
+                                SetCellValue(dataRow, 20, "未测试", contentStyle);
+
+                                // 22. 测试时长(秒)
+                                //var durationCell = dataRow.CreateCell(21);
+                                //TimeSpan usedTime = TimeSpan.FromSeconds(Math.Round(result.TotalTestDuration, 0));
+                                //durationCell.SetCellValue($"{(int)usedTime.Hours:D2}小时{usedTime.Minutes:D2}分{usedTime.Seconds:D2}秒");
+                                //durationCell.CellStyle = contentStyle;
+
+                                //// 23. 通道硬点测试结果
+                                //var resultCell = dataRow.CreateCell(22);
+                                //resultCell.SetCellValue(result.HardPointTestResult ?? "未测试");
+
+                                //if (!string.IsNullOrEmpty(result.HardPointTestResult) && 
+                                //    (result.HardPointTestResult == "通过" || result.HardPointTestResult == "已通过"))
+                                //{
+                                //    resultCell.CellStyle = passedStyle;
+                                //}
+                                //else
+                                //{
+                                //    resultCell.CellStyle = failedStyle;
+                                //}
+                                SetCellValue(dataRow, 21, "未测试", contentStyle);
+                                SetCellValue(dataRow, 22, "未测试", contentStyle);
+
+                                // 24. 测试结果
+                                SetCellValue(dataRow, 23, result.ResultText, contentStyle);
                             }
                             else
                             {
-                                resultCell.CellStyle = failedStyle;
+                                // 设置单元格值
+                                // 1. 测试ID
+                                SetCellValue(dataRow, 0, result.TestId.ToString(), contentStyle);
+
+                                // 2. 测试批次
+                                SetCellValue(dataRow, 1, result.TestBatch, contentStyle);
+
+                                // 3. 变量名称
+                                SetCellValue(dataRow, 2, result.VariableName, contentStyle);
+
+                                // 4. 点表类型
+                                SetCellValue(dataRow, 3, result.ModuleType, contentStyle);
+
+                                // 5. 数据类型
+                                SetCellValue(dataRow, 4, result.DataType, contentStyle);
+
+                                // 6. 测试PLC通道位号
+                                SetCellValue(dataRow, 5, result.TestPLCChannelTag, contentStyle);
+
+                                // 7. 被测PLC通道位号
+                                SetCellValue(dataRow, 6, result.ChannelTag, contentStyle);
+
+                                // 8. 行程最小值
+                                SetDoubleValue(dataRow, 7, Math.Round(result.RangeLowerLimitValue, 3), contentStyle);
+
+                                // 9. 行程最大值
+                                SetDoubleValue(dataRow, 8, Math.Round(result.RangeUpperLimitValue, 3), contentStyle);
+
+                                // 10. 0%对比值
+                                SetDoubleValue(dataRow, 9, Math.Round(result.Value0Percent, 3), contentStyle);
+
+                                // 11. 25%对比值
+                                SetDoubleValue(dataRow, 10, Math.Round(result.Value25Percent, 3), contentStyle);
+
+                                // 12. 50%对比值
+                                SetDoubleValue(dataRow, 11, Math.Round(result.Value50Percent, 3), contentStyle);
+
+                                // 13. 75%对比值
+                                SetDoubleValue(dataRow, 12, Math.Round(result.Value75Percent, 3), contentStyle);
+
+                                // 14. 100%对比值
+                                SetDoubleValue(dataRow, 13, Math.Round(result.Value100Percent, 3), contentStyle);
+
+                                // 15. 低低报反馈状态
+                                SetCellValue(dataRow, 14, result.LowLowAlarmStatus, contentStyle);
+
+                                // 16. 低报反馈状态
+                                SetCellValue(dataRow, 15, result.LowAlarmStatus, contentStyle);
+
+                                // 17. 高报反馈状态
+                                SetCellValue(dataRow, 16, result.HighAlarmStatus, contentStyle);
+
+                                // 18. 高高报反馈状态
+                                SetCellValue(dataRow, 17, result.HighHighAlarmStatus, contentStyle);
+
+                                // 19. 维护功能检测
+                                SetCellValue(dataRow, 18, result.MaintenanceFunction, contentStyle);
+
+                                // 20. 开始测试时间
+                                var testTimeStr = result.TestTime.HasValue
+                                    ? result.TestTime.Value.ToString("yyyy-MM-dd HH:mm:ss")
+                                    : "-";
+                                SetCellValue(dataRow, 19, testTimeStr, contentStyle);
+
+                                // 21. 最终测试时间
+                                var finalTestTimeStr = result.FinalTestTime.HasValue
+                                    ? result.FinalTestTime.Value.ToString("yyyy-MM-dd HH:mm:ss")
+                                    : "-";
+                                SetCellValue(dataRow, 20, finalTestTimeStr, contentStyle);
+
+                                // 22. 测试时长(秒)
+                                var durationCell = dataRow.CreateCell(21);
+                                TimeSpan usedTime = TimeSpan.FromSeconds(Math.Round(result.TotalTestDuration, 0));
+                                durationCell.SetCellValue($"{(int)usedTime.Hours:D2}小时{usedTime.Minutes:D2}分{usedTime.Seconds:D2}秒");
+                                durationCell.CellStyle = contentStyle;
+
+                                // 23. 通道硬点测试结果
+                                var resultCell = dataRow.CreateCell(22);
+                                resultCell.SetCellValue(result.HardPointTestResult ?? "未测试");
+
+                                if (!string.IsNullOrEmpty(result.HardPointTestResult) &&
+                                    (result.HardPointTestResult == "通过" || result.HardPointTestResult == "已通过"))
+                                {
+                                    resultCell.CellStyle = passedStyle;
+                                }
+                                else
+                                {
+                                    resultCell.CellStyle = failedStyle;
+                                }
+
+                                // 24. 测试结果
+                                SetCellValue(dataRow, 23, result.ResultText, contentStyle);
                             }
-                            
-                            // 24. 测试结果
-                            SetCellValue(dataRow, 23, result.ResultText, contentStyle);
                         }
                         
                         // 保存工作簿到文件
@@ -585,6 +685,7 @@ namespace FatFullVersion.Services
                 return false;
             }
         }
+
 
         /// <summary>
         /// 设置单元格值并应用样式
