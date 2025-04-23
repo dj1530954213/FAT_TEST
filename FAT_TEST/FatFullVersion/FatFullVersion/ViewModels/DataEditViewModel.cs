@@ -1493,6 +1493,7 @@ namespace FatFullVersion.ViewModels
                             // 更新接线确认按钮状态
                             IsWiringCompleteBtnEnabled = updatedSelectedBatch.Status == "未开始" ||
                                                          updatedSelectedBatch.Status == "测试中";
+                            //IsWiringCompleteBtnEnabled = true;
                         }
                     }
                     // 如果没有选中批次但有可用批次，选择第一个
@@ -1766,7 +1767,7 @@ namespace FatFullVersion.ViewModels
                         foreach (var channel in moduleChannels)
                         {
                             // 设置硬点测试结果为通过
-                            channel.HardPointTestResult = "通过";
+                            channel.HardPointTestResult = "跳过";
                             // 设置测试结果状态为通过(1)
                             channel.TestResultStatus = 1;
                             // 更新结果文本
@@ -1774,7 +1775,6 @@ namespace FatFullVersion.ViewModels
                         }
                     }
                 }
-
                 // 刷新批次状态
                 RefreshBatchStatus();
                 
@@ -1803,6 +1803,12 @@ namespace FatFullVersion.ViewModels
                 SkipReason = string.Empty;
 
                 MessageBox.Show("已成功跳过选中模块的测试", "操作成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                //需要手动激活一下否则导出测试结果按钮不能点击
+                if (SuccessPointCount.Replace("成功点位数量:","") == TotalPointCount.Replace("全部点位数量:",""))
+                {
+                    CanExportTestResults();
+                    ExportTestResultsCommand.RaiseCanExecuteChanged();
+                }
             }
             catch (Exception ex)
             {
@@ -1924,7 +1930,7 @@ namespace FatFullVersion.ViewModels
                 return;
 
             // 如果批次状态为未开始或者进行中，则启用接线确认按钮
-            IsWiringCompleteBtnEnabled = SelectedBatch.Status == "未开始" || SelectedBatch.Status == "进行中";
+            IsWiringCompleteBtnEnabled = SelectedBatch.Status == "未开始" || SelectedBatch.Status == "测试中";
             // 重置通道硬点自动测试按钮状态
             IsStartTestButtonEnabled = false;
 
@@ -2077,18 +2083,22 @@ namespace FatFullVersion.ViewModels
             {
                 var filteredChannels = SelectedChannelType switch
                 {
-                    "AI通道" => AllChannels.Where(c => c.ModuleType?.ToLower() == "ai" && c.TestBatch.Equals(SelectedBatch.BatchName)),
-                    "AO通道" => AllChannels.Where(c => c.ModuleType?.ToLower() == "ao" && c.TestBatch.Equals(SelectedBatch.BatchName)),
-                    "DI通道" => AllChannels.Where(c => c.ModuleType?.ToLower() == "di" && c.TestBatch.Equals(SelectedBatch.BatchName)),
-                    "DO通道" => AllChannels.Where(c => c.ModuleType?.ToLower() == "do" && c.TestBatch.Equals(SelectedBatch.BatchName)),
+                    "AI通道" => AllChannels.Where(c =>
+                        c.ModuleType?.ToLower() == "ai" && c.TestBatch.Equals(SelectedBatch.BatchName)),
+                    "AO通道" => AllChannels.Where(c =>
+                        c.ModuleType?.ToLower() == "ao" && c.TestBatch.Equals(SelectedBatch.BatchName)),
+                    "DI通道" => AllChannels.Where(c =>
+                        c.ModuleType?.ToLower() == "di" && c.TestBatch.Equals(SelectedBatch.BatchName)),
+                    "DO通道" => AllChannels.Where(c =>
+                        c.ModuleType?.ToLower() == "do" && c.TestBatch.Equals(SelectedBatch.BatchName)),
                     _ => Enumerable.Empty<ChannelMapping>()
                 };
 
                 CurrentChannels = new ObservableCollection<ChannelMapping>(filteredChannels);
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                System.Diagnostics.Debug.WriteLine($"更新当前通道失败: {ex.Message}");
+                
             }
         }
 
@@ -3109,6 +3119,12 @@ namespace FatFullVersion.ViewModels
                 _testTaskManager.CompleteAllTestsAsync();
 
                 // 通知导出测试结果按钮更新状态
+                ExportTestResultsCommand.RaiseCanExecuteChanged();
+            }
+            //如果成功点位为112则也可以导出
+            if (SuccessPointCount == TotalPointCount)
+            {
+                //成功点位
                 ExportTestResultsCommand.RaiseCanExecuteChanged();
             }
         }
@@ -4236,8 +4252,9 @@ namespace FatFullVersion.ViewModels
         private bool CanExportTestResults()
         {
             // 检查是否所有点位都已测试通过
-            return AllChannels != null && AllChannels.Any() &&
-                   _testResultExportService.AreAllTestsPassed(AllChannels);
+            bool result =AllChannels != null && AllChannels.Any() &&(
+                   _testResultExportService.AreAllTestsPassed(AllChannels) || SuccessPointCount.Replace("成功点位数量:", "") == TotalPointCount.Replace("全部点位数量:", ""));
+            return result;
         }
 
 

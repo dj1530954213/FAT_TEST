@@ -383,15 +383,15 @@ namespace FatFullVersion.Services
             
             try
             {
-                // 获取所有任务按类型分类
-                var aiTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "ai").ToList();
-                var aoTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "ao").ToList();
-                var diTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "di").ToList();
-                var doTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "do").ToList();
+                // 获取所有任务按类型分类(需要过滤掉已经跳过的点位)
+                var aiTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "ai" && !t.ChannelMapping.ResultText.Contains("跳过")).ToList();
+                var aoTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "ao" && !t.ChannelMapping.ResultText.Contains("跳过")).ToList();
+                var diTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "di" && !t.ChannelMapping.ResultText.Contains("跳过")).ToList();
+                var doTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "do" && !t.ChannelMapping.ResultText.Contains("跳过")).ToList();
 
-                // 设置所有通道的开始测试时间为当前时间
+                // 设置所有通道的开始测试时间为当前时间(需要过滤跳过的点位)
                 DateTime currentTime = DateTime.Now;
-                foreach (var task in _activeTasks.Values)
+                foreach (var task in _activeTasks.Values.Where(t=>!t.ChannelMapping.ResultText.Contains("跳过")))
                 {
                     if (task.ChannelMapping != null)
                     {
@@ -406,9 +406,9 @@ namespace FatFullVersion.Services
 
                 // 执行整个测试流程的所有步骤
                 await ExecuteSerialTestSequenceAsync(aiTasks, aoTasks, diTasks, doTasks, _masterCancellationTokenSource.Token);
-                
-                // 测试完成后，同步所有通道的测试结果
-                foreach (var task in _activeTasks.Values)
+
+                // 测试完成后，同步所有通道的测试结果(需要过滤跳过的点位)
+                foreach (var task in _activeTasks.Values.Where(t => !t.ChannelMapping.ResultText.Contains("跳过")))
                 {
                     SyncHardPointTestResult(task);
                 }
@@ -556,7 +556,7 @@ namespace FatFullVersion.Services
             
             // 20. 等待1000ms
             await UpdateProgressMessageAsync("步骤20: 短暂延时...");
-            await Task.Delay(5000, cancellationToken);
+            await Task.Delay(2000, cancellationToken);
             
             // 21. 测试结束，写入初始值
             await UpdateProgressMessageAsync("步骤21: 测试结束，复位所有点位...");

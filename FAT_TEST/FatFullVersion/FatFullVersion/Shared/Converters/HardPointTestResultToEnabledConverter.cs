@@ -23,7 +23,7 @@ namespace FatFullVersion.Shared.Converters
             if (value is string result)
             {
                 // 如果结果为空或包含"失败"字样，按钮禁用
-                return !string.IsNullOrEmpty(result) && !result.Contains("失败");
+                return !string.IsNullOrEmpty(result) && !result.Contains("失败") && !result.Contains("跳过");
             }
             // 默认禁用
             return false;

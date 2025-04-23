@@ -299,6 +299,7 @@
                         IsEnabled="{Binding IsWiringCompleteBtnEnabled}"
                         Style="{StaticResource MaterialDesignRaisedButton}"
                         ToolTip="完成接线确认" />
+                    <!---->
 
                     <Button
                         Grid.Column="6"
