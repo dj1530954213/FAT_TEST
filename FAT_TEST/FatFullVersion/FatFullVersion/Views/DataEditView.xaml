@@ -267,6 +267,18 @@
                         Height="40"
                         Margin="5,5"
                         Padding="10"
+                        Command="{Binding ExportChannelMapCommand}"
+                        Content="导出通道表"
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Style="{StaticResource MaterialDesignRaisedButton}"
+                        ToolTip="选择测试批次" />
+
+                    <Button
+                        Grid.Column="4"
+                        Height="40"
+                        Margin="5,5"
+                        Padding="10"
                         Command="{Binding FinishWiringCommand}"
                         Content="接线确认"
                         FontSize="16"
@@ -276,7 +288,7 @@
                         ToolTip="完成接线确认" />
 
                     <Button
-                        Grid.Column="4"
+                        Grid.Column="5"
                         Height="40"
                         Margin="5,5"
                         Padding="10"
@@ -289,7 +301,7 @@
                         ToolTip="开始测试" />
 
                     <Button
-                        Grid.Column="5"
+                        Grid.Column="6"
                         Height="40"
                         Margin="5,5"
                         Padding="10"

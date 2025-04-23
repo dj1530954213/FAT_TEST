@@ -320,6 +320,7 @@ namespace FatFullVersion.ViewModels
         public DelegateCommand ImportConfigCommand { get; private set; }
         public DelegateCommand RestoreConfigCommand { get; private set; }
         public DelegateCommand SelectBatchCommand { get; private set; }
+        public DelegateCommand ExportChannelMapCommand { get; private set; }
         public DelegateCommand FinishWiringCommand { get; private set; }
         public DelegateCommand StartTestCommand { get; private set; }
         public DelegateCommand<ChannelMapping> RetestCommand { get; private set; }
@@ -819,6 +820,7 @@ namespace FatFullVersion.ViewModels
             // 初始化命令
             ImportConfigCommand = new DelegateCommand(ImportConfig);
             SelectBatchCommand = new DelegateCommand(ExecuteSelectBatch);
+            ExportChannelMapCommand = new DelegateCommand(ExportChannelMap);
             FinishWiringCommand = new DelegateCommand(FinishWiring);
             StartTestCommand = new DelegateCommand(StartTest);
             RetestCommand = new DelegateCommand<ChannelMapping>(Retest);
@@ -984,6 +986,8 @@ namespace FatFullVersion.ViewModels
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
+                        StationName = point.StationName,
+                        VariableDescription = point.VariableDescription,
                         // 设置通道映射的其他属性
                         SLLSetValue = point.SLLSetValue,
                         SLLSetPointCommAddress = point.SLLSetPointCommAddress,
@@ -1046,6 +1050,8 @@ namespace FatFullVersion.ViewModels
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
+                        StationName = point.StationName,
+                        VariableDescription = point.VariableDescription,
                         // 设置通道映射的其他属性
                         SLLSetValue = point.SLLSetValue,
                         SLLSetValueNumber = point.SLLSetValueNumber,
@@ -1090,6 +1096,8 @@ namespace FatFullVersion.ViewModels
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
+                        StationName = point.StationName,
+                        VariableDescription = point.VariableDescription,
                         PlcCommunicationAddress = point.CommunicationAddress,
 
                         DataType = point.DataType,
@@ -1128,6 +1136,8 @@ namespace FatFullVersion.ViewModels
                         ChannelTag = point.ChannelTag,
                         VariableName = point.VariableName,
                         ModuleType = point.ModuleType,
+                        StationName = point.StationName,
+                        VariableDescription = point.VariableDescription,
                         PlcCommunicationAddress = point.CommunicationAddress,
 
                         DataType = point.DataType,
@@ -1411,6 +1421,47 @@ namespace FatFullVersion.ViewModels
             {
                 IsLoading = false;
                 StatusMessage = string.Empty;
+            }
+        }
+        /// <summary>
+        /// 导出通道映射
+        /// </summary>
+        private void ExportChannelMap()
+        {
+            try
+            {
+                IsLoading = true;
+                StatusMessage = "正在导出通道映射表...";
+
+                if (AllChannels == null || !AllChannels.Any())
+                {
+                    _messageService.ShowAsync("导出失败", "没有可导出的通道映射数据", MessageBoxButton.OK);
+                    return;
+                }
+
+                // 使用ITestResultExportService导出通道映射表
+                _testResultExportService.ExportChannelMapToExcelAsync(AllChannels)
+                    .ContinueWith(task =>
+                    {
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            if (task.Result)
+                            {
+                                StatusMessage = "通道映射表导出成功";
+                            }
+                            else
+                            {
+                                StatusMessage = "通道映射表导出失败";
+                            }
+                            IsLoading = false;
+                        });
+                    });
+            }
+            catch (Exception ex)
+            {
+                _messageService.ShowAsync("导出失败", $"导出通道映射表时发生错误: {ex.Message}", MessageBoxButton.OK);
+                StatusMessage = string.Empty;
+                IsLoading = false;
             }
         }
 
