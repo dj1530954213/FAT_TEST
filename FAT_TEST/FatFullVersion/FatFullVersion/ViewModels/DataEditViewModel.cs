@@ -440,6 +440,16 @@ namespace FatFullVersion.ViewModels
         public DelegateCommand<ChannelMapping> ConfirmAIMaintenanceCommand { get; private set; }
 
         /// <summary>
+        /// 确认AI趋势检查命令
+        /// </summary>
+        public DelegateCommand<ChannelMapping> ConfirmAITrendCheckCommand { get; private set; }
+
+        /// <summary>
+        /// 确认AI报表检查命令
+        /// </summary>
+        public DelegateCommand<ChannelMapping> ConfirmAIReportCheckCommand { get; private set; }
+
+        /// <summary>
         /// 发送DI测试命令
         /// </summary>
         public DelegateCommand<ChannelMapping> SendDITestCommand { get; private set; }
@@ -1022,6 +1032,10 @@ namespace FatFullVersion.ViewModels
             SendAIMaintenanceCommand = new DelegateCommand<ChannelMapping>(ExecuteSendAIMaintenance);
             ResetAIMaintenanceCommand = new DelegateCommand<ChannelMapping>(ExecuteResetAIMaintenance);
             ConfirmAIMaintenanceCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAIMaintenance);
+
+            // 添加新的命令初始化
+            ConfirmAITrendCheckCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAITrendCheck);
+            ConfirmAIReportCheckCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAIReportCheck);
 
 
             // DI手动测试命令
@@ -2917,7 +2931,10 @@ namespace FatFullVersion.ViewModels
                 if (channel.HighAlarmStatus != "通过" ||
                     channel.LowAlarmStatus != "通过" ||
                     channel.MaintenanceFunction != "通过" ||
-                    channel.ShowValueStatus != "通过")
+                    channel.ShowValueStatus != "通过" ||
+                    channel.AlarmValueSetStatus != "通过" ||
+                    channel.TrendCheck != "通过" ||
+                    channel.ReportCheck != "通过")
                 {
                     allPassed = false;
                 }
@@ -3001,8 +3018,9 @@ namespace FatFullVersion.ViewModels
                     channel.LowLowAlarmStatus != "通过" ||
                     channel.MaintenanceFunction != "通过" ||
                     channel.ShowValueStatus != "通过" ||
-                    channel.AlarmValueSetStatus != "通过"
-                    )
+                    channel.AlarmValueSetStatus != "通过" ||
+                    channel.TrendCheck != "通过" ||
+                    channel.ReportCheck != "通过")
                 {
                     allPassed = false;
                 }
@@ -3243,6 +3261,10 @@ namespace FatFullVersion.ViewModels
                         channel.LowLowAlarmStatus = "未测试";
                     if (channel.MaintenanceFunction != "通过")
                         channel.MaintenanceFunction = "未测试";
+                    if (channel.TrendCheck != "通过") // 新增：确保TrendCheck初始化
+                        channel.TrendCheck = "未测试";  // 新增
+                    if (channel.ReportCheck != "通过") // 新增：确保ReportCheck初始化
+                        channel.ReportCheck = "未测试"; // 新增
 
                     // 更新ResultText为手动测试中
                     if (channel.ShowValueStatus == "未测试"
@@ -3250,7 +3272,9 @@ namespace FatFullVersion.ViewModels
                        || channel.HighHighAlarmStatus == "未测试"
                        || channel.LowAlarmStatus == "未测试"
                        || channel.LowLowAlarmStatus == "未测试"
-                       || channel.MaintenanceFunction == "未测试")
+                       || channel.MaintenanceFunction == "未测试"
+                       || channel.TrendCheck == "未测试" // 新增：条件包含TrendCheck
+                       || channel.ReportCheck == "未测试") // 新增：条件包含ReportCheck
                     {
                         channel.ResultText = "手动测试中";
                     }
@@ -3711,6 +3735,64 @@ namespace FatFullVersion.ViewModels
             catch (Exception ex)
             {
                 MessageBox.Show($"确认AI维护功能失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 确认AI趋势检查
+        /// </summary>
+        /// <param name="channel">需要确认趋势检查的AI通道</param>
+        private void ExecuteConfirmAITrendCheck(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 更新通道的趋势检查状态为通过
+                    channel.TrendCheck = "通过";
+
+                    // 更新UI
+                    RaisePropertyChanged(nameof(CurrentChannel));
+
+                    // 检查所有子测试是否完成
+                    CheckAllSubTestsCompleted(channel);
+
+                    // 更新点位统计
+                    UpdatePointStatistics();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认AI趋势检查失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 确认AI报表检查
+        /// </summary>
+        /// <param name="channel">需要确认报表检查的AI通道</param>
+        private void ExecuteConfirmAIReportCheck(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 更新通道的报表检查状态为通过
+                    channel.ReportCheck = "通过";
+
+                    // 更新UI
+                    RaisePropertyChanged(nameof(CurrentChannel));
+
+                    // 检查所有子测试是否完成
+                    CheckAllSubTestsCompleted(channel);
+
+                    // 更新点位统计
+                    UpdatePointStatistics();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认AI报表检查失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         #endregion

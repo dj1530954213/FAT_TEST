@@ -836,6 +836,16 @@
                             Header="维护功能检测" />
                         <DataGridTextColumn
                             Width="Auto"
+                            MinWidth="50"
+                            Binding="{Binding TrendCheck}"
+                            Header="上位机趋势检查" />
+                        <DataGridTextColumn
+                            Width="Auto"
+                            MinWidth="50"
+                            Binding="{Binding ReportCheck}"
+                            Header="上位机报表检查" />
+                        <DataGridTextColumn
+                            Width="Auto"
                             MinWidth="150"
                             Binding="{Binding TestTime, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"
                             Header="开始测试时间" />
