@@ -122,11 +122,13 @@ namespace FatFullVersion.Services
                         sheet.SetColumnWidth(16, 15 * 256); // 高报反馈状态
                         sheet.SetColumnWidth(17, 15 * 256); // 高高报反馈状态
                         sheet.SetColumnWidth(18, 15 * 256); // 维护功能检测
-                        sheet.SetColumnWidth(19, 20 * 256); // 开始测试时间
-                        sheet.SetColumnWidth(20, 20 * 256); // 最终测试时间
-                        sheet.SetColumnWidth(21, 15 * 256); // 测试时长(秒)
-                        sheet.SetColumnWidth(22, 25 * 256); // 通道硬点测试结果
-                        sheet.SetColumnWidth(23, 25 * 256); // 测试结果
+                        sheet.SetColumnWidth(19, 15 * 256); // 趋势检查 (新)
+                        sheet.SetColumnWidth(20, 15 * 256); // 报表检查 (新)
+                        sheet.SetColumnWidth(21, 20 * 256); // 开始测试时间 (原19)
+                        sheet.SetColumnWidth(22, 20 * 256); // 最终测试时间 (原20)
+                        sheet.SetColumnWidth(23, 15 * 256); // 测试时长(秒) (原21)
+                        sheet.SetColumnWidth(24, 25 * 256); // 通道硬点测试结果 (原22)
+                        sheet.SetColumnWidth(25, 25 * 256); // 测试结果 (原23)
                         
                         // 创建标题行样式
                         var headerStyle = workbook.CreateCellStyle();
@@ -136,7 +138,6 @@ namespace FatFullVersion.Services
                         headerStyle.SetFont(headerFont);
                         headerStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
                         headerStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center;
-                        // 添加边框
                         headerStyle.BorderTop = BorderStyle.Thin;
                         headerStyle.BorderBottom = BorderStyle.Thin;
                         headerStyle.BorderLeft = BorderStyle.Thin;
@@ -146,18 +147,32 @@ namespace FatFullVersion.Services
                         var contentStyle = workbook.CreateCellStyle();
                         contentStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
                         contentStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center;
+                        contentStyle.BorderTop = BorderStyle.Thin;
+                        contentStyle.BorderBottom = BorderStyle.Thin;
+                        contentStyle.BorderLeft = BorderStyle.Thin;
+                        contentStyle.BorderRight = BorderStyle.Thin;
                         
                         // 创建通过状态样式
                         var passedStyle = workbook.CreateCellStyle();
                         passedStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
+                        passedStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center;
                         passedStyle.FillForegroundColor = IndexedColors.LightGreen.Index;
                         passedStyle.FillPattern = FillPattern.SolidForeground;
+                        passedStyle.BorderTop = BorderStyle.Thin;
+                        passedStyle.BorderBottom = BorderStyle.Thin;
+                        passedStyle.BorderLeft = BorderStyle.Thin;
+                        passedStyle.BorderRight = BorderStyle.Thin;
                         
                         // 创建失败状态样式
                         var failedStyle = workbook.CreateCellStyle();
                         failedStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
+                        failedStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center;
                         failedStyle.FillForegroundColor = IndexedColors.Rose.Index;
                         failedStyle.FillPattern = FillPattern.SolidForeground;
+                        failedStyle.BorderTop = BorderStyle.Thin;
+                        failedStyle.BorderBottom = BorderStyle.Thin;
+                        failedStyle.BorderLeft = BorderStyle.Thin;
+                        failedStyle.BorderRight = BorderStyle.Thin;
                         
                         // 创建标题行 - 按照DataEditView.xaml中的DataGrid列顺序
                         var headerRow = sheet.CreateRow(0);
@@ -166,7 +181,7 @@ namespace FatFullVersion.Services
                             "测试PLC通道位号", "被测PLC通道位号", "行程最小值", "行程最大值", 
                             "0%对比值", "25%对比值", "50%对比值", "75%对比值", "100%对比值", 
                             "低低报反馈状态", "低报反馈状态", "高报反馈状态", "高高报反馈状态", "维护功能检测", 
-                            "开始测试时间", "最终测试时间", "测试时长", "通道硬点测试结果", "测试结果" 
+                            "上位机趋势检查", "上位机报表检查", "开始测试时间", "最终测试时间", "测试时长", "通道硬点测试结果", "测试结果" 
                         };
                         
                         for (int i = 0; i < headers.Length; i++)
@@ -241,43 +256,32 @@ namespace FatFullVersion.Services
                             
                                 // 19. 维护功能检测
                                 SetCellValue(dataRow, 18, "未测试", contentStyle);
+
+                                // 20. 趋势检查 (新)
+                                SetCellValue(dataRow, 19, "未测试", contentStyle);
+
+                                // 21. 报表检查 (新)
+                                SetCellValue(dataRow, 20, "未测试", contentStyle);
                             
-                                // 20. 开始测试时间
-                                var testTimeStr = result.TestTime.HasValue 
+                                // 22. 开始测试时间 (原20)
+                                var testTimeStrSkipped = result.TestTime.HasValue 
                                     ? result.TestTime.Value.ToString("yyyy-MM-dd HH:mm:ss") 
                                     : "-";
-                                SetCellValue(dataRow, 19, "未测试", contentStyle);
+                                SetCellValue(dataRow, 21, "未测试", contentStyle);
                             
-                                // 21. 最终测试时间
-                                var finalTestTimeStr = result.FinalTestTime.HasValue 
+                                // 23. 最终测试时间 (原21)
+                                var finalTestTimeStrSkipped = result.FinalTestTime.HasValue 
                                     ? result.FinalTestTime.Value.ToString("yyyy-MM-dd HH:mm:ss") 
                                     : "-";
-                                SetCellValue(dataRow, 20, "未测试", contentStyle);
-
-                                // 22. 测试时长(秒)
-                                //var durationCell = dataRow.CreateCell(21);
-                                //TimeSpan usedTime = TimeSpan.FromSeconds(Math.Round(result.TotalTestDuration, 0));
-                                //durationCell.SetCellValue($"{(int)usedTime.Hours:D2}小时{usedTime.Minutes:D2}分{usedTime.Seconds:D2}秒");
-                                //durationCell.CellStyle = contentStyle;
-
-                                //// 23. 通道硬点测试结果
-                                //var resultCell = dataRow.CreateCell(22);
-                                //resultCell.SetCellValue(result.HardPointTestResult ?? "未测试");
-
-                                //if (!string.IsNullOrEmpty(result.HardPointTestResult) && 
-                                //    (result.HardPointTestResult == "通过" || result.HardPointTestResult == "已通过"))
-                                //{
-                                //    resultCell.CellStyle = passedStyle;
-                                //}
-                                //else
-                                //{
-                                //    resultCell.CellStyle = failedStyle;
-                                //}
-                                SetCellValue(dataRow, 21, "未测试", contentStyle);
                                 SetCellValue(dataRow, 22, "未测试", contentStyle);
 
-                                // 24. 测试结果
-                                SetCellValue(dataRow, 23, result.ResultText, contentStyle);
+                                // 24. 测试时长(秒) (原22)
+                                SetCellValue(dataRow, 23, "未测试", contentStyle);
+                                // 25. 通道硬点测试结果 (原23)
+                                SetCellValue(dataRow, 24, "未测试", contentStyle);
+
+                                // 26. 测试结果 (原24)
+                                SetCellValue(dataRow, 25, result.ResultText, contentStyle);
                             }
                             else
                             {
@@ -339,26 +343,32 @@ namespace FatFullVersion.Services
                                 // 19. 维护功能检测
                                 SetCellValue(dataRow, 18, result.MaintenanceFunction, contentStyle);
 
-                                // 20. 开始测试时间
+                                // 20. 趋势检查 (新)
+                                SetCellValue(dataRow, 19, result.TrendCheck, contentStyle);
+
+                                // 21. 报表检查 (新)
+                                SetCellValue(dataRow, 20, result.ReportCheck, contentStyle);
+
+                                // 22. 开始测试时间 (原20)
                                 var testTimeStr = result.TestTime.HasValue
                                     ? result.TestTime.Value.ToString("yyyy-MM-dd HH:mm:ss")
                                     : "-";
-                                SetCellValue(dataRow, 19, testTimeStr, contentStyle);
+                                SetCellValue(dataRow, 21, testTimeStr, contentStyle);
 
-                                // 21. 最终测试时间
+                                // 23. 最终测试时间 (原21)
                                 var finalTestTimeStr = result.FinalTestTime.HasValue
                                     ? result.FinalTestTime.Value.ToString("yyyy-MM-dd HH:mm:ss")
                                     : "-";
-                                SetCellValue(dataRow, 20, finalTestTimeStr, contentStyle);
+                                SetCellValue(dataRow, 22, finalTestTimeStr, contentStyle);
 
-                                // 22. 测试时长(秒)
-                                var durationCell = dataRow.CreateCell(21);
+                                // 24. 测试时长(秒) (原22)
+                                var durationCell = dataRow.CreateCell(23);
                                 TimeSpan usedTime = TimeSpan.FromSeconds(Math.Round(result.TotalTestDuration, 0));
                                 durationCell.SetCellValue($"{(int)usedTime.Hours:D2}小时{usedTime.Minutes:D2}分{usedTime.Seconds:D2}秒");
                                 durationCell.CellStyle = contentStyle;
 
-                                // 23. 通道硬点测试结果
-                                var resultCell = dataRow.CreateCell(22);
+                                // 25. 通道硬点测试结果 (原23)
+                                var resultCell = dataRow.CreateCell(24);
                                 resultCell.SetCellValue(result.HardPointTestResult ?? "未测试");
 
                                 if (!string.IsNullOrEmpty(result.HardPointTestResult) &&
@@ -371,8 +381,8 @@ namespace FatFullVersion.Services
                                     resultCell.CellStyle = failedStyle;
                                 }
 
-                                // 24. 测试结果
-                                SetCellValue(dataRow, 23, result.ResultText, contentStyle);
+                                // 26. 测试结果 (原24)
+                                SetCellValue(dataRow, 25, result.ResultText, contentStyle);
                             }
                         }
                         
@@ -476,7 +486,6 @@ namespace FatFullVersion.Services
                         headerStyle.SetFont(headerFont);
                         headerStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
                         headerStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center;
-                        // 添加边框
                         headerStyle.BorderTop = BorderStyle.Thin;
                         headerStyle.BorderBottom = BorderStyle.Thin;
                         headerStyle.BorderLeft = BorderStyle.Thin;
@@ -486,11 +495,32 @@ namespace FatFullVersion.Services
                         var contentStyle = workbook.CreateCellStyle();
                         contentStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
                         contentStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center;
-                        // 添加边框
                         contentStyle.BorderTop = BorderStyle.Thin;
                         contentStyle.BorderBottom = BorderStyle.Thin;
                         contentStyle.BorderLeft = BorderStyle.Thin;
                         contentStyle.BorderRight = BorderStyle.Thin;
+                        
+                        // 创建通过状态样式
+                        var passedStyle = workbook.CreateCellStyle();
+                        passedStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
+                        passedStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center;
+                        passedStyle.FillForegroundColor = IndexedColors.LightGreen.Index;
+                        passedStyle.FillPattern = FillPattern.SolidForeground;
+                        passedStyle.BorderTop = BorderStyle.Thin;
+                        passedStyle.BorderBottom = BorderStyle.Thin;
+                        passedStyle.BorderLeft = BorderStyle.Thin;
+                        passedStyle.BorderRight = BorderStyle.Thin;
+                        
+                        // 创建失败状态样式
+                        var failedStyle = workbook.CreateCellStyle();
+                        failedStyle.Alignment = NPOI.SS.UserModel.HorizontalAlignment.Center;
+                        failedStyle.VerticalAlignment = NPOI.SS.UserModel.VerticalAlignment.Center;
+                        failedStyle.FillForegroundColor = IndexedColors.Rose.Index;
+                        failedStyle.FillPattern = FillPattern.SolidForeground;
+                        failedStyle.BorderTop = BorderStyle.Thin;
+                        failedStyle.BorderBottom = BorderStyle.Thin;
+                        failedStyle.BorderLeft = BorderStyle.Thin;
+                        failedStyle.BorderRight = BorderStyle.Thin;
                         
                         // 创建标题行
                         var headerRow = sheet.CreateRow(0);

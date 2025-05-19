@@ -450,6 +450,16 @@ namespace FatFullVersion.ViewModels
         public DelegateCommand<ChannelMapping> ConfirmAIReportCheckCommand { get; private set; }
 
         /// <summary>
+        /// 确认AO趋势检查命令
+        /// </summary>
+        public DelegateCommand<ChannelMapping> ConfirmAOTrendCheckCommand { get; private set; }
+
+        /// <summary>
+        /// 确认AO报表检查命令
+        /// </summary>
+        public DelegateCommand<ChannelMapping> ConfirmAOReportCheckCommand { get; private set; }
+
+        /// <summary>
         /// 发送DI测试命令
         /// </summary>
         public DelegateCommand<ChannelMapping> SendDITestCommand { get; private set; }
@@ -1036,6 +1046,8 @@ namespace FatFullVersion.ViewModels
             // 添加新的命令初始化
             ConfirmAITrendCheckCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAITrendCheck);
             ConfirmAIReportCheckCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAIReportCheck);
+            ConfirmAOTrendCheckCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAOTrendCheck); // 新增AO趋势检查命令初始化
+            ConfirmAOReportCheckCommand = new DelegateCommand<ChannelMapping>(ExecuteConfirmAOReportCheck); // 新增AO报表检查命令初始化
 
 
             // DI手动测试命令
@@ -1311,7 +1323,9 @@ namespace FatFullVersion.ViewModels
                         LowAlarmStatus = "N/A",
                         HighAlarmStatus = "N/A",
                         HighHighAlarmStatus = "N/A",
-                        MaintenanceFunction = "N/A"
+                        MaintenanceFunction = "N/A",
+                        TrendCheck = "N/A",
+                        ReportCheck = "N/A",
                     };
                     AllChannels.Add(channel);
                 }
@@ -1352,7 +1366,9 @@ namespace FatFullVersion.ViewModels
                         LowAlarmStatus = "N/A",
                         HighAlarmStatus = "N/A",
                         HighHighAlarmStatus = "N/A",
-                        MaintenanceFunction = "N/A"
+                        MaintenanceFunction = "N/A",
+                        TrendCheck = "N/A",
+                        ReportCheck = "N/A",
                     };
                     AllChannels.Add(channel);
                 }
@@ -3052,12 +3068,41 @@ namespace FatFullVersion.ViewModels
                 RaisePropertyChanged(nameof(CurrentTestResult));
                 RaisePropertyChanged(nameof(AllChannels));
             }
+            else if (channel.ModuleType != null && channel.ModuleType.Contains("AO")) // AO 通道单独处理
+            {
+                // 对于AO通道，检查显示值、趋势和报表是否通过
+                if (channel.ShowValueStatus == "通过" && 
+                    channel.TrendCheck == "通过" && 
+                    channel.ReportCheck == "通过")
+                {
+                    // 如果都通过，设置总体测试状态为通过
+                    channel.HardPointTestResult = "通过";
+                    channel.TestResultStatus = 1; // 通过
+                    channel.Status = "通过"; // 更新总体状态
+                    channel.ResultText = "测试已通过"; // 更新结果文本
+
+                    // 设置最终测试时间为当前时间
+                    channel.FinalTestTime = DateTime.Now;
+
+                    //手动测试环节单点通过后数据入库
+                    await _testRecordService.SaveTestRecordAsync(channel);
+
+                    // 刷新批次状态
+                    RefreshBatchStatus();
+
+                    // 如果所有手动测试已完成，更新批次状态为已完成
+                    CheckAndCompleteAllTests();
+                }
+
+                // 更新UI
+                RaisePropertyChanged(nameof(CurrentTestResult));
+                RaisePropertyChanged(nameof(AllChannels));
+            }
             else if (channel.ModuleType != null &&
                     (channel.ModuleType.Contains("DI") ||
-                     channel.ModuleType.Contains("DO") ||
-                     channel.ModuleType.Contains("AO")))
+                     channel.ModuleType.Contains("DO"))) // DI/DO 逻辑保持不变
             {
-                // 对于DI/DO/AO通道，只需要检查显示值核对是否通过
+                // 对于DI/DO通道，只需要检查显示值核对是否通过
                 if (channel.ShowValueStatus == "通过")
                 {
                     // 如果显示值核对通过，设置总体测试状态为通过
@@ -3795,6 +3840,64 @@ namespace FatFullVersion.ViewModels
                 MessageBox.Show($"确认AI报表检查失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+        /// <summary>
+        /// 确认AO趋势检查
+        /// </summary>
+        /// <param name="channel">需要确认趋势检查的AO通道</param>
+        private void ExecuteConfirmAOTrendCheck(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 更新通道的趋势检查状态为通过
+                    channel.TrendCheck = "通过";
+
+                    // 更新UI
+                    RaisePropertyChanged(nameof(CurrentChannel));
+
+                    // 检查所有子测试是否完成
+                    CheckAllSubTestsCompleted(channel);
+
+                    // 更新点位统计
+                    UpdatePointStatistics();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认AO趋势检查失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 确认AO报表检查
+        /// </summary>
+        /// <param name="channel">需要确认报表检查的AO通道</param>
+        private void ExecuteConfirmAOReportCheck(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null)
+                {
+                    // 更新通道的报表检查状态为通过
+                    channel.ReportCheck = "通过";
+
+                    // 更新UI
+                    RaisePropertyChanged(nameof(CurrentChannel));
+
+                    // 检查所有子测试是否完成
+                    CheckAllSubTestsCompleted(channel);
+
+                    // 更新点位统计
+                    UpdatePointStatistics();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"确认AO报表检查失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
         #endregion
 
         #region 7、手动测试 - DI通道
@@ -3822,9 +3925,15 @@ namespace FatFullVersion.ViewModels
                     // 初始化测试状态
                     if (channel.ShowValueStatus != "通过")
                         channel.ShowValueStatus = "未测试";
+                    //if (channel.TrendCheck != "通过") // 新增：确保TrendCheck初始化
+                    //    channel.TrendCheck = "未测试";  // 新增
+                    //if (channel.ReportCheck != "通过") // 新增：确保ReportCheck初始化
+                    //    channel.ReportCheck = "未测试"; // 新增
 
                     // 更新ResultText为手动测试中
-                    if (channel.ShowValueStatus == "未测试")
+                    if (channel.ShowValueStatus == "未测试" ||
+                        channel.TrendCheck == "未测试" || // 新增：条件包含TrendCheck
+                        channel.ReportCheck == "未测试") // 新增：条件包含ReportCheck
                     {
                         channel.ResultText = "手动测试中";
                     }
@@ -3987,9 +4096,15 @@ namespace FatFullVersion.ViewModels
                     // 初始化测试状态
                     if (channel.ShowValueStatus != "通过")
                         channel.ShowValueStatus = "未测试";
+                    if (channel.TrendCheck != "通过") 
+                        channel.TrendCheck = "未测试";
+                    if (channel.ReportCheck != "通过") 
+                        channel.ReportCheck = "未测试";
 
                     // 更新ResultText为手动测试中
-                    if (channel.ShowValueStatus == "未测试")
+                    if (channel.ShowValueStatus == "未测试" ||
+                        channel.TrendCheck == "未测试" || 
+                        channel.ReportCheck == "未测试") 
                     {
                         channel.ResultText = "手动测试中";
                     }
