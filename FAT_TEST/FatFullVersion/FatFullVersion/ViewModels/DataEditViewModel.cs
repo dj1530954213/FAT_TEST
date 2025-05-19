@@ -24,6 +24,7 @@ using NPOI.SS.Formula.Functions;
 using static NPOI.POIFS.Crypt.CryptoFunctions;
 using static Org.BouncyCastle.Asn1.Cmp.Challenge;
 using FatFullVersion.Shared.Converters;
+using FatFullVersion.Views; // 确保引入Views命名空间
 
 namespace FatFullVersion.ViewModels
 {
@@ -4503,47 +4504,50 @@ namespace FatFullVersion.ViewModels
         {
             if (SelectedTestBatch == null)
             {
-                MessageBox.Show("请先选择一个测试批次", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Application.Current.MainWindow, "请先选择一个测试批次", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
+            bool wasPopupOpen = IsHistoryRecordsOpen;
             try
             {
-                // 显示确认对话框
-                var result = MessageBox.Show(
-                    $"确定要删除测试批次 {SelectedTestBatch.TestTag} 的所有记录吗？此操作不可恢复。",
-                    "确认删除",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
+                IsHistoryRecordsOpen = false; // 关闭 Popup
 
-                if (result == MessageBoxResult.Yes)
+                ConfirmDialogView confirmDialog = new ConfirmDialogView(
+                    $"确定要删除测试批次 {SelectedTestBatch.TestTag} 的所有记录吗？此操作不可恢复。",
+                    "确认删除");
+                confirmDialog.Owner = Application.Current.MainWindow;
+                bool? dialogResult = confirmDialog.ShowDialog();
+
+                if (dialogResult == true)
                 {
                     IsLoading = true;
                     StatusMessage = $"正在删除测试批次 {SelectedTestBatch.TestTag}...";
 
-                    // 删除测试批次
                     var success = await _testRecordService.DeleteTestBatchAsync(SelectedTestBatch.TestTag);
 
                     if (success)
                     {
-                        // 从列表中移除
                         TestBatches.Remove(SelectedTestBatch);
                         SelectedTestBatch = TestBatches.FirstOrDefault();
-
-                        MessageBox.Show("测试批次已成功删除", "删除成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                        MessageBox.Show(Application.Current.MainWindow, "测试批次已成功删除", "删除成功", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                     else
                     {
-                        MessageBox.Show("删除测试批次失败", "删除失败", MessageBoxButton.OK, MessageBoxImage.Error);
+                        MessageBox.Show(Application.Current.MainWindow, "删除测试批次失败", "删除失败", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"删除测试批次时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(Application.Current.MainWindow, $"删除测试批次时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
+                if (wasPopupOpen) // 尝试恢复Popup状态
+                {
+                    IsHistoryRecordsOpen = true;
+                }
                 IsLoading = false;
                 StatusMessage = string.Empty;
             }
@@ -4575,71 +4579,63 @@ namespace FatFullVersion.ViewModels
         {
             if (SelectedTestBatch == null)
             {
-                MessageBox.Show("请先选择一个测试批次", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(Application.Current.MainWindow, "请先选择一个测试批次", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
+            bool wasPopupOpen = IsHistoryRecordsOpen;
             try
             {
-                IsLoading = true;
-                StatusMessage = $"正在恢复测试记录 {SelectedTestBatch.TestTag}...";
+                IsHistoryRecordsOpen = false; // 关闭 Popup
 
-                // 显示确认对话框
-                var result = MessageBox.Show(
+                ConfirmDialogView confirmDialog = new ConfirmDialogView(
                     $"确定要恢复测试批次 {SelectedTestBatch.TestTag} 的记录吗？当前数据将被覆盖。",
-                    "确认恢复",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
+                    "确认恢复");
+                confirmDialog.Owner = Application.Current.MainWindow;
+                bool? dialogResult = confirmDialog.ShowDialog();
 
-                if (result == MessageBoxResult.Yes)
+                if (dialogResult == true)
                 {
-                    // 恢复测试记录
+                    IsLoading = true;
+                    StatusMessage = $"正在恢复测试记录 {SelectedTestBatch.TestTag}...";
                     var records = await _testRecordService.RestoreTestRecordsAsync(SelectedTestBatch.TestTag);
 
                     if (records != null && records.Any())
                     {
-                        // 清空当前的AllChannels和OriginalAllChannels集合避免回复的数据与此重叠导致数据错乱
-                        if (AllChannels is not null)
-                        {
-                            AllChannels.Clear();
-                        }
-
-                        if (OriginalAllChannels is not null)
-                        {
-                            OriginalAllChannels.Clear();
-                        }
-                        // 更新AllChannels集合，需要进行排序，否则排列顺序错乱
+                        if (AllChannels is not null) { AllChannels.Clear(); }
+                        if (OriginalAllChannels is not null) { OriginalAllChannels.Clear(); }
                         AllChannels = new ObservableCollection<ChannelMapping>(records.OrderBy(c => c.TestId));
-
-                        // 保存原始通道集合
-                        OriginalAllChannels = new ObservableCollection<ChannelMapping>(records.OrderBy(c=>c.TestId));
-
-                        // 更新批次信息
+                        OriginalAllChannels = new ObservableCollection<ChannelMapping>(records.OrderBy(c => c.TestId));
                         await UpdateBatchInfoAsync();
-
-                        // 更新点位统计数据
                         UpdatePointStatistics();
-
-                        // 关闭窗口
-                        IsHistoryRecordsOpen = false;
-
-                        MessageBox.Show($"已成功恢复 {records.Count} 条测试记录", "恢复成功", MessageBoxButton.OK,
-                            MessageBoxImage.Information);
+                        // IsHistoryRecordsOpen = false; // 由 finally 或后续逻辑决定是否恢复
+                        MessageBox.Show(Application.Current.MainWindow, $"已成功恢复 {records.Count} 条测试记录", "恢复成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                        // 成功恢复后，通常希望历史记录窗口保持关闭，所以不在这里恢复 wasPopupOpen
                     }
                     else
                     {
                         StatusMessage = $"测试记录恢复失败";
+                        if (wasPopupOpen) IsHistoryRecordsOpen = true; // 如果恢复失败，且原先是打开的，则重新打开
                     }
+                }
+                else // 用户取消了对话框
+                {
+                    if (wasPopupOpen) IsHistoryRecordsOpen = true;
                 }
             }
             catch (Exception ex)
             {
-                StatusMessage = $"复测失败: {ex.Message}";
-                System.Diagnostics.Debug.WriteLine($"复测失败: {ex.Message}");
+                StatusMessage = $"恢复测试记录时出错: {ex.Message}"; // 更正之前的日志文本
+                System.Diagnostics.Debug.WriteLine($"恢复测试记录时出错: {ex.Message}");
+                if (wasPopupOpen) IsHistoryRecordsOpen = true; // 出错时也尝试恢复Popup状态
             }
             finally
             {
+                // 如果是因为成功恢复而关闭，则 IsHistoryRecordsOpen 已经是 false
+                // 其他情况（取消、失败、异常），如果 wasPopupOpen 为 true，则已在 try/catch 中恢复
+                // 因此这里的 finally 主要负责 IsLoading 和 StatusMessage
                 IsLoading = false;
+                StatusMessage = string.Empty;
             }
         }
 

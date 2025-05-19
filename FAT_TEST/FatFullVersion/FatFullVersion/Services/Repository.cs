@@ -337,23 +337,20 @@ namespace FatFullVersion.Services
             {
                 if (string.IsNullOrEmpty(testTag))
                     return false;
-                
-                // 获取符合条件的记录
-                var records = await _context.ChannelMappings
-                    .Where(c => c.TestTag == testTag)
-                    .ToListAsync();
-                
-                if (!records.Any())
-                    return true; // 没有找到记录，视为成功
-                
-                // 删除所有符合条件的记录
-                _context.ChannelMappings.RemoveRange(records);
-                
-                return await _context.SaveChangesAsync() > 0;
+
+                // 构建参数化的SQL DELETE语句
+                // 假设表名为 ChannelMappings，如果您的表名不同，请在此处修改
+                var sql = "DELETE FROM ChannelMappings WHERE TestTag = {0}";
+
+                // 执行SQL语句
+                int affectedRows = await _context.Database.ExecuteSqlRawAsync(sql, testTag);
+
+                // 如果 affectedRows >= 0，表示命令成功执行（即使没有行被删除也是成功的）
+                return affectedRows >= 0;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"删除测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"使用SQL删除测试记录时出错: {ex.Message}", "数据库错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
         }
