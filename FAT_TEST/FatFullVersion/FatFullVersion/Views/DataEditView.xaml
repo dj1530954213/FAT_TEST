@@ -1225,7 +1225,7 @@
         <Popup
             x:Name="AIManualTestPopup"
             Width="500"
-            Height="870"
+            Height="1100"
             IsOpen="{Binding IsAIManualTestOpen, Mode=TwoWay}"
             Placement="Center"
             StaysOpen="True">
@@ -1484,6 +1484,40 @@
                                     Padding="16,8"
                                     Background="{Binding CurrentChannel.MaintenanceFunction, Converter={StaticResource AlarmStatusToColorConverter}}"
                                     Command="{Binding ConfirmAIMaintenanceCommand}"
+                                    CommandParameter="{Binding CurrentChannel}"
+                                    Content="确认通过"
+                                    Foreground="White" />
+                            </Grid>
+                        </GroupBox>
+
+                        <!--  第六区域：趋势检查  -->
+                        <GroupBox Margin="0,0,0,12" Header="趋势检查">
+                            <Grid Margin="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Button
+                                    Grid.Row="0"
+                                    Padding="16,8"
+                                    Background="{Binding CurrentChannel.TrendCheck, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                    Command="{Binding ConfirmAITrendCheckCommand}"
+                                    CommandParameter="{Binding CurrentChannel}"
+                                    Content="确认通过"
+                                    Foreground="White" />
+                            </Grid>
+                        </GroupBox>
+
+                        <!--  第七区域：报表检查  -->
+                        <GroupBox Margin="0,0,0,12" Header="报表检查">
+                            <Grid Margin="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Button
+                                    Grid.Row="0"
+                                    Padding="16,8"
+                                    Background="{Binding CurrentChannel.ReportCheck, Converter={StaticResource AlarmStatusToColorConverter}}"
+                                    Command="{Binding ConfirmAIReportCheckCommand}"
                                     CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
                                     Foreground="White" />

@@ -688,7 +688,33 @@ namespace FatFullVersion.Models
         /// 获取高高限值
         /// </summary>
         public float HighHighLimit => SHHSetValueNumber;
-        
+
+        #endregion
+
+        #region 上位机检查项
+
+        //TODO:添加上位机检查项相关属性
+
+        private string _trendCheck;
+        /// <summary>
+        /// 趋势检查
+        /// </summary>
+        public string TrendCheck
+        {
+            get { return _trendCheck; }
+            set { SetProperty(ref _trendCheck, value); }
+        }
+
+        private string _reportCheck;
+        /// <summary>
+        /// 报表检查
+        /// </summary>
+        public string ReportCheck
+        {
+            get { return _reportCheck; }
+            set { SetProperty(ref _reportCheck, value); }
+        }
+
         #endregion
 
         public string MonitorStatus { get; set; } = "未检测";

@@ -617,7 +617,9 @@ namespace FatFullVersion.Services
                         ErrorMessage = @ErrorMessage,
                         CurrentValue = @CurrentValue,
                         ShowValueStatus = @ShowValueStatus,
-                        AlarmValueSetStatus = @AlarmValueSetStatus
+                        AlarmValueSetStatus = @AlarmValueSetStatus,
+                        TrendCheck = @TrendCheck,
+                        ReportCheck = @ReportCheck
                     WHERE Id = @Id";
 
                     var parameters = CreateSqlParameters(record);
@@ -658,7 +660,8 @@ namespace FatFullVersion.Services
                         ExpectedValue, ActualValue, 
                         Value0Percent, Value25Percent, Value50Percent, Value75Percent, Value100Percent, 
                         LowLowAlarmStatus, LowAlarmStatus, HighAlarmStatus, HighHighAlarmStatus, 
-                        MaintenanceFunction, ErrorMessage, CurrentValue, ShowValueStatus, AlarmValueSetStatus
+                        MaintenanceFunction, ErrorMessage, CurrentValue, ShowValueStatus, AlarmValueSetStatus,
+                        TrendCheck, ReportCheck
                     ) VALUES (
                         @Id, @TestTag, @ModuleName, @ModuleType, @PowerSupplyType, 
                         @WireSystem, @Tag, @StationName, @VariableName, @VariableDescription, 
@@ -682,7 +685,8 @@ namespace FatFullVersion.Services
                         @ExpectedValue, @ActualValue, 
                         @Value0Percent, @Value25Percent, @Value50Percent, @Value75Percent, @Value100Percent, 
                         @LowLowAlarmStatus, @LowAlarmStatus, @HighAlarmStatus, @HighHighAlarmStatus, 
-                        @MaintenanceFunction, @ErrorMessage, @CurrentValue, @ShowValueStatus, @AlarmValueSetStatus
+                        @MaintenanceFunction, @ErrorMessage, @CurrentValue, @ShowValueStatus, @AlarmValueSetStatus,
+                        @TrendCheck, @ReportCheck
                     )";
 
                     var parameters = CreateSqlParameters(record);
@@ -803,7 +807,9 @@ namespace FatFullVersion.Services
                 { "@ErrorMessage", record.ErrorMessage ?? (object)DBNull.Value },
                 { "@CurrentValue", record.CurrentValue ?? (object)DBNull.Value },
                 { "@ShowValueStatus", record.ShowValueStatus ?? (object)DBNull.Value },
-                { "@AlarmValueSetStatus", record.AlarmValueSetStatus ?? (object)DBNull.Value }
+                { "@AlarmValueSetStatus", record.AlarmValueSetStatus ?? (object)DBNull.Value },
+                { "@TrendCheck", record.TrendCheck ?? (object)DBNull.Value },
+                { "@ReportCheck", record.ReportCheck ?? (object)DBNull.Value }
             };
         }
 
