@@ -1468,9 +1468,9 @@ namespace FatFullVersion.Services
         /// (示例方法) 根据导入的Excel数据创建并初始化ChannelMapping对象集合。
         /// 这个方法可能不存在，或者逻辑分散在DataEditViewModel中。
         /// </summary>
-        public async Task<ObservableCollection<ChannelMapping>> CreateAndInitializeChannelMappingsAsync(IEnumerable<ExcelPointData> importedData)
+        public async Task<IEnumerable<ChannelMapping>> CreateAndInitializeChannelMappingsAsync(IEnumerable<ExcelPointData> importedData)
         {
-            var allChannels = new ObservableCollection<ChannelMapping>();
+            var allChannels = new List<ChannelMapping>();
             if (importedData == null || !importedData.Any())
             {
                 return allChannels;
@@ -1491,10 +1491,9 @@ namespace FatFullVersion.Services
                 var channel = new ChannelMapping
                 {
                     // 基础属性映射
-                    Id = Guid.NewGuid(), // 确保每次创建都有新的GUID
-                    // TestId = pointData.TestId, // 如果Excel中的TestId保证唯一性，则直接使用
-                    TestId = $"TempID_{currentId++}", // 临时生成，确保唯一性，后续可优化
-                    TestTag = $"Import_{importTime:yyyyMMddHHmmss}", // 统一的测试标签前缀
+                    Id = Guid.NewGuid(),
+                    TestId = $"TempID_{currentId++}",
+                    TestTag = $"Import_{importTime:yyyyMMddHHmmss}",
                     ChannelTag = pointData.ChannelTag,
                     VariableName = pointData.VariableName,
                     ModuleType = pointData.ModuleType,
@@ -1502,30 +1501,19 @@ namespace FatFullVersion.Services
                     StationName = pointData.StationName,
                     VariableDescription = pointData.VariableDescription,
                     DataType = pointData.DataType,
-                    PlcCommunicationAddress = pointData.PlcCommunicationAddress, // 被测PLC通讯地址
+                    PlcCommunicationAddress = pointData.PlcCommunicationAddress,
                     WireSystem = pointData.WireSystem,
                     PowerSupplyType = pointData.PowerSupplyType,
-                    Status = "Imported", // 临时状态，将被InitializeChannelFromImport覆盖
-                    
-                    // 这些属性将由 InitializeChannelFromImport 方法根据 pointData 和业务规则设置
-                    // RangeLowerLimitValue, RangeUpperLimitValue,
-                    // SLLSetValueNumber, SLSetValueNumber, SHSetValueNumber, SHHSetValueNumber,
-                    // ExpectedValue, ActualValue, Deviation, DeviationPercent,
-                    // Value0Percent, Value25Percent, Value50Percent, Value75Percent, Value100Percent,
-                    // ... 其他数值和状态属性 ...
+                    Status = "Imported",
                 };
 
-                // 调用 IChannelStateManager 来初始化通道的业务状态
-                // 这里传入 pointData，以便 IChannelStateManager 可以访问Excel的原始值进行解析和状态初始化
+                // 调用 ChannelStateManager 初始化状态
                 _channelStateManager.InitializeChannelFromImport(channel, pointData, importTime);
-
+                
                 allChannels.Add(channel);
             }
-
-            // 可选：如果需要持久化这些新创建的通道，在这里调用仓储的保存方法
-            // await _repository.AddChannelMappingsAsync(allChannels);
-
-            return allChannels;
+            
+            return allChannels.OrderBy(c => c.TestId).ToList();
         }
 
         /// <summary>

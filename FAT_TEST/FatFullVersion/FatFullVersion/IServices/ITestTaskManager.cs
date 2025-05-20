@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using FatFullVersion.Models;
+// using FatFullVersion.ViewModels; // Add this if ViewModels.BatchInfo is used explicitly
 
 namespace FatFullVersion.IServices
 {
@@ -27,8 +28,9 @@ namespace FatFullVersion.IServices
         /// <summary>
         /// 启动所有测试任务
         /// </summary>
+        /// <param name="channelsToTest">需要测试的通道映射集合</param>
         /// <returns>操作是否成功</returns>
-        Task<bool> StartAllTasksAsync();
+        Task<bool> StartAllTasksAsync(IEnumerable<ChannelMapping> channelsToTest);
 
         /// <summary>
         /// 停止所有测试任务
@@ -91,11 +93,11 @@ namespace FatFullVersion.IServices
         /// <summary>
         /// 确认接线已完成，启用测试功能
         /// </summary>
-        /// <param name="batchInfo">批次信息</param>
-        /// <param name="autoStart">是否自动开始测试</param>
+        /// <param name="batchInfo">批次信息 (from ViewModels namespace)</param>
+        /// <param name="isConfirmed">是否确认完成</param>
         /// <param name="testMap">测试映射集合</param>
         /// <returns>确认操作是否成功</returns>
-        Task<bool> ConfirmWiringCompleteAsync(BatchInfo batchInfo, bool autoStart, IEnumerable<ChannelMapping> testMap);
+        Task<bool> ConfirmWiringCompleteAsync(FatFullVersion.ViewModels.BatchInfo batchInfo, bool isConfirmed, IEnumerable<ChannelMapping> testMap);
 
         /// <summary>
         /// 显示测试进度对话框
@@ -115,9 +117,9 @@ namespace FatFullVersion.IServices
         /// <summary>
         /// 对单个通道进行复测
         /// </summary>
-        /// <param name="channelMapping">需要复测的通道映射</param>
+        /// <param name="channelToRetest">需要复测的通道映射</param>
         /// <returns>操作是否成功</returns>
-        Task<bool> RetestChannelAsync(ChannelMapping channelMapping);
+        Task<bool> RetestChannelAsync(ChannelMapping channelToRetest);
 
         /// <summary>
         /// 启动所有测试任务（串行执行方式）

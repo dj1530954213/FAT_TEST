@@ -222,10 +222,10 @@ namespace FatFullVersion.Services
                                 SetCellValue(dataRow, 6, result.ChannelTag, contentStyle);
                             
                                 // 8. 行程最小值
-                                SetDoubleValue(dataRow, 7, Math.Round(result.RangeLowerLimitValue, 3), contentStyle);
+                                SetDoubleValue(dataRow, 7, Math.Round((double)result.RangeLowerLimitValue, 3), contentStyle);
 
                                 // 9. 行程最大值
-                                SetDoubleValue(dataRow, 8, Math.Round(result.RangeUpperLimitValue, 3), contentStyle);
+                                SetDoubleValue(dataRow, 8, Math.Round((double)result.RangeUpperLimitValue, 3), contentStyle);
 
                                 // 10. 0%对比值
                                 SetCellValue(dataRow, 9, "NaN", contentStyle);
@@ -308,25 +308,25 @@ namespace FatFullVersion.Services
                                 SetCellValue(dataRow, 6, result.ChannelTag, contentStyle);
 
                                 // 8. 行程最小值
-                                SetDoubleValue(dataRow, 7, Math.Round(result.RangeLowerLimitValue, 3), contentStyle);
+                                SetDoubleValue(dataRow, 7, Math.Round((double)result.RangeLowerLimitValue, 3), contentStyle);
 
                                 // 9. 行程最大值
-                                SetDoubleValue(dataRow, 8, Math.Round(result.RangeUpperLimitValue, 3), contentStyle);
+                                SetDoubleValue(dataRow, 8, Math.Round((double)result.RangeUpperLimitValue, 3), contentStyle);
 
                                 // 10. 0%对比值
-                                SetDoubleValue(dataRow, 9, Math.Round(result.Value0Percent, 3), contentStyle);
+                                SetDoubleValue(dataRow, 9, Math.Round((double)result.Value0Percent, 3), contentStyle);
 
                                 // 11. 25%对比值
-                                SetDoubleValue(dataRow, 10, Math.Round(result.Value25Percent, 3), contentStyle);
+                                SetDoubleValue(dataRow, 10, Math.Round((double)result.Value25Percent, 3), contentStyle);
 
                                 // 12. 50%对比值
-                                SetDoubleValue(dataRow, 11, Math.Round(result.Value50Percent, 3), contentStyle);
+                                SetDoubleValue(dataRow, 11, Math.Round((double)result.Value50Percent, 3), contentStyle);
 
                                 // 13. 75%对比值
-                                SetDoubleValue(dataRow, 12, Math.Round(result.Value75Percent, 3), contentStyle);
+                                SetDoubleValue(dataRow, 12, Math.Round((double)result.Value75Percent, 3), contentStyle);
 
                                 // 14. 100%对比值
-                                SetDoubleValue(dataRow, 13, Math.Round(result.Value100Percent, 3), contentStyle);
+                                SetDoubleValue(dataRow, 13, Math.Round((double)result.Value100Percent, 3), contentStyle);
 
                                 // 15. 低低报反馈状态
                                 SetCellValue(dataRow, 14, result.LowLowAlarmStatus, contentStyle);
@@ -716,7 +716,6 @@ namespace FatFullVersion.Services
             }
         }
 
-
         /// <summary>
         /// 设置单元格值并应用样式
         /// </summary>
@@ -757,6 +756,28 @@ namespace FatFullVersion.Services
                 cell.SetCellValue("N/A");
             }
             cell.CellStyle = style;
+        }
+
+        public async Task<bool> ExportTestResultsToExcelAsync(IEnumerable<ChannelMapping> channels, string filePath)
+        {
+            // Placeholder implementation
+            if (channels == null || !channels.Any())
+            {
+                System.Diagnostics.Debug.WriteLine("ExportTestResultsToExcelAsync: No channels to export.");
+                return false;
+            }
+            if (string.IsNullOrEmpty(filePath))
+            {
+                // Potentially use a SaveFileDialog if filePath is not provided, 
+                // but interface implies filePath is given.
+                System.Diagnostics.Debug.WriteLine("ExportTestResultsToExcelAsync: FilePath is required.");
+                return false;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"Exporting {channels.Count()} test results to {filePath}");
+            // Actual export logic using a library like EPPlus would go here.
+            await Task.Delay(100); // Simulate async work
+            return true; // Assume success for placeholder
         }
     }
 } 

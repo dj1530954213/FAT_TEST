@@ -62,8 +62,13 @@ namespace FatFullVersion.Services.ChannelTask
                     }
                 }
 
-                float minValue = ChannelMapping.RangeLowerLimitValue;
-                float maxValue = ChannelMapping.RangeUpperLimitValue;
+                if (!ChannelMapping.RangeLowerLimitValue.HasValue || !ChannelMapping.RangeUpperLimitValue.HasValue)
+                {
+                    detailedTestLog.AppendLine("量程上下限未在通道映射中正确设置。");
+                    return new HardPointTestRawResult(false, detailedTestLog.ToString());
+                }
+                float minValue = ChannelMapping.RangeLowerLimitValue.Value;
+                float maxValue = ChannelMapping.RangeUpperLimitValue.Value;
                 if (maxValue <= minValue)
                 {
                     detailedTestLog.AppendLine("量程设置无效（上限必须大于下限）。");
@@ -158,10 +163,11 @@ namespace FatFullVersion.Services.ChannelTask
             {
                 try
                 {
-                    var resetResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress.Substring(1), ChannelMapping.RangeLowerLimitValue);
-                    if (!resetResult.IsSuccess)
+                    float resetValue = ChannelMapping.RangeLowerLimitValue.HasValue ? ChannelMapping.RangeLowerLimitValue.Value : 0f;
+                    var resetResultFinal = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress.Substring(1), resetValue);
+                    if (!resetResultFinal.IsSuccess)
                     {
-                        detailedTestLog.AppendLine($"警告：测试PLC输出复位失败：{resetResult.ErrorMessage}");
+                        detailedTestLog.AppendLine($"警告：测试PLC输出复位失败：{resetResultFinal.ErrorMessage}");
                     }
                     else
                     {

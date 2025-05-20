@@ -11,9 +11,13 @@ using FatFullVersion.Models;
 using FatFullVersion.IServices;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Windows.Threading;
 using FatFullVersion.Entities;
 using FatFullVersion.Shared.Converters;
 using FatFullVersion.Views;
+using FatFullVersion.Services.Interfaces;
+using Prism.Events;
+using FatFullVersion.Events; // <-- 添加 using
 
 namespace FatFullVersion.ViewModels
 {
@@ -343,12 +347,6 @@ namespace FatFullVersion.ViewModels
         public DelegateCommand CancelBatchSelectionCommand { get; private set; }
         public DelegateCommand AllocateChannelsCommand { get; private set; }
         public DelegateCommand ClearChannelAllocationsCommand { get; private set; }
-
-        // 添加原始通道集合属性
-        private ObservableCollection<ChannelMapping> _originalAIChannels;
-        private ObservableCollection<ChannelMapping> _originalAOChannels;
-        private ObservableCollection<ChannelMapping> _originalDIChannels;
-        private ObservableCollection<ChannelMapping> _originalDOChannels;
 
         // 命令
         public DelegateCommand<ChannelMapping> OpenAIManualTestCommand { get; private set; }
@@ -867,8 +865,8 @@ namespace FatFullVersion.ViewModels
                         {
                             module.IsSelected = value;
                         }
-                    }
-                }
+                    } // Closes if (Modules != null)
+                } // Closes if (SetProperty(ref _selectAllModules, value))
             }
         }
 
@@ -927,6 +925,7 @@ namespace FatFullVersion.ViewModels
         /// <param name="targetPlc">目标PLC通信接口</param>
         /// <param name="testResultExportService">测试结果导出服务接口</param>
         /// <param name="testRecordService">测试记录服务接口</param>
+        /// <param name="messageService">消息服务接口</param>
         public DataEditViewModel(
             IPointDataService pointDataService,
             IChannelMappingService channelMappingService,
@@ -934,6 +933,7 @@ namespace FatFullVersion.ViewModels
             IEventAggregator eventAggregator,
             IPlcCommunication testPlc,
             IPlcCommunication targetPlc,
+            IMessageService messageService,
             ITestResultExportService testResultExportService,
             ITestRecordService testRecordService,
             IChannelStateManager channelStateManager
@@ -947,6 +947,7 @@ namespace FatFullVersion.ViewModels
             _targetPlc = targetPlc ?? throw new ArgumentNullException(nameof(targetPlc));
             _testResultExportService = testResultExportService;
             _testRecordService = testRecordService ?? throw new ArgumentNullException(nameof(testRecordService));
+            _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
             _channelStateManager = channelStateManager;
 
             // 初始化数据结构
@@ -1550,7 +1551,7 @@ namespace FatFullVersion.ViewModels
         /// <summary>
         /// 跳过选择的模块，不测试并添加备注项
         /// </summary>
-        private void SkipModule()
+        private async void SkipModule()
         {
             // 检查是否有可用通道
             if (AllChannels == null || !AllChannels.Any())
@@ -1646,7 +1647,8 @@ namespace FatFullVersion.ViewModels
             }
             catch (Exception ex)
             {
-                await _messageService.ShowAsync("错误", $"提取模块信息失败: {ex.Message}", MessageBoxButton.OK);
+                // 在非异步方法中无法使用 await，这里使用"弃元"方式触发对话框但不等待结果
+                _ = _messageService.ShowAsync("错误", $"提取模块信息失败: {ex.Message}", MessageBoxButton.OK);
             }
         }
 
@@ -1741,13 +1743,6 @@ namespace FatFullVersion.ViewModels
         {
             IsSkipModuleOpen = false;
             SkipReason = string.Empty;
-            }
-            //如果成功点位为112则也可以导出
-            if (SuccessPointCount == TotalPointCount)
-            {
-                //成功点位
-                ExportTestResultsCommand.RaiseCanExecuteChanged();
-            }
         }
 
         /// <summary>
@@ -1884,7 +1879,7 @@ namespace FatFullVersion.ViewModels
         /// <remarks>
         /// 该方法关闭AI通道的手动测试窗口，并清空当前选中的通道和测试结果。
         /// </remarks>
-        private void ExecuteCloseAIManualTest()
+        private async void ExecuteCloseAIManualTest()
         {
             try
             {
@@ -1906,7 +1901,7 @@ namespace FatFullVersion.ViewModels
             }
             catch (Exception ex)
             {
-                await _messageService.ShowAsync("错误", $"关闭AI手动测试窗口失败: {ex.Message}", MessageBoxButton.OK);
+                _ = _messageService.ShowAsync("错误", $"关闭AI手动测试窗口失败: {ex.Message}", MessageBoxButton.OK);
             }
         }
         /// <summary>
@@ -1980,9 +1975,16 @@ namespace FatFullVersion.ViewModels
         {
             try
             {
-                // 实现发送AI高报警测试信号的逻辑
-                // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.HighLimit) + 5f);
+                if (channel.HighLimit.HasValue)
+                {
+                    await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.HighLimit.Value) + 5f);
+                }
+                else
+                {
+                    // Optionally log or message that HighLimit is not set
+                    System.Diagnostics.Debug.WriteLine($"Cannot send AI High Alarm for {channel.VariableName}: HighLimit is null.");
+                    // await _messageService.ShowAsync("错误", $"通道 {channel.VariableName} 未配置高报警限值。", MessageBoxButton.OK);
+                }
             }
             catch (Exception ex)
             {
@@ -2004,9 +2006,15 @@ namespace FatFullVersion.ViewModels
         {
             try
             {
-                // 实现发送AI高报警测试信号的逻辑
-                // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.HighHighLimit) + 5f);
+                if (channel.HighHighLimit.HasValue)
+                {
+                    await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.HighHighLimit.Value) + 5f);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Cannot send AI High High Alarm for {channel.VariableName}: HighHighLimit is null.");
+                    // await _messageService.ShowAsync("错误", $"通道 {channel.VariableName} 未配置高高报警限值。", MessageBoxButton.OK);
+                }
             }
             catch (Exception ex)
             {
@@ -2088,9 +2096,14 @@ namespace FatFullVersion.ViewModels
         {
             try
             {
-                // 实现发送AI低报警测试信号的逻辑
-                // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.LowLimit) - 5f);
+                if (channel.LowLimit.HasValue)
+                {
+                    await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.LowLimit.Value) - 5f);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Cannot send AI Low Alarm for {channel.VariableName}: LowLimit is null.");
+                }
             }
             catch (Exception ex)
             {
@@ -2112,9 +2125,14 @@ namespace FatFullVersion.ViewModels
         {
             try
             {
-                // 实现发送AI低报警测试信号的逻辑
-                // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.LowLowLimit) - 5f);
+                if (channel.LowLowLimit.HasValue)
+                {
+                    await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), ChannelRangeConversion.RealValueToPercentage(channel, channel.LowLowLimit.Value) - 5f);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Cannot send AI Low Low Alarm for {channel.VariableName}: LowLowLimit is null.");
+                }
             }
             catch (Exception ex)
             {
@@ -2238,7 +2256,7 @@ namespace FatFullVersion.ViewModels
             }
             catch (Exception ex)
             {
-                await _messageService.ShowAsync("错误", $"关闭DI手动测试窗口失败: {ex.Message}", MessageBoxButton.OK);
+                _ = _messageService.ShowAsync("错误", $"关闭DI手动测试窗口失败: {ex.Message}", MessageBoxButton.OK);
             }
         }
         /// <summary>
@@ -2406,7 +2424,7 @@ namespace FatFullVersion.ViewModels
         /// <remarks>
         /// 该方法关闭AO通道的手动测试窗口，并清空当前选中的通道和测试结果。
         /// </remarks>
-        private void ExecuteCloseAOManualTest()
+        private async void ExecuteCloseAOManualTest()
         {
             try
             {
@@ -2684,30 +2702,6 @@ namespace FatFullVersion.ViewModels
 
         #endregion
 
-        /// <summary>
-        /// 确认接线完成后，启用测试按钮并准备测试环境
-        /// </summary>
-        /// <remarks>
-        /// 此方法已弃用。ConfirmWiringCompleteCommand 现在直接执行 FinishWiring 方法。
-        /// </remarks>
-        [Obsolete("此方法已弃用。ConfirmWiringCompleteCommand 现在直接执行 FinishWiring 方法。", true)]
-        private void ExecuteConfirmWiringComplete()
-        {
-            // 此方法的功能已由 FinishWiring 方法（通过 TestTaskManager）处理。
-            System.Diagnostics.Debug.WriteLine("[DEPRECATED] ExecuteConfirmWiringComplete called. This method should be removed or its command retargeted.");
-            // FinishWiring(); // 可以考虑调用，但更好的方式是直接绑定命令
-            return; 
-
-            // try
-            // {
-            //     // 原方法体 ...
-            // }
-            // catch (Exception ex)
-            // {
-            //     MessageBox.Show($"接线确认操作失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            // }
-        }
-
         private async void ExecuteAllocateChannels()
         {
             try
@@ -2881,6 +2875,590 @@ namespace FatFullVersion.ViewModels
                 StatusMessage = string.Empty;
             }
         }
+
+        /// <summary>
+        /// 启动测试
+        /// </summary>
+        /// <remarks>
+        /// 此方法用于启动测试，执行以下操作：
+        /// 1. 验证是否选择了测试批次
+        /// 2. 检查批次状态是否为"接线已确认"
+        /// 3. 筛选出状态为"等待测试"的通道
+        /// 4. 调用TestTaskManager启动测试
+        /// </remarks>
+        private async void StartTest()
+        {
+            try
+            {
+                IsLoading = true;
+                StatusMessage = "正在启动测试...";
+
+                if (SelectedBatch == null || string.IsNullOrEmpty(SelectedBatch.BatchName))
+                {
+                    await _messageService.ShowAsync("提示", "请先选择一个测试批次", MessageBoxButton.OK);
+                    return;
+                }
+
+                if (SelectedBatch.Status != "接线已确认")
+                {
+                    // await _messageService.ShowAsync("提示", $"批次 '{SelectedBatch.BatchName}' 的接线尚未确认, 或状态为 '{SelectedBatch.Status}', 不能开始测试。", MessageBoxButton.OK);
+                    return;
+                }
+
+                var channelsToTest = AllChannels
+                    .Where(c => c.TestBatch == SelectedBatch.BatchName && c.HardPointTestResult == "等待测试")
+                    .ToList();
+
+                if (!channelsToTest.Any())
+                {
+                    await _messageService.ShowAsync("提示", "当前批次没有需要测试的通道状态为等待测试", MessageBoxButton.OK);
+                    return;
+                }
+
+                // 调用TestTaskManager启动测试
+                // TestTaskManager内部会调用IChannelStateManager.BeginHardPointTest来更新通道状态，包括StartTime
+                await _testTaskManager.StartAllTasksAsync(channelsToTest);
+
+                // 移除VM中直接修改通道状态的逻辑
+                // foreach (var channel in channelsToTest)
+                // {
+                //     // channel.StartTime = DateTime.Now; // <<-- 已移除，由ChannelStateManager处理
+                //     // channel.TestResultStatus = 0; // 标记为测试中，或由ChannelStateManager处理
+                //     // channel.ResultText = "硬点测试中...";
+                // }
+
+                StatusMessage = $"批次 '{SelectedBatch.BatchName}' 的测试已启动。";
+                IsStartTestButtonEnabled = false; // 测试启动后，禁用开始按钮，直到当前测试完成或可进行其他操作
+                RefreshBatchStatus(); // 更新批次状态，可能会变为"测试中"
+                UpdatePointStatistics();
+                // ExportTestResultsCommand.RaiseCanExecuteChanged(); // 根据实际逻辑，测试开始后可能还不能导出
+            }
+            catch (Exception ex)
+            {
+                await _messageService.ShowAsync("错误", $"启动测试失败: {ex.Message}", MessageBoxButton.OK);
+                System.Diagnostics.Debug.WriteLine($"StartTest Error: {ex.Message}");
+            }
+            finally
+            {
+                IsLoading = false;
+                // StatusMessage = string.Empty; // 保留测试已启动的消息
+            }
+        }
+
+        /// <summary>
+        /// 重新测试
+        /// </summary>
+        /// <param name="channelToRetest">需要重新测试的通道</param>
+        /// <remarks>
+        /// 此方法用于重新测试，执行以下操作：
+        /// 1. 验证是否选择了测试批次
+        /// 2. 检查批次状态是否为"接线已确认"
+        /// 3. 筛选出状态为"等待测试"的通道
+        /// 4. 调用TestTaskManager进行重新测试
+        /// </remarks>
+        private async void Retest(ChannelMapping channelToRetest)
+        {
+            try
+            {
+                IsLoading = true;
+                StatusMessage = $"正在准备重新测试通道: {channelToRetest.VariableName}...";
+
+                // 调用TestTaskManager进行重新测试
+                // TestTaskManager内部会调用IChannelStateManager.ResetForRetest来重置通道状态
+                await _testTaskManager.RetestChannelAsync(channelToRetest);
+
+                // 移除VM中直接修改通道状态的逻辑
+                // channelToRetest.ResultText = "正在尝试重新测试..."; // <<-- 已移除，由ChannelStateManager处理
+                // channelToRetest.TestResultStatus = 0; // Reset status
+                // channelToRetest.HardPointTestResult = "未测试"; // Or "等待测试"
+                // // Reset all sub-test statuses etc. This is now ChannelStateManager's job.
+                // channelToRetest.FinalTestTime = null;
+
+                // UI 更新应通过事件机制（如OnChannelStatesModified）或在TestTaskManager调用后显式进行
+                // 此处仅设置一个临时状态消息
+                StatusMessage = $"通道: {channelToRetest.VariableName} 已准备重新测试。";
+
+                // RefreshBatchStatus(); // 状态已由CSM处理并通过事件更新
+                // UpdatePointStatistics();
+                // ExportTestResultsCommand.RaiseCanExecuteChanged();
+            }
+            catch (Exception ex)
+            {
+                await _messageService.ShowAsync("错误", $"重新测试失败: {ex.Message}", MessageBoxButton.OK);
+                 System.Diagnostics.Debug.WriteLine($"Retest Error: {ex.Message}");
+            }
+            finally
+            {
+                IsLoading = false;
+                // StatusMessage = string.Empty; // 保留重新测试准备消息
+            }
+        }
+
+        /// <summary>
+        /// 确认批次选择
+        /// </summary>
+        /// <remarks>
+        /// 此方法用于确认批次选择，执行以下操作：
+        /// 1. 验证是否选择了测试批次
+        /// 2. 应用选择的批次，筛选通道列表
+        /// 3. 更新AllChannels集合和原始通道集合
+        /// 4. 更新当前显示的通道列表
+        /// 5. 更新点位统计和批次状态
+        /// 6. 根据选定批次的状态，更新UI按钮的可用性
+        /// 7. 关闭批次选择弹窗
+        /// </remarks>
+        private async void ConfirmBatchSelection()
+        {
+            IsLoading = true;
+            StatusMessage = "正在确认批次选择...";
+            try
+            {
+                if (SelectedBatch == null)
+                {
+                    await _messageService.ShowAsync("提示", "请选择一个批次", MessageBoxButton.OK);
+                    return;
+                }
+
+                // 应用选择的批次，筛选通道列表
+                var channelsInSelectedBatch = OriginalAllChannels
+                    .Where(c => c.TestBatch == SelectedBatch.BatchName)
+                    .OrderBy(c => c.TestId) // 保持排序
+                    .ToList();
+
+                AllChannels = new ObservableCollection<ChannelMapping>(channelsInSelectedBatch);
+                UpdateCurrentChannels(); // 根据当前选择的通道类型（如AI, DI）进一步筛选
+                RaisePropertyChanged(nameof(AllChannels)); // 通知 AllChannels 可能已更改
+
+                // 更新点位统计和批次状态
+                UpdatePointStatistics(); // 基于新的 AllChannels 更新统计
+                RefreshBatchStatus();    // 刷新当前选中批次的状态显示
+
+                // 根据选定批次的状态，更新UI按钮的可用性
+                IsWiringCompleteBtnEnabled = (SelectedBatch.Status == "未开始" || SelectedBatch.Status == "测试中" || SelectedBatch.Status == "接线已确认");
+                
+                // "通道硬点自动测试" 按钮的启用逻辑：
+                // 1. 批次状态必须是 "接线已确认"
+                // 2. 且该批次中至少有一个通道的硬点测试结果是 "等待测试"
+                IsStartTestButtonEnabled = SelectedBatch.Status == "接线已确认" &&
+                                           AllChannels.Any(c => c.TestBatch == SelectedBatch.BatchName && c.HardPointTestResult == "等待测试");
+
+
+                // 之前在这里有一段逻辑，如果批次状态为 "未开始"，则将批次内所有通道状态更新为 "等待测试"
+                // 这段逻辑已移除，因为状态的变更（从未测试到等待测试）应该由 FinishWiring (接线完成) 动作触发，
+                // 并通过 TestTaskManager -> IChannelStateManager.PrepareForWiringConfirmation 来执行。
+                // 直接在选择批次时更改状态不符合流程。
+
+                IsBatchSelectionOpen = false; // 关闭批次选择弹窗
+                StatusMessage = $"已选择批次: {SelectedBatch.BatchName}";
+            }
+            catch (Exception ex)
+            {
+                await _messageService.ShowAsync("错误", $"确认批次选择失败: {ex.Message}", MessageBoxButton.OK);
+                System.Diagnostics.Debug.WriteLine($"ConfirmBatchSelection Error: {ex.Message}");
+            }
+            finally
+            {
+                IsLoading = false;
+                // StatusMessage = string.Empty; // 保留批次选择成功消息
+            }
+        }
+
+        #region Helper Methods (Placeholders for missing methods)
+
+        private void UpdateCurrentChannels()
+        {
+            // Placeholder: Logic to update CurrentChannels based on SelectedChannelType and AllChannels
+            // Example: CurrentChannels = new ObservableCollection<ChannelMapping>(AllChannels.Where(c => c.ModuleType == _selectedChannelType));
+            // This needs to be implemented based on actual filtering logic.
+            if (AllChannels == null) return;
+
+            IEnumerable<ChannelMapping> filteredChannels = new List<ChannelMapping>();
+            switch (SelectedChannelType)
+            {
+                case "AI通道":
+                    filteredChannels = GetAIChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    break;
+                case "AO通道":
+                    filteredChannels = GetAOChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    break;
+                case "DI通道":
+                    filteredChannels = GetDIChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    break;
+                case "DO通道":
+                    filteredChannels = GetDOChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    break;
+                case "AINone通道":
+                    filteredChannels = GetAINoneChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    break;
+                case "AONone通道":
+                    filteredChannels = GetAONoneChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    break;
+                case "DINone通道":
+                    filteredChannels = GetDINoneChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    break;
+                case "DONone通道":
+                    filteredChannels = GetDONoneChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    break;
+                default:
+                    filteredChannels = AllChannels ?? Enumerable.Empty<ChannelMapping>();
+                    break;
+            }
+            CurrentChannels = new ObservableCollection<ChannelMapping>(filteredChannels.OrderBy(c => c.TestId));
+            ApplyResultFilter(); // Ensure filtering by result is also applied
+        }
+
+        private void UpdatePointStatistics()
+        {
+            // Placeholder: Logic to update point count statistics
+            if (AllChannels == null)
+            {
+                TotalPointCount = "0";
+                TestedPointCount = "0";
+                WaitingPointCount = "0";
+                SuccessPointCount = "0";
+                FailurePointCount = "0";
+                return;
+            }
+
+            TotalPointCount = AllChannels.Count.ToString();
+            TestedPointCount = AllChannels.Count(c => c.TestResultStatus == 1 || c.TestResultStatus == 2 || c.TestResultStatus == 3).ToString(); // Pass, Fail, Skipped
+            WaitingPointCount = AllChannels.Count(c => c.HardPointTestResult == "等待测试" || (c.TestResultStatus == 0 && c.HardPointTestResult == "未测试")).ToString(); // Actual waiting or initial state
+            SuccessPointCount = AllChannels.Count(c => c.TestResultStatus == 1).ToString();
+            FailurePointCount = AllChannels.Count(c => c.TestResultStatus == 2).ToString();
+        }
+
+        private async Task RefreshBatchStatus() // Made async Task due to internal async calls
+        {
+            // Placeholder: Logic to refresh batch status information
+            // This might involve re-calculating status based on AllChannels
+            // and then updating the Batches collection or the SelectedBatch.
+            await UpdateBatchInfoAsync(); // This method was already present and seems relevant
+        }
+
+        private void OnBatchSelected()
+        {
+            // Placeholder: Logic for when a batch is selected.
+            // This might involve updating IsWiringCompleteBtnEnabled, IsStartTestButtonEnabled,
+            // and filtering channels based on the new SelectedBatch.
+            if (SelectedBatch == null) return;
+
+            var channelsInSelectedBatch = OriginalAllChannels? // Use OriginalAllChannels for complete list before filtering
+                .Where(c => c.TestBatch == SelectedBatch.BatchName)
+                .OrderBy(c => c.TestId)
+                .ToList();
+
+            if (channelsInSelectedBatch != null)
+            {
+                AllChannels = new ObservableCollection<ChannelMapping>(channelsInSelectedBatch);
+            }
+            else
+            {
+                AllChannels = new ObservableCollection<ChannelMapping>();
+            }
+            
+            UpdateCurrentChannels(); 
+            RaisePropertyChanged(nameof(AllChannels)); 
+            UpdatePointStatistics(); 
+            // RefreshBatchStatus(); // This will be called as part of UpdateBatchInfoAsync if needed, or directly
+
+            IsWiringCompleteBtnEnabled = (SelectedBatch.Status == "未开始" || SelectedBatch.Status == "测试中" || SelectedBatch.Status == "接线已确认");
+            IsStartTestButtonEnabled = SelectedBatch.Status == "接线已确认" &&
+                                       (AllChannels?.Any(c => c.TestBatch == SelectedBatch.BatchName && c.HardPointTestResult == "等待测试") ?? false);
+        }
+
+        private void ApplyResultFilter()
+        {
+            if (AllChannels == null) return;
+
+            // 1. 先根据结果过滤
+            IEnumerable<ChannelMapping> resultFiltered = SelectedResultFilter switch
+            {
+                "通过"   => AllChannels.Where(c => c.TestResultStatus == 1),
+                "失败"   => AllChannels.Where(c => c.TestResultStatus == 2),
+                "未测试" => AllChannels.Where(c => c.TestResultStatus == 0 || c.HardPointTestResult == "等待测试"),
+                "跳过"   => AllChannels.Where(c => c.TestResultStatus == 3),
+                _       => AllChannels
+            };
+
+            // 2. 再根据通道类型过滤（不改变 SelectedChannelType 属性，避免递归）
+            IEnumerable<ChannelMapping> finalList = SelectedChannelType switch
+            {
+                "AI通道"       => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "AI"),
+                "AO通道"       => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "AO"),
+                "DI通道"       => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "DI"),
+                "DO通道"       => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "DO"),
+                "AINone通道"   => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "AINONE"),
+                "AONone通道"   => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "AONONE"),
+                "DINone通道"   => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "DINONE"),
+                "DONone通道"   => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "DONONE"),
+                _               => resultFiltered
+            };
+
+            CurrentChannels = new ObservableCollection<ChannelMapping>(finalList.OrderBy(c => c.TestId));
+        }
+
+        private void FinishWiring() // Placeholder for DelegateCommand
+        {
+            // Logic for FinishWiring. According to doc, this should call TestTaskManager
+            // which in turn calls IChannelStateManager.PrepareForWiringConfirmation
+            if (SelectedBatch == null) 
+            {
+                _messageService.ShowAsync("提示", "请先选择一个批次进行接线确认。", MessageBoxButton.OK);
+                return;
+            }
+            // _testTaskManager.ConfirmWiringCompleteAsync(SelectedBatch.BatchName, DateTime.Now); // Old call
+            // Corrected call based on CS7036, assuming testMap is AllChannels filtered by SelectedBatch
+            var channelsInBatch = AllChannels?.Where(c => c.TestBatch == SelectedBatch.BatchName).ToList() ?? new List<ChannelMapping>();
+            _testTaskManager.ConfirmWiringCompleteAsync(SelectedBatch, true, channelsInBatch);
+
+            // UI updates (button states, batch status) should occur after state changes, potentially via events or direct calls in TestTaskManager response.
+            // For now, assuming TestTaskManager will trigger necessary events or DataEditViewModel will poll/refresh.
+            IsWiringCompleteBtnEnabled = false; // Disable after click, enable based on batch status
+            IsStartTestButtonEnabled = true; // Assuming wiring confirmed means test can start
+                                        // This should ideally be set based on actual batch/channel states after CSM updates.
+            RefreshBatchStatus(); // To update batch status in UI
+        }
+
+        private bool CanExecuteConfirmWiringComplete()
+        {
+            // Placeholder: Logic to determine if ConfirmWiringComplete can execute
+            return SelectedBatch != null && (SelectedBatch.Status == "未开始" || SelectedBatch.Status == "测试中");
+        }
+
+        private async void CancelBatchSelection() // Placeholder for DelegateCommand. Made async to align with potential ShowAsync calls.
+        {
+            IsBatchSelectionOpen = false;
+            // Potentially reset selected batch or other UI states if needed.
+        }
+
+        private async void ExportTestResults() // Placeholder. Made async to align with potential service calls.
+        {
+            /*
+            // Logic to export test results
+            if (AllChannels == null || !AllChannels.Any())
+            {
+                await _messageService.ShowAsync("导出失败", "没有可导出的测试结果数据", MessageBoxButton.OK);
+                return;
+            }
+
+            var completedChannels = AllChannels.Where(c => c.TestResultStatus == 1 || c.TestResultStatus == 2 || c.TestResultStatus == 3).ToList();
+            if (!completedChannels.Any())
+            {
+                 await _messageService.ShowAsync("导出提示", "没有已完成（通过、失败或跳过）的测试结果可导出。", MessageBoxButton.OK);
+                return;
+            }
+
+            // Example of calling the service
+            bool success = await _testResultExportService.ExportTestResultsToExcelAsync(completedChannels, $"TestResults_{SelectedBatch?.BatchName ?? ""All""}_{DateTime.Now:yyyyMMddHHmmss}.xlsx");
+            if (success)
+            {
+                await _messageService.ShowAsync("成功", "测试结果导出成功。", MessageBoxButton.OK);
+            }
+            else
+            {
+                await _messageService.ShowAsync("失败", "测试结果导出失败。", MessageBoxButton.OK);
+            }
+            */
+        }
+
+        private bool CanExportTestResults()
+        {
+            // Placeholder: Logic to determine if test results can be exported
+            // Example: return AllChannels != null && AllChannels.Any(c => c.TestResultStatus == 1 || c.TestResultStatus == 2);
+            return AllChannels != null && AllChannels.Any(c => c.TestResultStatus != 0);
+        }
+
+        // Placeholders for Manual Test command targets
+        private async void OpenDIManualTest(ChannelMapping channel) 
+        { 
+            if (channel != null && (channel.ModuleType?.ToLower() == "di" || channel.ModuleType?.ToLower() == "dinone"))
+            {
+                CurrentChannel = channel;
+                CurrentTestResult = channel;
+                _channelStateManager.BeginManualTest(channel); 
+                RaisePropertyChanged(nameof(CurrentChannel));
+                CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
+                UpdatePointStatistics();
+                RefreshBatchStatus(); 
+                ExportTestResultsCommand.RaiseCanExecuteChanged();
+                IsDIManualTestOpen = true; 
+                DICurrentValue = string.Empty;
+                // Add monitoring loop if needed, similar to AI/AO/DO
+            }
+            else
+            {
+                await _messageService.ShowAsync("错误", "所选通道不是有效的DI类型通道。", MessageBoxButton.OK);
+            }
+        }
+        private void ExecuteCloseDOManualTest() 
+        { 
+            IsDOManualTestOpen = false; 
+            if (CurrentChannel != null && CurrentChannel.ShowValueStatus == "通过")
+            {
+                _testTaskManager.CompleteAllTestsAsync();
+            }
+            RefreshBatchStatus();
+            UpdatePointStatistics();
+        }
+        private async void ExecuteSendAIMaintenance(ChannelMapping channel) 
+        { 
+            if (channel == null || string.IsNullOrEmpty(channel.MaintenanceEnableSwitchPointCommAddress))
+            {
+                await _messageService.ShowAsync("提示", "未配置AI维护使能开关点位地址。", MessageBoxButton.OK);
+                return;
+            }
+            try
+            {
+                await _targetPlc.WriteDigitalValueAsync(channel.MaintenanceEnableSwitchPointCommAddress, true);
+            }
+            catch (Exception ex)
+            {
+                await _messageService.ShowAsync("错误", $"发送AI维护使能信号失败: {ex.Message}", MessageBoxButton.OK);
+            }
+        } 
+        private async void ExecuteResetAIMaintenance(ChannelMapping channel) 
+        { 
+             if (channel == null || string.IsNullOrEmpty(channel.MaintenanceEnableSwitchPointCommAddress))
+            {
+                await _messageService.ShowAsync("提示", "未配置AI维护使能开关点位地址。", MessageBoxButton.OK);
+                return;
+            }
+            try
+            {
+                await _targetPlc.WriteDigitalValueAsync(channel.MaintenanceEnableSwitchPointCommAddress, false);
+            }
+            catch (Exception ex)
+            {
+                await _messageService.ShowAsync("错误", $"复位AI维护使能信号失败: {ex.Message}", MessageBoxButton.OK);
+            }
+        }
+        private void ExecuteConfirmAIMaintenance(ChannelMapping channel) 
+        { 
+            if (channel != null) 
+            {
+                _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.MaintenanceFunction, true, DateTime.Now);
+                RaisePropertyChanged(nameof(CurrentChannel));
+                CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
+                UpdatePointStatistics();
+                RefreshBatchStatus();
+                ExportTestResultsCommand.RaiseCanExecuteChanged();
+            }
+        }
+        private void ExecuteConfirmAITrendCheck(ChannelMapping channel) 
+        { 
+            if (channel != null) 
+            {
+                _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.TrendCheck, true, DateTime.Now);
+                RaisePropertyChanged(nameof(CurrentChannel));
+                CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
+                UpdatePointStatistics();
+                RefreshBatchStatus();
+                ExportTestResultsCommand.RaiseCanExecuteChanged();
+            }
+        }
+        private void ExecuteConfirmAIReportCheck(ChannelMapping channel) 
+        { 
+            if (channel != null) 
+            {
+                _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.ReportCheck, true, DateTime.Now);
+                RaisePropertyChanged(nameof(CurrentChannel));
+                CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
+                UpdatePointStatistics();
+                RefreshBatchStatus();
+                ExportTestResultsCommand.RaiseCanExecuteChanged();
+            }
+        }
+        private void ExecuteConfirmAOTrendCheck(ChannelMapping channel) 
+        { 
+            if (channel != null) 
+            {
+                _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.TrendCheck, true, DateTime.Now);
+                RaisePropertyChanged(nameof(CurrentChannel));
+                CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
+                UpdatePointStatistics();
+                RefreshBatchStatus();
+                ExportTestResultsCommand.RaiseCanExecuteChanged();
+            }
+        }
+        private void ExecuteConfirmAOReportCheck(ChannelMapping channel) 
+        { 
+            if (channel != null) 
+            {
+                _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.ReportCheck, true, DateTime.Now);
+                RaisePropertyChanged(nameof(CurrentChannel));
+                CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
+                UpdatePointStatistics();
+                RefreshBatchStatus();
+                ExportTestResultsCommand.RaiseCanExecuteChanged();
+            }
+        }
+        private async void ExecuteStartDOMonitor(ChannelMapping channel) 
+        { 
+            // Placeholder, similar to OpenDOManualTest internal loop if needed as separate command
+            if (channel != null && channel.ShowValueStatus != "通过")
+            {
+                CurrentChannel = channel;
+                CurrentTestResult = channel;
+                IsDOManualTestOpen = true; // Assuming this command implies the window is open or is part of it.
+                DOMonitorStatus = "停止监测";
+                while (IsDOManualTestOpen && CurrentChannel != null && CurrentChannel.Id == channel.Id && CurrentChannel.ShowValueStatus != "通过")
+                {
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(CurrentChannel.TestPLCCommunicationAddress))
+                        {
+                            var readResult = await _testPlc.ReadDigitalValueAsync(CurrentChannel.TestPLCCommunicationAddress.Substring(1));
+                            DOCurrentValue = readResult.IsSuccess ? (readResult.Data ? "ON" : "OFF") : "读取失败";
+                        }
+                        else { DOCurrentValue = "反馈点地址无效"; }
+                        await Task.Delay(500);
+                    }
+                    catch (Exception e)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"DO手动测试监控失败: {e.Message}");
+                        DOCurrentValue = "监控异常";
+                        break;
+                    }
+                }
+                DOMonitorStatus = "开始监测";
+                if (!IsDOManualTestOpen || CurrentChannel?.ShowValueStatus == "通过") // If window closed or test passed, clear value
+                {
+                    DOCurrentValue = string.Empty;
+                }
+            }
+        }
+        private void ExecuteConfirmDO(ChannelMapping channel) 
+        { 
+            if (channel != null) 
+            {
+                _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.ShowValue, true, DateTime.Now);
+                RaisePropertyChanged(nameof(CurrentChannel));
+                CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
+                UpdatePointStatistics();
+                RefreshBatchStatus();
+                ExportTestResultsCommand.RaiseCanExecuteChanged();
+            }
+        }
+
+        #endregion
+    }
+
+    public class ModuleInfo : Prism.Mvvm.BindableBase // Added BindableBase for IsSelected if UI bound
+    {
+        private string _moduleName;
+        public string ModuleName { get => _moduleName; set => SetProperty(ref _moduleName, value); }
+
+        private string _stationName; // Added StationName
+        public string StationName { get => _stationName; set => SetProperty(ref _stationName, value); }
+
+        private string _moduleType;
+        public string ModuleType { get => _moduleType; set => SetProperty(ref _moduleType, value); }
+
+        private int _channelCount;
+        public int ChannelCount { get => _channelCount; set => SetProperty(ref _channelCount, value); }
+
+        private bool _isSelected;
+        public bool IsSelected { get => _isSelected; set => SetProperty(ref _isSelected, value); }
     }
 
     // 批次信息类

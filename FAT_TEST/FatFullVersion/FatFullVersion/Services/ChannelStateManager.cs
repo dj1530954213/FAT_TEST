@@ -644,9 +644,9 @@ namespace FatFullVersion.Services
             // 保留当前状态，让后续逻辑决定是否覆盖。
             // bool currentOverallStatusIsTerminal = channel.TestResultStatus == 1 || channel.TestResultStatus == 2 || channel.TestResultStatus == 3;
 
-            bool allRequiredManualSubTestsPassed = true; // 标记所有必需的（非N/A）手动子测试项是否都已明确通过。
-            bool anyManualSubTestFailed = false;       // 标记是否有任何手动子测试项明确失败。
-            bool allManualSubTestsCompletedOrNA = true; // 标记是否所有相关的手动测试项都已完成（即不再是"未测试"状态，而是"通过"、"失败"或"N/A"）。
+            bool allRequiredManualSubTestsPassed = true; 
+            bool anyManualSubTestFailed = false;       
+            bool allManualSubTestsCompletedOrNA = true;
 
             string moduleTypeUpper = channel.ModuleType?.ToUpper();
 
@@ -684,17 +684,18 @@ namespace FatFullVersion.Services
                     foreach (var subTestStatus in aoSubTests)
                     {
                         if (subTestStatus == StatusFailed) { anyManualSubTestFailed = true; allRequiredManualSubTestsPassed = false; }
-                        else if (subTestStatus == StatusNotTested) { allManualTestsCompletedOrNA = false; allRequiredManualSubTestsPassed = false; }
+                        else if (subTestStatus == StatusNotTested) { allManualSubTestsCompletedOrNA = false; allRequiredManualSubTestsPassed = false; }
                         else if (subTestStatus != StatusPassed && subTestStatus != StatusNotApplicable) { allRequiredManualSubTestsPassed = false; }
                     }
                     break;
 
                 case "DI":
+                case "DINone":
                 case "DO":
+                case "DONone":
                     if (channel.ShowValueStatus == StatusFailed) { anyManualSubTestFailed = true; allRequiredManualSubTestsPassed = false; }
-                    else if (channel.ShowValueStatus == StatusNotTested) { allManualTestsCompletedOrNA = false; allRequiredManualSubTestsPassed = false; }
+                    else if (channel.ShowValueStatus == StatusNotTested) { allManualSubTestsCompletedOrNA = false; allRequiredManualSubTestsPassed = false; }
                     else if (channel.ShowValueStatus != StatusPassed && channel.ShowValueStatus != StatusNotApplicable) { allRequiredManualSubTestsPassed = false; }
-                    // DI/DO 通常只有 ShowValueStatus 作为主要子测试项，其他默认为 N/A。
                     break;
                 
                 default: // 其他未知或无特定子测试逻辑的模块类型
@@ -752,7 +753,7 @@ namespace FatFullVersion.Services
             }
 
 
-            if ((strictHardPointPassed || hardPointNotRequiredOrNA) && allRequiredManualSubTestsPassed && allManualTestsCompletedOrNA)
+            if ((strictHardPointPassed || hardPointNotRequiredOrNA) && allRequiredManualSubTestsPassed && allManualSubTestsCompletedOrNA)
             {
                 channel.TestResultStatus = 1; // 通过
                 channel.ResultText = "测试已通过";
@@ -770,7 +771,7 @@ namespace FatFullVersion.Services
                 return;
             }
             // 如果手动测试项有未完成的 (不是Pass/Fail/NA，即还是NotTested)
-            if (!allManualTestsCompletedOrNA && !anyManualSubTestFailed) 
+            if (!allManualSubTestsCompletedOrNA && !anyManualSubTestFailed) 
             {
                 channel.TestResultStatus = 0; // 未完成/测试中
                 channel.ResultText = StatusManualTesting; 
@@ -783,19 +784,19 @@ namespace FatFullVersion.Services
             // 此时 TestResultStatus 保持或设为 0。
             // ResultText 应反映当前所处的阶段。
             channel.TestResultStatus = 0; // 明确是未完成状态
-            if ((strictHardPointPassed || hardPointNotRequiredOrNA) && !allManualTestsCompletedOrNA)
+            if ((strictHardPointPassed || hardPointNotRequiredOrNA) && !allManualSubTestsCompletedOrNA)
             {
                 channel.ResultText = $"{StatusHardPointPassed}, 等待{StatusManualTesting}";
             }
-            else if (channel.HardPointTestResult == StatusNotTested && !allManualTestsCompletedOrNA)
+            else if (channel.HardPointTestResult == StatusNotTested && !allManualSubTestsCompletedOrNA)
             {
                 channel.ResultText = StatusManualTesting; // 假设可以直接开始手动测试
             }
-            else if (channel.HardPointTestResult == StatusNotTested && allManualTestsCompletedOrNA && !allRequiredManualSubTestsPassed)
+            else if (channel.HardPointTestResult == StatusNotTested && allManualSubTestsCompletedOrNA && !allRequiredManualSubTestsPassed)
             {
                 // 硬点未测，手动项已完成但并非全部通过（也非全部失败，否则前面已返回）
                 // 这种情况理论上不应发生，因为 allRequiredManualSubTestsPassed 为 false 意味着有非通过非NA项
-                // 或者是 allManualTestsCompletedOrNA 为false (有未测试项）
+                // 或者是 allManualSubTestsCompletedOrNA 为false (有未测试项）
                 // 这里更像是状态不一致，应倾向于标记为测试中或根据未通过项标记失败。
                 // 为安全起见，标记为测试中。
                 channel.ResultText = StatusTesting; 

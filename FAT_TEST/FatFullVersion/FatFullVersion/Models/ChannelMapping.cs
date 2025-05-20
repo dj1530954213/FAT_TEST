@@ -171,15 +171,13 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _rangeLowerLimit, value); }
         }
         
-        private float _rangeLowerLimitValue;
+        private float? _rangeLowerLimitValue;
         /// <summary>
-        /// 量程低限数值 (AI/AO必填，统一为float)
+        /// 量程低限数值 (AI/AO必填，统一为float?)
         /// </summary>
-        public float RangeLowerLimitValue
+        public float? RangeLowerLimitValue
         {
             get { return _rangeLowerLimitValue; }
-            // 对于DI/DO，DataEditViewModel 初始化时设为 float.NaN，维持此行为或改为 float? 并设为 null
-            // 考虑到InitializeChannelFromImport中可以根据ModuleType处理，此处维持float，由初始化逻辑保证其值对DI/DO的特殊性
             set { SetProperty(ref _rangeLowerLimitValue, value); }
         }
         
@@ -193,14 +191,13 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _rangeUpperLimit, value); }
         }
         
-        private float _rangeUpperLimitValue;
+        private float? _rangeUpperLimitValue;
         /// <summary>
-        /// 量程高限数值 (AI/AO必填，统一为float)
+        /// 量程高限数值 (AI/AO必填，统一为float?)
         /// </summary>
-        public float RangeUpperLimitValue
+        public float? RangeUpperLimitValue
         {
             get { return _rangeUpperLimitValue; }
-            // 同上
             set { SetProperty(ref _rangeUpperLimitValue, value); }
         }
         
@@ -724,11 +721,11 @@ namespace FatFullVersion.Models
 
         #region 测试相关字段
 
-        private int _testId;
+        private string _testId;
         /// <summary>
-        /// 测试序号
+        /// 测试序号 (现在是字符串类型)
         /// </summary>
-        public int TestId
+        public string TestId
         {
             get { return _testId; }
             set { SetProperty(ref _testId, value); }
@@ -784,7 +781,6 @@ namespace FatFullVersion.Models
             set 
             { 
                 SetProperty(ref _finalTestTime, value);
-                // 当最终测试时间设置时，自动计算总测试持续时间
                 RaisePropertyChanged(nameof(TotalTestDuration));
             }
         }
@@ -799,29 +795,24 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _status, value); }
         }
 
-        private DateTime _startTime;
+        private DateTime? _startTime;
         /// <summary>
         /// 测试开始时间
         /// </summary>
-        public DateTime StartTime
+        public DateTime? StartTime
         {
             get { return _startTime; }
-            set { SetProperty(ref _startTime, value); }
+            set { SetProperty(ref _startTime, value); RaisePropertyChanged(nameof(TestDuration)); RaisePropertyChanged(nameof(TotalTestDuration)); }
         }
 
-        private DateTime _endTime;
+        private DateTime? _endTime;
         /// <summary>
         /// 测试结束时间
         /// </summary>
-        public DateTime EndTime
+        public DateTime? EndTime
         {
             get { return _endTime; }
-            set 
-            { 
-                SetProperty(ref _endTime, value);
-                // 当结束时间设置时，自动计算测试持续时间
-                RaisePropertyChanged(nameof(TestDuration));
-            }
+            set { SetProperty(ref _endTime, value); RaisePropertyChanged(nameof(TestDuration)); }
         }
 
         /// <summary>
@@ -831,9 +822,10 @@ namespace FatFullVersion.Models
         {
             get
             {
-                if (_endTime > DateTime.MinValue && _startTime > DateTime.MinValue)
+                if (_startTime.HasValue && _endTime.HasValue)
                 {
-                    return (_endTime - _startTime).TotalSeconds;
+                    TimeSpan duration = _endTime.Value - _startTime.Value;
+                    return duration.TotalSeconds;
                 }
                 return 0;
             }
@@ -846,9 +838,10 @@ namespace FatFullVersion.Models
         {
             get
             {
-                if (_finalTestTime.HasValue && _startTime > DateTime.MinValue)
+                if (_finalTestTime.HasValue && _startTime.HasValue)
                 {
-                    return (_finalTestTime.Value - _startTime).TotalSeconds;
+                    TimeSpan duration = _finalTestTime.Value - _startTime.Value;
+                    return duration.TotalSeconds;
                 }
                 return 0;
             }

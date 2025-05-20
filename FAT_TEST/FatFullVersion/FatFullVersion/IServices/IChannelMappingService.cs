@@ -181,5 +181,12 @@ namespace FatFullVersion.IServices
         /// <param name="channels">需要清除分配信息的通道集合</param>
         /// <returns>清除分配信息后的通道集合</returns>
         Task<IEnumerable<ChannelMapping>> ClearAllChannelAllocationsAsync(IEnumerable<ChannelMapping> channels);
+
+        /// <summary>
+        /// 创建并初始化通道映射
+        /// </summary>
+        /// <param name="pointDataList">点数据列表</param>
+        /// <returns>创建的通道映射集合</returns>
+        Task<IEnumerable<ChannelMapping>> CreateAndInitializeChannelMappingsAsync(IEnumerable<ExcelPointData> pointDataList);
     }
 }

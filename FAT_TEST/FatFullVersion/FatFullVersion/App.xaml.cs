@@ -84,6 +84,8 @@ namespace FatFullVersion
 
                 // 注册通道状态管理器
                 containerRegistry.RegisterSingleton<IChannelStateManager, ChannelStateManager>();
+                // 额外以 serviceKey 方式注册，便于通过 ResolveNamed 获取
+                container.RegisterDelegate<IChannelStateManager>(r => r.Resolve<IChannelStateManager>(), serviceKey: "ChannelStateManager");
 
                 // 初始化数据库数据
                 try

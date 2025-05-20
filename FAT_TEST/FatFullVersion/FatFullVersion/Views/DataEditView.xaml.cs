@@ -28,6 +28,7 @@ namespace FatFullVersion.Views
         private readonly IMessageService _messageService;
         private readonly ITestResultExportService _testResultExportService;
         private readonly ITestRecordService _testRecordService;
+        private readonly IChannelStateManager _channelStateManager;
 
         /// <summary>
         /// 构造函数
@@ -61,6 +62,7 @@ namespace FatFullVersion.Views
             _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
             _testResultExportService = testResultExportService;
             _testRecordService = testRecordService ?? throw new ArgumentNullException(nameof(testRecordService));
+            _channelStateManager = serviceLocator.ResolveNamed<IChannelStateManager>("ChannelStateManager") ?? serviceLocator.ResolveNamed<IChannelStateManager>(string.Empty);
 
             try
             {
@@ -77,8 +79,10 @@ namespace FatFullVersion.Views
                         _eventAggregator,
                         _testPlc,
                         _targetPlc,
+                        _messageService,
                         _testResultExportService,
-                        _testRecordService
+                        _testRecordService,
+                        _channelStateManager
                         );
                 }
                 

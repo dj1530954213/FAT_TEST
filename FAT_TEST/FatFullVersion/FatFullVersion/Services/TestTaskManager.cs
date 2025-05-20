@@ -18,6 +18,7 @@ using System.Windows.Media;
 using MaterialDesignThemes.Wpf;
 using Prism.Events;
 using FatFullVersion.Events;
+using FatFullVersion.ViewModels;
 
 namespace FatFullVersion.Services
 {
@@ -38,7 +39,7 @@ namespace FatFullVersion.Services
         private CancellationTokenSource _masterCancellationTokenSource;
         private readonly SemaphoreSlim _semaphore;
         private bool _isWiringCompleted;
-        private BatchInfo _currentBatch;
+        private FatFullVersion.ViewModels.BatchInfo _currentBatch;
         private Window _progressDialog;
         private readonly object _dialogLock = new object();
         private bool _isRunning;
@@ -152,7 +153,7 @@ namespace FatFullVersion.Services
         /// <summary>
         /// 确认接线完成，准备通道状态，并可选择是否自动开始测试。
         /// </summary>
-        public async Task<bool> ConfirmWiringCompleteAsync(BatchInfo batchInfo, bool autoStart, IEnumerable<ChannelMapping> allChannelsInProject)
+        public async Task<bool> ConfirmWiringCompleteAsync(FatFullVersion.ViewModels.BatchInfo batchInfo, bool isConfirmed, IEnumerable<ChannelMapping> testMap)
         {
             if (batchInfo == null) 
             {
@@ -172,7 +173,7 @@ namespace FatFullVersion.Services
             }
 
             _isWiringCompleted = true;
-            var channelMappingsInBatch = allChannelsInProject.Where(c => c.TestBatch?.Equals(_currentBatch.BatchName) == true).ToList();
+            var channelMappingsInBatch = testMap.Where(c => c.TestBatch?.Equals(_currentBatch.BatchName) == true).ToList();
 
             if (!channelMappingsInBatch.Any())
             {
@@ -203,17 +204,9 @@ namespace FatFullVersion.Services
             await ClearAllTasksAsyncInternal(); 
             await CreateTestTasksAsync(channelMappingsInBatch.Where(c => c.TestResultStatus != 3)); 
 
-            if (autoStart)
+            if (isConfirmed && _activeTasks.Any())
             {
-                if (_activeTasks.Any())
-                {
-                    return await StartAllTasksAsync(); 
-                }
-                else
-                {
-                    await _messageService.ShowAsync("提示", "自动开始测试：当前批次没有可执行的测试任务（可能所有任务均被跳过或已完成）。", MessageBoxButton.OK);
-                    return true; 
-                }
+                return await StartAllTasksAsync(channelMappingsInBatch.Where(c => c.TestResultStatus != 3 && _activeTasks.ContainsKey(c.Id.ToString())).ToList()); 
             }
             return true;
         }
@@ -306,7 +299,7 @@ namespace FatFullVersion.Services
         /// 并发启动并执行所有活动的、未跳过的测试任务，受信号量控制并发数。
         /// </summary>
         /// <returns>如果所有任务都无中断地启动，则为true；否则为false。</returns>
-        public async Task<bool> StartAllTasksAsync() 
+        public async Task<bool> StartAllTasksAsync(IEnumerable<ChannelMapping> channelsToTest)
         {
             if (_isRunning) 
             {
@@ -323,10 +316,18 @@ namespace FatFullVersion.Services
             _masterCancellationTokenSource = new CancellationTokenSource();
             _isRunning = true;
 
-            var tasksToRun = _activeTasks.Values
-                                    .Where(t => t.ChannelMapping != null && t.ChannelMapping.TestResultStatus != 3)
-                                    .OrderBy(t => t.ChannelMapping.TestId)
-                                    .ToList();
+            var tasksToRun = new List<TestTask>();
+            if (channelsToTest != null)
+            {
+                foreach (var cm in channelsToTest)
+                {
+                    if (_activeTasks.TryGetValue(cm.Id.ToString(), out var task) && task.ChannelMapping.TestResultStatus != 3)
+                    {
+                        tasksToRun.Add(task);
+                    }
+                }
+                tasksToRun = tasksToRun.OrderBy(t => t.ChannelMapping.TestId).ToList();
+            }
 
             if (!tasksToRun.Any())
             {
@@ -452,8 +453,16 @@ namespace FatFullVersion.Services
                 Dictionary<string, (float Expected, float Actual)> testPoints = new Dictionary<string, (float Expected, float Actual)>();
                 
                 // 计算各个测试百分比的预期值
-                float minValue = task.ChannelMapping.RangeLowerLimitValue;
-                float maxValue = task.ChannelMapping.RangeUpperLimitValue;
+                if (!task.ChannelMapping.RangeLowerLimitValue.HasValue || !task.ChannelMapping.RangeUpperLimitValue.HasValue)
+                {
+                    if (string.IsNullOrEmpty(task.Result.ErrorMessage)) 
+                        task.Result.ErrorMessage = "评估错误: 通道量程未定义。";
+                    else 
+                        task.Result.ErrorMessage += "; 评估错误: 通道量程未定义。";
+                    return false; // Cannot evaluate if range is not defined
+                }
+                float minValue = task.ChannelMapping.RangeLowerLimitValue.Value;
+                float maxValue = task.ChannelMapping.RangeUpperLimitValue.Value;
                 float range = maxValue - minValue;
                 
                 // 添加所有测试点
@@ -916,7 +925,8 @@ namespace FatFullVersion.Services
         // ... (其他方法存根) ...
         [Obsolete("使用 StartAllTasksSerialAsync_Refactored (串行) 或 StartAllTasksAsync (并发) 替代此方法名")]
         public async Task<bool> StartAllTasksSerialAsync() { 
-            return await StartAllTasksSerialAsync_Refactored();
+            System.Diagnostics.Debug.WriteLine("StartAllTasksSerialAsync (Obsolete) called. Refactored version not implemented. Returning false.");
+            return await Task.FromResult(false); // Placeholder if StartAllTasksSerialAsync_Refactored is not yet implemented
         }
         [Obsolete("使用 RetestChannelAsync 替代此方法")]
         public async Task<bool> RetestChannelSerialAsync(ChannelMapping channelMapping) { 

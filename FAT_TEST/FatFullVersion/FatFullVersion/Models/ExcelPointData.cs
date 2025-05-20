@@ -368,6 +368,11 @@ namespace FatFullVersion.Models
         public string CommunicationAddress { get; set; }
         
         /// <summary>
+        /// 被测PLC的通讯地址 (新增，对应ChannelMapping.PlcCommunicationAddress)
+        /// </summary>
+        public string PlcCommunicationAddress { get; set; }
+        
+        /// <summary>
         /// 创建时间
         /// </summary>
         public DateTime CreatedTime { get; set; } = DateTime.Now;

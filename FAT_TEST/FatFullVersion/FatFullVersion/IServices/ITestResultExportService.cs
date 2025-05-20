@@ -32,5 +32,8 @@ namespace FatFullVersion.IServices
         /// <param name="filePath">导出文件路径，如果为null则通过文件对话框选择</param>
         /// <returns>导出是否成功</returns>
         Task<bool> ExportChannelMapToExcelAsync(IEnumerable<ChannelMapping> channelMappings, string filePath = null);
+
+        // Added based on CS1061 error in DataEditViewModel
+        Task<bool> ExportTestResultsToExcelAsync(IEnumerable<ChannelMapping> channels, string filePath);
     }
 } 

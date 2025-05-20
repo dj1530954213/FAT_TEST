@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FatFullVersion.Entities;
 using FatFullVersion.IServices;
 
 namespace FatFullVersion.Models
@@ -11,7 +12,7 @@ namespace FatFullVersion.Models
     /// <summary>
     /// 测试任务基类，定义测试任务的通用行为和属性
     /// </summary>
-    public abstract class TestTask : IDisposable, ITestPausable
+    public abstract class TestTask : IDisposable, FatFullVersion.IServices.ITestPausable
     {
         #region 属性与字段
 

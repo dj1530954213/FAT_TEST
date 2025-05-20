@@ -66,10 +66,9 @@ namespace FatFullVersion.ViewModels
                     if (back.Context != null) _navigationJournal = back.Context.NavigationService.Journal;
                 });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                //当修改了测试窗口为启动页的时候导航服务中的内容为Null，这里就不进行任何处理了
-                //MessageBox.Show($"导航出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                // 忽略导航异常
             }
         }
         //导航日志中前进和返回的命令注册

@@ -25,17 +25,11 @@ namespace FatFullVersion.Services
     public class Repository : IRepository
     {
         private readonly ApplicationDbContext _context;
-        private readonly ILogger<Repository> _logger;
 
         public Repository(ApplicationDbContext context)
         {
             _context = context;
             _context.Database.EnsureCreated(); // 确保数据库和表已创建
-            // 检查连接字符串配置
-            var connectionString = _context.Database.GetConnectionString();
-            Console.WriteLine($"当前连接字符串: {connectionString}");
-            var tableExists = _context.Database.ExecuteSqlRawAsync("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='ChannelMappings'");
-            Console.WriteLine($"ChannelMappings表存在: {tableExists.Result > 0}");
         }
 
         public async Task<bool> InitializeDatabaseAsync()
@@ -72,9 +66,9 @@ namespace FatFullVersion.Services
 
                 return await _context.SaveChangesAsync() > 0;
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                MessageBox.Show($"保存数据出现错误:{e.Message}");
+                MessageBox.Show($"保存数据出现错误:{ex.Message}");
                 return false;
             }
         }
@@ -155,7 +149,7 @@ namespace FatFullVersion.Services
                 // 保存更改
                 return await _context.SaveChangesAsync()>=0;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 return false;
             }
@@ -487,7 +481,9 @@ namespace FatFullVersion.Services
                 TestTag = original.TestTag,
                 UpdatedTime = original.UpdatedTime,
                 // ...复制所有字段...
-                RangeLowerLimitValue = float.IsNaN(original.RangeLowerLimitValue) ? -999999999f : original.RangeLowerLimitValue,
+                RangeLowerLimitValue = (original.RangeLowerLimitValue.HasValue && float.IsNaN(original.RangeLowerLimitValue.Value))
+                    ? -999999999f
+                    : original.RangeLowerLimitValue,
                 // 对其他字段重复这一判断
                 // ...
             };
@@ -731,26 +727,26 @@ namespace FatFullVersion.Services
                 { "@SaveHistory", record.SaveHistory ?? (object)DBNull.Value },
                 { "@PowerFailureProtection", record.PowerFailureProtection ?? (object)DBNull.Value },
                 { "@RangeLowerLimit", record.RangeLowerLimit ?? (object)DBNull.Value },
-                { "@RangeLowerLimitValue", record.RangeLowerLimitValue },
+                { "@RangeLowerLimitValue", record.RangeLowerLimitValue.HasValue ? (object)record.RangeLowerLimitValue.Value : DBNull.Value },
                 { "@RangeUpperLimit", record.RangeUpperLimit ?? (object)DBNull.Value },
-                { "@RangeUpperLimitValue", record.RangeUpperLimitValue },
+                { "@RangeUpperLimitValue", record.RangeUpperLimitValue.HasValue ? (object)record.RangeUpperLimitValue.Value : DBNull.Value },
                 { "@SLLSetValue", record.SLLSetValue ?? (object)DBNull.Value },
-                { "@SLLSetValueNumber", record.SLLSetValueNumber },
+                { "@SLLSetValueNumber", record.SLLSetValueNumber.HasValue ? (object)record.SLLSetValueNumber.Value : DBNull.Value },
                 { "@SLLSetPoint", record.SLLSetPoint ?? (object)DBNull.Value },
                 { "@SLLSetPointPLCAddress", record.SLLSetPointPLCAddress ?? (object)DBNull.Value },
                 { "@SLLSetPointCommAddress", record.SLLSetPointCommAddress ?? (object)DBNull.Value },
                 { "@SLSetValue", record.SLSetValue ?? (object)DBNull.Value },
-                { "@SLSetValueNumber", record.SLSetValueNumber },
+                { "@SLSetValueNumber", record.SLSetValueNumber.HasValue ? (object)record.SLSetValueNumber.Value : DBNull.Value },
                 { "@SLSetPoint", record.SLSetPoint ?? (object)DBNull.Value },
                 { "@SLSetPointPLCAddress", record.SLSetPointPLCAddress ?? (object)DBNull.Value },
                 { "@SLSetPointCommAddress", record.SLSetPointCommAddress ?? (object)DBNull.Value },
                 { "@SHSetValue", record.SHSetValue ?? (object)DBNull.Value },
-                { "@SHSetValueNumber", record.SHSetValueNumber },
+                { "@SHSetValueNumber", record.SHSetValueNumber.HasValue ? (object)record.SHSetValueNumber.Value : DBNull.Value },
                 { "@SHSetPoint", record.SHSetPoint ?? (object)DBNull.Value },
                 { "@SHSetPointPLCAddress", record.SHSetPointPLCAddress ?? (object)DBNull.Value },
                 { "@SHSetPointCommAddress", record.SHSetPointCommAddress ?? (object)DBNull.Value },
                 { "@SHHSetValue", record.SHHSetValue ?? (object)DBNull.Value },
-                { "@SHHSetValueNumber", record.SHHSetValueNumber },
+                { "@SHHSetValueNumber", record.SHHSetValueNumber.HasValue ? (object)record.SHHSetValueNumber.Value : DBNull.Value },
                 { "@SHHSetPoint", record.SHHSetPoint ?? (object)DBNull.Value },
                 { "@SHHSetPointPLCAddress", record.SHHSetPointPLCAddress ?? (object)DBNull.Value },
                 { "@SHHSetPointCommAddress", record.SHHSetPointCommAddress ?? (object)DBNull.Value },
@@ -775,7 +771,8 @@ namespace FatFullVersion.Services
                 { "@MaintenanceEnableSwitchPointCommAddress", record.MaintenanceEnableSwitchPointCommAddress ?? (object)DBNull.Value },
                 { "@PLCAbsoluteAddress", record.PLCAbsoluteAddress ?? (object)DBNull.Value },
                 { "@PlcCommunicationAddress", record.PlcCommunicationAddress ?? (object)DBNull.Value },
-                { "@UpdatedTime", record.UpdatedTime },
+                { "@CreatedTime", record.CreatedTime },
+                { "@UpdatedTime", record.UpdatedTime.HasValue ? (object)record.UpdatedTime.Value : DBNull.Value },
                 { "@TestBatch", record.TestBatch ?? (object)DBNull.Value },
                 { "@TestPLCChannelTag", record.TestPLCChannelTag ?? (object)DBNull.Value },
                 { "@TestPLCCommunicationAddress", record.TestPLCCommunicationAddress ?? (object)DBNull.Value },
@@ -787,15 +784,15 @@ namespace FatFullVersion.Services
                 { "@TestTime", record.TestTime.HasValue ? (object)record.TestTime.Value : DBNull.Value },
                 { "@FinalTestTime", record.FinalTestTime.HasValue ? (object)record.FinalTestTime.Value : DBNull.Value },
                 { "@Status", record.Status ?? (object)DBNull.Value },
-                { "@StartTime", record.StartTime },
-                { "@EndTime", record.EndTime },
-                { "@ExpectedValue", record.ExpectedValue },
-                { "@ActualValue", record.ActualValue },
-                { "@Value0Percent", record.Value0Percent },
-                { "@Value25Percent", record.Value25Percent },
-                { "@Value50Percent", record.Value50Percent },
-                { "@Value75Percent", record.Value75Percent },
-                { "@Value100Percent", record.Value100Percent },
+                { "@StartTime", record.StartTime.HasValue ? (object)record.StartTime.Value : DBNull.Value },
+                { "@EndTime", record.EndTime.HasValue ? (object)record.EndTime.Value : DBNull.Value },
+                { "@ExpectedValue", record.ExpectedValue.HasValue ? (object)record.ExpectedValue.Value : DBNull.Value },
+                { "@ActualValue", record.ActualValue.HasValue ? (object)record.ActualValue.Value : DBNull.Value },
+                { "@Value0Percent", record.Value0Percent.HasValue ? (object)record.Value0Percent.Value : DBNull.Value },
+                { "@Value25Percent", record.Value25Percent.HasValue ? (object)record.Value25Percent.Value : DBNull.Value },
+                { "@Value50Percent", record.Value50Percent.HasValue ? (object)record.Value50Percent.Value : DBNull.Value },
+                { "@Value75Percent", record.Value75Percent.HasValue ? (object)record.Value75Percent.Value : DBNull.Value },
+                { "@Value100Percent", record.Value100Percent.HasValue ? (object)record.Value100Percent.Value : DBNull.Value },
                 { "@LowLowAlarmStatus", record.LowLowAlarmStatus ?? (object)DBNull.Value },
                 { "@LowAlarmStatus", record.LowAlarmStatus ?? (object)DBNull.Value },
                 { "@HighAlarmStatus", record.HighAlarmStatus ?? (object)DBNull.Value },
