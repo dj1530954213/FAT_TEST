@@ -82,6 +82,9 @@ namespace FatFullVersion
                 // 注册服务定位器
                 containerRegistry.RegisterSingleton<IServiceLocator, ServiceLocator>();
 
+                // 注册通道状态管理器
+                containerRegistry.RegisterSingleton<IChannelStateManager, ChannelStateManager>();
+
                 // 初始化数据库数据
                 try
                 {
@@ -147,7 +150,8 @@ namespace FatFullVersion
                         .Type<ITestTaskManager>()
                         .Type<IPlcCommunication>(serviceKey: "TestPlc")
                         .Type<IPlcCommunication>(serviceKey: "TargetPlc")
-                        .Type<IMessageService>());
+                        .Type<IMessageService>()
+                        .Type<IChannelStateManager>());
                 }
                 catch (Exception ex)
                 {

@@ -11,6 +11,7 @@ using FatFullVersion.Entities.EntitiesEnum;
 using FatFullVersion.Entities.ValueObject;
 using System.Windows;
 using FatFullVersion.ViewModels;
+using System.Collections.ObjectModel;
 
 namespace FatFullVersion.Services
 {
@@ -20,13 +21,7 @@ namespace FatFullVersion.Services
     public class ChannelMappingService : IChannelMappingService
     {
         private readonly IRepository _repository;
-
-        /// <summary>
-        /// 默认测试PLC配置，如果没有配置文件或数据库中的配置，则使用此默认值
-        /// </summary>
-        //private readonly (int AoModules, int AoChannelsPerModule, int AiModules, int AiChannelsPerModule,
-        //                  int DoModules, int DoChannelsPerModule, int DiModules, int DiChannelsPerModule) _defaultTestPlcConfig
-        //    = (3, 2, 1, 4, 1, 20, 1, 28);
+        private readonly IChannelStateManager _channelStateManager;
 
         /// <summary>
         /// 当前使用的测试PLC配置
@@ -36,9 +31,10 @@ namespace FatFullVersion.Services
         /// <summary>
         /// 构造函数
         /// </summary>
-        public ChannelMappingService(IRepository repository)
+        public ChannelMappingService(IRepository repository, IChannelStateManager channelStateManager)
         {
-            _repository = repository;
+            _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+            _channelStateManager = channelStateManager ?? throw new ArgumentNullException(nameof(channelStateManager));
             // 初始化默认PLC配置
             _testPlcConfig = new TestPlcConfig
             {
@@ -1466,6 +1462,201 @@ namespace FatFullVersion.Services
                 
             // 创建新批次
             return new ViewModels.BatchInfo(batchName, itemCount);
+        }
+
+        /// <summary>
+        /// (示例方法) 根据导入的Excel数据创建并初始化ChannelMapping对象集合。
+        /// 这个方法可能不存在，或者逻辑分散在DataEditViewModel中。
+        /// </summary>
+        public async Task<ObservableCollection<ChannelMapping>> CreateAndInitializeChannelMappingsAsync(IEnumerable<ExcelPointData> importedData)
+        {
+            var allChannels = new ObservableCollection<ChannelMapping>();
+            if (importedData == null || !importedData.Any())
+            {
+                return allChannels;
+            }
+
+            var importTime = DateTime.Now; // 统一导入时间
+
+            // 获取所有现有的 ChannelTag 以确保唯一性，或根据需求调整 TestId 的唯一性逻辑
+            // 这是一个简化的例子，实际项目中可能需要更复杂的唯一性检查或从数据库获取
+            var existingChannelTags = new HashSet<string>(); // 假设从某处获取
+
+            int currentId = 1; // 用于生成临时的唯一 TestId
+
+            foreach (var pointData in importedData)
+            {
+                if (pointData == null) continue;
+
+                var channel = new ChannelMapping
+                {
+                    // 基础属性映射
+                    Id = Guid.NewGuid(), // 确保每次创建都有新的GUID
+                    // TestId = pointData.TestId, // 如果Excel中的TestId保证唯一性，则直接使用
+                    TestId = $"TempID_{currentId++}", // 临时生成，确保唯一性，后续可优化
+                    TestTag = $"Import_{importTime:yyyyMMddHHmmss}", // 统一的测试标签前缀
+                    ChannelTag = pointData.ChannelTag,
+                    VariableName = pointData.VariableName,
+                    ModuleType = pointData.ModuleType,
+                    ModuleName = pointData.ModuleName,
+                    StationName = pointData.StationName,
+                    VariableDescription = pointData.VariableDescription,
+                    DataType = pointData.DataType,
+                    PlcCommunicationAddress = pointData.PlcCommunicationAddress, // 被测PLC通讯地址
+                    WireSystem = pointData.WireSystem,
+                    PowerSupplyType = pointData.PowerSupplyType,
+                    Status = "Imported", // 临时状态，将被InitializeChannelFromImport覆盖
+                    
+                    // 这些属性将由 InitializeChannelFromImport 方法根据 pointData 和业务规则设置
+                    // RangeLowerLimitValue, RangeUpperLimitValue,
+                    // SLLSetValueNumber, SLSetValueNumber, SHSetValueNumber, SHHSetValueNumber,
+                    // ExpectedValue, ActualValue, Deviation, DeviationPercent,
+                    // Value0Percent, Value25Percent, Value50Percent, Value75Percent, Value100Percent,
+                    // ... 其他数值和状态属性 ...
+                };
+
+                // 调用 IChannelStateManager 来初始化通道的业务状态
+                // 这里传入 pointData，以便 IChannelStateManager 可以访问Excel的原始值进行解析和状态初始化
+                _channelStateManager.InitializeChannelFromImport(channel, pointData, importTime);
+
+                allChannels.Add(channel);
+            }
+
+            // 可选：如果需要持久化这些新创建的通道，在这里调用仓储的保存方法
+            // await _repository.AddChannelMappingsAsync(allChannels);
+
+            return allChannels;
+        }
+
+        /// <summary>
+        /// (修改现有方法) 分配测试通道，并使用IChannelStateManager重置状态。
+        /// </summary>
+        public async Task<ObservableCollection<ChannelMapping>> AllocateChannelsTestAsync(ObservableCollection<ChannelMapping> channels)
+        {
+            if (channels == null || !channels.Any() || _testPlcConfig == null || _testPlcConfig.CommentsTables == null || !_testPlcConfig.CommentsTables.Any())
+            {
+                System.Diagnostics.Debug.WriteLine("AllocateChannelsTestAsync: 输入参数无效或测试PLC配置为空。");
+                return channels; // 返回原始集合或进行错误处理
+            }
+
+            // 获取配置的通道信息
+            var configChannels = GetChannelCountsFromConfig();
+
+            var aiChannelsToAllocate = channels.Where(c => c.ModuleType == "AI" || c.ModuleType == "AINone").ToList();
+            var aoChannelsToAllocate = channels.Where(c => c.ModuleType == "AO" || c.ModuleType == "AONone").ToList();
+            var diChannelsToAllocate = channels.Where(c => c.ModuleType == "DI" || c.ModuleType == "DINone").ToList();
+            var doChannelsToAllocate = channels.Where(c => c.ModuleType == "DO" || c.ModuleType == "DONone").ToList();
+            
+            System.Diagnostics.Debug.WriteLine($"准备分配: AI={aiChannelsToAllocate.Count}, AO={aoChannelsToAllocate.Count}, DI={diChannelsToAllocate.Count}, DO={doChannelsToAllocate.Count}");
+
+
+            // AI 被测 -> AO 测试 (AI-AO)
+            AllocateChannelsWithConfigAndApplyState(aiChannelsToAllocate, configChannels.aoChannels.ToList(), configChannels.totalAoChannels);
+            // AO 被测 -> AI 测试 (AO-AI)
+            AllocateChannelsWithConfigAndApplyState(aoChannelsToAllocate, configChannels.aiChannels.ToList(), configChannels.totalAiChannels);
+            // DI 被测 -> DO 测试 (DI-DO)
+            AllocateChannelsWithConfigAndApplyState(diChannelsToAllocate, configChannels.doChannels.ToList(), configChannels.totalDoChannels);
+            // DO 被测 -> DI 测试 (DO-DI)
+            AllocateChannelsWithConfigAndApplyState(doChannelsToAllocate, configChannels.diChannels.ToList(), configChannels.totalDiChannels);
+            
+            // 可选: 如果需要持久化分配信息，可以在这里调用仓储更新
+            // await _repository.UpdateChannelMappingsAsync(channels);
+
+            System.Diagnostics.Debug.WriteLine("AllocateChannelsTestAsync: 通道分配完成。");
+            return channels; // 返回修改后的集合
+        }
+
+        /// <summary>
+        /// 使用配置中的通道信息分配通道，并调用IChannelStateManager应用状态
+        /// </summary>
+        private void AllocateChannelsWithConfigAndApplyState(
+            List<ChannelMapping> channelsToAllocate, 
+            List<ComparisonTable> testChannelMappings, 
+            int totalTestChannelsForType)
+        {
+            if (channelsToAllocate == null || !channelsToAllocate.Any() || testChannelMappings == null || !testChannelMappings.Any() || totalTestChannelsForType <= 0)
+            {
+                return;
+            }
+
+            try
+            {
+                int batchCount = (int)Math.Ceiling((double)channelsToAllocate.Count / totalTestChannelsForType);
+                
+                for (int i = 0; i < channelsToAllocate.Count; i++)
+                {
+                    var channel = channelsToAllocate[i];
+                    if (channel == null) continue;
+
+                    int batchNumber = i / totalTestChannelsForType + 1;
+                    int indexInBatch = i % totalTestChannelsForType;
+
+                    if (indexInBatch >= testChannelMappings.Count)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"警告：通道 {channel.VariableName} ({channel.ChannelTag}) 无法分配测试PLC通道，索引 {indexInBatch} 超出可用测试通道范围 {testChannelMappings.Count}。");
+                        // 对于无法分配的通道，可以考虑清除其分配信息或标记为错误
+                        _channelStateManager.ClearAllocationInfo(channel); // 清除可能存在的旧分配并重置状态
+                        continue;
+                    }
+                    
+                    var testChannelMapping = testChannelMappings[indexInBatch];
+                    if (testChannelMapping == null)
+                    {
+                         System.Diagnostics.Debug.WriteLine($"警告：通道 {channel.VariableName} ({channel.ChannelTag}) 的目标测试PLC映射在索引 {indexInBatch} 处为空。");
+                        _channelStateManager.ClearAllocationInfo(channel);
+                        continue;
+                    }
+                    
+                    string testBatchName = $"批次{batchNumber}";
+                    string testPlcChannelTag = testChannelMapping.ChannelAddress; // 通常是 TagName
+                    string testPlcCommAddress = testChannelMapping.CommunicationAddress;
+
+                    // 调用 IChannelStateManager 来应用分配信息并更新状态
+                    _channelStateManager.ApplyAllocationInfo(channel, testBatchName, testPlcChannelTag, testPlcCommAddress);
+                    
+                    // Debug.WriteLine($"通道 {channel.VariableName} ({channel.ChannelTag}) 分配到 {testBatchName}, 测试PLC: {testPlcChannelTag} ({testPlcCommAddress})");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"AllocateChannelsWithConfigAndApplyState 发生错误: {ex.Message}");
+                // 考虑对列表中的通道进行回滚或错误标记
+                foreach(var ch in channelsToAllocate)
+                {
+                    if(ch != null) _channelStateManager.ClearAllocationInfo(ch); // 出错时清除所有本次尝试分配的通道
+                }
+            }
+        }
+
+        /// <summary>
+        /// 清除所有通道分配信息
+        /// </summary>
+        /// <param name="channels">需要清除分配信息的通道集合</param>
+        /// <returns>清除分配信息后的通道集合</returns>
+        public async Task<ObservableCollection<ChannelMapping>> ClearAllChannelAllocationsAsync(ObservableCollection<ChannelMapping> channels)
+        {
+            if (channels == null || !channels.Any())
+            {
+                return channels;
+            }
+
+            var channelsToClear = channels.ToList(); // 操作副本以避免修改迭代中的集合问题
+
+            foreach (var channel in channelsToClear)
+            {
+                if (channel != null)
+                {
+                    _channelStateManager.ClearAllocationInfo(channel);
+                }
+            }
+            
+            // 可选: 如果需要持久化清除操作，在这里调用仓储更新
+            // await _repository.UpdateChannelMappingsAsync(channelsToClear); // 或者标记为已删除分配等
+
+            System.Diagnostics.Debug.WriteLine($"ClearAllChannelAllocationsAsync: 清除了 {channelsToClear.Count} 个通道的分配信息。");
+            // 由于 ChannelMapping 对象是引用类型，channels 集合中的对象已经被修改。
+            // 如果 ObservableCollection 需要强制刷新UI，可能需要额外操作，但通常属性更改会通知。
+            return channels; 
         }
     }
 }

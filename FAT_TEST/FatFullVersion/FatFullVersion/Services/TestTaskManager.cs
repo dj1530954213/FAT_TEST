@@ -16,13 +16,15 @@ using System.Windows.Threading;
 using System.Windows.Controls;
 using System.Windows.Media;
 using MaterialDesignThemes.Wpf;
+using Prism.Events;
+using FatFullVersion.Events;
 
 namespace FatFullVersion.Services
 {
     /// <summary>
     /// 测试任务管理器，负责管理所有测试任务的创建、启动、停止和管理
     /// </summary>
-    public class TestTaskManager : ITestTaskManager
+    public class TestTaskManager : ITestTaskManager, IDisposable
     {
         #region 字段
 
@@ -30,15 +32,16 @@ namespace FatFullVersion.Services
         private readonly IPlcCommunication _testPlcCommunication;
         private readonly IPlcCommunication _targetPlcCommunication;
         private readonly IMessageService _messageService;
+        private readonly IChannelStateManager _channelStateManager;
+        private readonly IEventAggregator _eventAggregator;
         private readonly ConcurrentDictionary<string, TestTask> _activeTasks;
         private CancellationTokenSource _masterCancellationTokenSource;
-        private readonly ParallelOptions _parallelOptions;
-        private bool _isRunning;
         private readonly SemaphoreSlim _semaphore;
         private bool _isWiringCompleted;
         private BatchInfo _currentBatch;
         private Window _progressDialog;
         private readonly object _dialogLock = new object();
+        private bool _isRunning;
 
         #endregion
 
@@ -59,15 +62,21 @@ namespace FatFullVersion.Services
         /// <param name="channelMappingService">通道映射服务</param>
         /// <param name="serviceLocator">服务定位器</param>
         /// <param name="messageService">消息服务</param>
+        /// <param name="channelStateManager">通道状态管理器</param>
+        /// <param name="eventAggregator">事件聚合器</param>
         /// <param name="maxConcurrentTasks">最大并发任务数量，默认为处理器核心数的2倍</param>
         public TestTaskManager(
             IChannelMappingService channelMappingService,
             IServiceLocator serviceLocator,
             IMessageService messageService,
+            IChannelStateManager channelStateManager,
+            IEventAggregator eventAggregator,
             int? maxConcurrentTasks = null)
         {
             _channelMappingService = channelMappingService ?? throw new ArgumentNullException(nameof(channelMappingService));
             _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
+            _channelStateManager = channelStateManager ?? throw new ArgumentNullException(nameof(channelStateManager));
+            _eventAggregator = eventAggregator ?? throw new ArgumentNullException(nameof(eventAggregator));
             //使用ServiceLocator这个单例服务来完成在APP的注册(使用同一个接口但是通过名称来区分实例)
             _testPlcCommunication = serviceLocator.ResolveNamed<IPlcCommunication>("TestPlcCommunication");
             _targetPlcCommunication = serviceLocator.ResolveNamed<IPlcCommunication>("TargetPlcCommunication");
@@ -77,18 +86,11 @@ namespace FatFullVersion.Services
             
             // 设置并行任务的最大并发数量
             int concurrentTasks = maxConcurrentTasks ?? Environment.ProcessorCount * 2;
-            _parallelOptions = new ParallelOptions 
-            { 
-                MaxDegreeOfParallelism = concurrentTasks,
-                CancellationToken = _masterCancellationTokenSource.Token
-            };
-            
-            // 创建信号量以限制并发执行的任务数量
             _semaphore = new SemaphoreSlim(concurrentTasks, concurrentTasks);
             
-            _isRunning = false;
             _isWiringCompleted = false;
             _currentBatch = null;
+            _isRunning = false;
         }
 
         #endregion
@@ -106,108 +108,114 @@ namespace FatFullVersion.Services
                 return Enumerable.Empty<string>();
 
             List<string> taskIds = new List<string>();
+            var tasksToCreate = new List<TestTask>();
 
-            // 按模块类型分类
-            var aiChannels = channelMappings.Where(c => c.ModuleType?.ToLower() == "ai").ToList();
-            var aoChannels = channelMappings.Where(c => c.ModuleType?.ToLower() == "ao").ToList();
-            var diChannels = channelMappings.Where(c => c.ModuleType?.ToLower() == "di").ToList();
-            var doChannels = channelMappings.Where(c => c.ModuleType?.ToLower() == "do").ToList();
-
-            // 为每种类型的通道创建相应的测试任务
-            taskIds.AddRange(await CreateAITasksAsync(aiChannels));
-            taskIds.AddRange(await CreateAOTasksAsync(aoChannels));
-            taskIds.AddRange(await CreateDITasksAsync(diChannels));
-            taskIds.AddRange(await CreateDOTasksAsync(doChannels));
-
+            foreach (var cm in channelMappings)
+            {
+                if (cm == null) continue;
+                string taskId = cm.Id.ToString(); 
+                TestTask task = null;
+                switch (cm.ModuleType?.ToUpper())
+                {
+                    case "AI":
+                        task = new AITestTask(taskId, cm, _testPlcCommunication, _targetPlcCommunication);
+                        break;
+                    case "AO":
+                        task = new AOTestTask(taskId, cm, _testPlcCommunication, _targetPlcCommunication);
+                        break;
+                    case "DI":
+                        task = new DITestTask(taskId, cm, _testPlcCommunication, _targetPlcCommunication);
+                        break;
+                    case "DO":
+                        task = new DOTestTask(taskId, cm, _testPlcCommunication, _targetPlcCommunication);
+                        break;
+                    default:
+                        System.Diagnostics.Debug.WriteLine($"警告：不支持的模块类型 '{cm.ModuleType}'，无法为通道 '{cm.VariableName}' 创建测试任务。");
+                        break;
+                }
+                if (task != null)
+                {
+                    tasksToCreate.Add(task);
+                }
+            }
+            
+            foreach(var tsk in tasksToCreate)
+            {
+                if (AddTask(tsk))
+                {
+                    taskIds.Add(tsk.Id);
+                }
+            }
             return taskIds;
         }
 
         /// <summary>
-        /// 确认接线已完成，启用测试功能
+        /// 确认接线完成，准备通道状态，并可选择是否自动开始测试。
         /// </summary>
-        /// <param name="batchInfo">批次信息</param>
-        /// <returns>确认操作是否成功</returns>
-        //public async Task<bool> ConfirmWiringCompleteAsync(BatchInfo batchInfo)
-        //{
-        //    // 默认自动开始测试
-        //    return await ConfirmWiringCompleteAsync(batchInfo, true);
-        //}
-
-        /// <summary>
-        /// 确认接线已完成，启用测试功能，可选择是否自动开始测试
-        /// </summary>
-        /// <param name="batchInfo">批次信息</param>
-        /// <param name="autoStart">是否自动开始测试</param>
-        /// <returns>确认操作是否成功</returns>
-        public async Task<bool> ConfirmWiringCompleteAsync(BatchInfo batchInfo, bool autoStart,IEnumerable<ChannelMapping> testMap)
+        public async Task<bool> ConfirmWiringCompleteAsync(BatchInfo batchInfo, bool autoStart, IEnumerable<ChannelMapping> allChannelsInProject)
         {
-            if (batchInfo == null)
+            if (batchInfo == null) 
+            {
+                await _messageService.ShowAsync("错误", "批次信息不能为空。", MessageBoxButton.OK);
                 return false;
-
-            // 保存当前批次信息
+            }
             _currentBatch = batchInfo;
+
+            if (!await EnsurePlcConnectionsAsync()) return false;
+
+            var confirmResult = await _messageService.ShowAsync("确认接线", $"是否确认批次 '{_currentBatch.BatchName}' 的所有硬件接线已准备就绪？", MessageBoxButton.YesNo);
+            if (confirmResult != MessageBoxResult.Yes)
+            {
+                _isWiringCompleted = false;
+                await _messageService.ShowAsync("提示", "接线未确认，测试流程已取消。", MessageBoxButton.OK);
+                return false;
+            }
+
+            _isWiringCompleted = true;
+            var channelMappingsInBatch = allChannelsInProject.Where(c => c.TestBatch?.Equals(_currentBatch.BatchName) == true).ToList();
+
+            if (!channelMappingsInBatch.Any())
+            {
+                await _messageService.ShowAsync("提示", $"批次 '{_currentBatch.BatchName}' 中没有找到任何通道。", MessageBoxButton.OK);
+                return true; 
+            }
+
+            List<Guid> preparedChannelIds = new List<Guid>();
+            foreach (var channel in channelMappingsInBatch)
+            {
+                if (channel.TestResultStatus != 3) 
+                {
+                    _channelStateManager.PrepareForWiringConfirmation(channel, DateTime.Now);
+                    preparedChannelIds.Add(channel.Id);
+                }
+            }
             
-            // 检查PLC连接状态
-            if (!_testPlcCommunication.IsConnected)
+            if (preparedChannelIds.Any())
             {
-                var testPlcConnectResult = await _testPlcCommunication.ConnectAsync();
-                if (!testPlcConnectResult.IsSuccess)
-                {
-                    await _messageService.ShowAsync("错误", $"无法连接测试PLC: {testPlcConnectResult.ErrorMessage}", MessageBoxButton.OK);
-                    MessageBox.Show("测试PLC连接失败");
-                    return false;
-                }
+                NotifyTestResultsUpdated(preparedChannelIds);
+                await _messageService.ShowAsync("提示", "接线已确认，相关通道已准备好等待测试。", MessageBoxButton.OK);
+            }
+            else
+            {
+                 await _messageService.ShowAsync("提示", "接线已确认，但当前批次中所有通道均已被跳过或无需准备。", MessageBoxButton.OK);
             }
 
-            if (!_targetPlcCommunication.IsConnected)
+            await ClearAllTasksAsyncInternal(); 
+            await CreateTestTasksAsync(channelMappingsInBatch.Where(c => c.TestResultStatus != 3)); 
+
+            if (autoStart)
             {
-                var targetPlcConnectResult = await _targetPlcCommunication.ConnectAsync();
-                if (!targetPlcConnectResult.IsSuccess)
+                if (_activeTasks.Any())
                 {
-                    await _messageService.ShowAsync("错误", $"无法连接被测PLC: {targetPlcConnectResult.ErrorMessage}", MessageBoxButton.OK);
-                    MessageBox.Show("被测PLC连接失败");
-                    return false;
+                    return await StartAllTasksAsync(); 
+                }
+                else
+                {
+                    await _messageService.ShowAsync("提示", "自动开始测试：当前批次没有可执行的测试任务（可能所有任务均被跳过或已完成）。", MessageBoxButton.OK);
+                    return true; 
                 }
             }
-
-            // 向用户确认接线已完成
-            var confirmResult = await _messageService.ShowAsync("确认", "确认已完成接线？", MessageBoxButton.YesNo);
-            if (confirmResult == MessageBoxResult.Yes)
-            {
-                // 设置接线已完成的标志
-                _isWiringCompleted = true;
-                
-                // 选择当前批次的通道
-                var channelMappings = testMap.Where(c => c.TestBatch?.Equals(batchInfo.BatchName) == true).ToList();
-                
-                // 确保所有通道都使用批次名称而不是ID
-                foreach (var channel in channelMappings)
-                {
-                    // 明确设置TestBatch为BatchName，避免可能的误用BatchId
-                    channel.TestBatch = batchInfo.BatchName;
-                }
-                
-                // 在创建新任务前，先清空所有现有任务
-                await ClearAllTasksAsync();
-                
-                // 创建测试任务
-                await CreateTestTasksAsync(channelMappings);
-
-                // 如果需要自动开始测试
-                if (autoStart)
-                {
-                    // 显示等待对话框
-                    await ShowTestProgressDialogAsync(false, null);
-                    
-                    // 开始测试
-                    await StartAllTasksAsync();
-                }
-                
-                return true;
-            }
-
-            _isWiringCompleted = false;
-            return false;
+            return true;
         }
 
         /// <summary>
@@ -216,976 +224,211 @@ namespace FatFullVersion.Services
         /// <param name="isRetestMode">是否为复测模式，默认为false表示全自动测试</param>
         /// <param name="channelInfo">复测的通道信息（复测模式下使用）</param>
         /// <returns>异步任务</returns>
-        public async Task ShowTestProgressDialogAsync(bool isRetestMode = false, ChannelMapping channelInfo = null)
-        {
-            await Task.Run(() =>
-            {
-                Application.Current.Dispatcher.Invoke(() =>
+        public async Task ShowTestProgressDialogAsync(bool isRetestMode = false, ChannelMapping channelInfo = null) { 
+            await Application.Current.Dispatcher.InvokeAsync(() => {
+                 lock (_dialogLock)
                 {
-                    lock (_dialogLock)
-                    {
-                        if (_progressDialog != null && _progressDialog.IsVisible)
-                            return;
-
-                        // 创建Grid布局容器
-                        var grid = new Grid();
-                        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 0: 标题
-                        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(10) }); // 1: 间距
-                        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 2: 批次信息
-                        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(10) }); // 3: 间距
-                        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 4: 进度条
-                        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(10) }); // 5: 间距
-                        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // 6: 提示文本
-
-                        // 根据不同模式设置不同的标题和信息
+                    if (_progressDialog != null && _progressDialog.IsVisible) {
                         string title = isRetestMode ? "通道复测进行中" : "自动测试进行中";
-                        string info = isRetestMode ? "请等待通道复测完成..." : "请等待测试完成...";
-                        string batchInfo = string.Empty;
+                        _progressDialog.Title = title;
+                        TextBlock messageTextBlock = null;
+                        TextBlock batchOrChannelInfoTextBlock = null;
 
-                        if (isRetestMode && channelInfo != null)
+                        if (_progressDialog.Content is StackPanel sp)
                         {
-                            batchInfo = $"批次: {channelInfo.TestBatch}, 通道: {channelInfo.VariableName}";
+                            messageTextBlock = sp.Children.OfType<TextBlock>().FirstOrDefault(tb => tb.Name == "ProgressMessageTextBlock");
+                            batchOrChannelInfoTextBlock = sp.Children.OfType<TextBlock>().FirstOrDefault(tb => tb.Name == "BatchInfoTextBlock");
                         }
-                        else
-                        {
-                            batchInfo = _currentBatch != null ? $"批次: {_currentBatch.BatchName}" : "批次: 未知";
+                        
+                        if (messageTextBlock != null) {
+                             messageTextBlock.Text = isRetestMode && channelInfo != null ? $"正在准备复测: {channelInfo.VariableName} ({channelInfo.ChannelTag})..." : "测试正在准备中...";
                         }
-
-                        // 添加标题文本
-                        var titleTextBlock = new TextBlock
-                        {
-                            Text = title,
-                            FontSize = 20,
-                            FontWeight = FontWeights.Bold,
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            Foreground = new SolidColorBrush(Color.FromRgb(25, 118, 210)),
-                            Margin = new Thickness(0, 15, 0, 0)
-                        };
-                        Grid.SetRow(titleTextBlock, 0);
-                        grid.Children.Add(titleTextBlock);
-
-                        // 添加批次信息
-                        var batchInfoTextBlock = new TextBlock
-                        {
-                            Text = batchInfo,
-                            FontSize = 14,
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            Margin = new Thickness(0, 5, 0, 0)
-                        };
-                        Grid.SetRow(batchInfoTextBlock, 2);
-                        grid.Children.Add(batchInfoTextBlock);
-
-                        // 添加MaterialDesign进度指示器
-                        var progressBar = new ProgressBar
-                        {
-                            IsIndeterminate = true,
-                            Style = (Style)Application.Current.Resources["MaterialDesignCircularProgressBar"],
-                            Width = 60,
-                            Height = 60,
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80))
-                        };
-                        Grid.SetRow(progressBar, 4);
-                        grid.Children.Add(progressBar);
-
-                        // 添加提示文本
-                        var infoTextBlock = new TextBlock
-                        {
-                            Text = info,
-                            FontSize = 14,
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            Margin = new Thickness(0, 5, 0, 15)
-                        };
-                        Grid.SetRow(infoTextBlock, 6);
-                        grid.Children.Add(infoTextBlock);
-
-                        // 创建等待对话框
-                        _progressDialog = new Window
-                        {
-                            Title = title,
-                            Width = 350,
-                            Height = 250,
-                            WindowStartupLocation = WindowStartupLocation.CenterScreen,
-                            Content = grid,
-                            ResizeMode = ResizeMode.NoResize,
-                            WindowStyle = WindowStyle.ToolWindow,
-                            Background = new SolidColorBrush(Colors.WhiteSmoke),
-                            Topmost = true // 确保对话框始终在最前面
-                        };
-
-                        // 显示对话框（非模态）
-                        _progressDialog.Show();
+                        if (batchOrChannelInfoTextBlock != null) {
+                            batchOrChannelInfoTextBlock.Text = !isRetestMode && _currentBatch != null ? $"批次: {_currentBatch.BatchName}" : (isRetestMode && channelInfo != null ? $"通道: {channelInfo.VariableName} ({channelInfo.ChannelTag})" : "");
+                            batchOrChannelInfoTextBlock.Visibility = string.IsNullOrEmpty(batchOrChannelInfoTextBlock.Text) ? Visibility.Collapsed : Visibility.Visible;
+                        }
+                        return; 
                     }
-                });
+                    string initialMessage = isRetestMode && channelInfo != null ? $"正在准备复测: {channelInfo.VariableName} ({channelInfo.ChannelTag})..." : "测试正在准备中...";
+                    string dialogTitle = isRetestMode ? "通道复测进行中" : "自动测试进行中";
+
+                    var mainMessageTb = new TextBlock { Name="ProgressMessageTextBlock", Text = initialMessage, Margin = new Thickness(10), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+                    var progressBar = new ProgressBar { IsIndeterminate = true, Style = (Style)Application.Current.Resources["MaterialDesignCircularProgressBar"], Width = 50, Height = 50, Margin = new Thickness(10) };
+                    var stackPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+                    
+                    TextBlock batchInfoTb = null; // 用于显示批次或通道信息
+                    if (!isRetestMode && _currentBatch != null) { 
+                        batchInfoTb = new TextBlock { Name="BatchInfoTextBlock", Text = $"批次: {_currentBatch.BatchName}", FontSize=12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0,5,0,5) }; 
+                        stackPanel.Children.Add(batchInfoTb); 
+                    } else if (isRetestMode && channelInfo != null) { 
+                         batchInfoTb = new TextBlock { Name="BatchInfoTextBlock", Text = $"通道: {channelInfo.VariableName} ({channelInfo.ChannelTag})", FontSize=12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0,5,0,5) };
+                        stackPanel.Children.Add(batchInfoTb); 
+                    }
+
+                    stackPanel.Children.Add(mainMessageTb); 
+                    stackPanel.Children.Add(progressBar);
+
+                    _progressDialog = new Window { 
+                        Title = dialogTitle, 
+                        Width = 380, Height = 180, 
+                        Content = stackPanel, 
+                        WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                        WindowStyle = WindowStyle.ToolWindow, 
+                        ShowInTaskbar = false, 
+                        Topmost = true 
+                    };
+                    _progressDialog.Show();
+                }
             });
         }
-
         /// <summary>
         /// 关闭测试进度对话框
         /// </summary>
         private void CloseProgressDialog()
         {
-            try
+            Application.Current.Dispatcher.Invoke(() =>
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                lock (_dialogLock)
                 {
-                    lock (_dialogLock)
+                    if (_progressDialog != null)
                     {
-                        if (_progressDialog != null)
+                        if (_progressDialog.IsVisible)
                         {
-                            if (_progressDialog.IsVisible)
-                            {
-                                _progressDialog.Close();
-                            }
-                            _progressDialog = null;
+                            _progressDialog.Close();
                         }
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"关闭进度对话框时发生错误: {ex.Message}");
-                // 尝试强制关闭
-                try
-                {
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
                         _progressDialog = null;
-                    });
+                    }
                 }
-                catch { /* 忽略可能发生的任何错误 */ }
-            }
+            });
         }
 
         /// <summary>
-        /// 启动所有测试任务（串行执行方式）
+        /// 并发启动并执行所有活动的、未跳过的测试任务，受信号量控制并发数。
         /// </summary>
-        /// <returns>操作是否成功</returns>
-        public async Task<bool> StartAllTasksSerialAsync()
+        /// <returns>如果所有任务都无中断地启动，则为true；否则为false。</returns>
+        public async Task<bool> StartAllTasksAsync() 
         {
-            if (_isRunning)
+            if (_isRunning) 
+            {
+                await _messageService.ShowAsync("提示", "测试已在运行中。", MessageBoxButton.OK);
                 return false;
-
+            }
             if (!_isWiringCompleted)
             {
-                await _messageService.ShowAsync("警告", "请先确认完成接线后再开始测试", MessageBoxButton.OK);
+                await _messageService.ShowAsync("警告", "请先确认接线完成，然后才能开始测试。", MessageBoxButton.OK);
                 return false;
             }
-            
-            // 重置取消令牌源
-            if (_masterCancellationTokenSource != null)
-            {
-                _masterCancellationTokenSource.Dispose();
-            }
-            
+
+            _masterCancellationTokenSource?.Dispose();
             _masterCancellationTokenSource = new CancellationTokenSource();
             _isRunning = true;
-            
-            try
-            {
-                // 获取所有任务按类型分类(需要过滤掉已经跳过的点位)
-                var aiTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "ai" && !t.ChannelMapping.ResultText.Contains("跳过")).ToList();
-                var aoTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "ao" && !t.ChannelMapping.ResultText.Contains("跳过")).ToList();
-                var diTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "di" && !t.ChannelMapping.ResultText.Contains("跳过")).ToList();
-                var doTasks = _activeTasks.Values.Where(t => t.ChannelMapping.ModuleType?.ToLower() == "do" && !t.ChannelMapping.ResultText.Contains("跳过")).ToList();
 
-                // 设置所有通道的开始测试时间为当前时间(需要过滤跳过的点位)
-                DateTime currentTime = DateTime.Now;
-                foreach (var task in _activeTasks.Values.Where(t=>!t.ChannelMapping.ResultText.Contains("跳过")))
+            var tasksToRun = _activeTasks.Values
+                                    .Where(t => t.ChannelMapping != null && t.ChannelMapping.TestResultStatus != 3)
+                                    .OrderBy(t => t.ChannelMapping.TestId)
+                                    .ToList();
+
+            if (!tasksToRun.Any())
+            {
+                await _messageService.ShowAsync("提示", "当前沒有可執行的測試任務（可能所有通道均被跳过或未分配）。", MessageBoxButton.OK);
+                _isRunning = false;
+                CloseProgressDialog(); 
+                return true; 
+            }
+
+            await ShowTestProgressDialogAsync(false, null);
+            List<Task> executingTasks = new List<Task>();
+            System.Diagnostics.Debug.WriteLine($"并发测试启动，任务数量: {tasksToRun.Count}, 批次: '{_currentBatch?.BatchName ?? "未知"}' @ {DateTime.Now}");
+
+            foreach (var taskInstance in tasksToRun)
+            {
+                await _semaphore.WaitAsync(_masterCancellationTokenSource.Token); 
+                if (_masterCancellationTokenSource.Token.IsCancellationRequested)
                 {
-                    if (task.ChannelMapping != null)
+                    _semaphore.Release();
+                    break;
+                }
+
+                executingTasks.Add(Task.Run(async () =>
+                {
+                    try
                     {
-                        task.ChannelMapping.StartTime = currentTime;
-                        task.ChannelMapping.TestTime = currentTime;
-                        task.ChannelMapping.FinalTestTime = null;
+                        await UpdateProgressMessageAsync($"并发测试中: {taskInstance.ChannelMapping.VariableName}...");
+                        _channelStateManager.BeginHardPointTest(taskInstance.ChannelMapping, DateTime.Now);
+                        NotifyTestResultsUpdated(new[] { taskInstance.ChannelMapping.Id });
+
+                        HardPointTestRawResult rawResult = await taskInstance.RunTestAsync(_masterCancellationTokenSource.Token);
+                        System.Diagnostics.Debug.WriteLine($"通道 {taskInstance.ChannelMapping.VariableName} 并发测试完成. 成功: {rawResult.IsSuccess}. Detail: {rawResult.Detail?.Substring(0, Math.Min(rawResult.Detail.Length,100))}");
+                        
+                        _channelStateManager.SetHardPointTestOutcome(taskInstance.ChannelMapping, rawResult, DateTime.Now);
+                        NotifyTestResultsUpdated(new[] { taskInstance.ChannelMapping.Id });
                     }
-                }
-
-                // 测试进度提示
-                await UpdateProgressMessageAsync("正在准备测试...");
-
-                // 执行整个测试流程的所有步骤
-                await ExecuteSerialTestSequenceAsync(aiTasks, aoTasks, diTasks, doTasks, _masterCancellationTokenSource.Token);
-
-                // 测试完成后，同步所有通道的测试结果(需要过滤跳过的点位)
-                foreach (var task in _activeTasks.Values.Where(t => !t.ChannelMapping.ResultText.Contains("跳过")))
-                {
-                    SyncHardPointTestResult(task);
-                }
-                
-                return true;
+                    catch (OperationCanceledException)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"通道 {taskInstance.ChannelMapping.VariableName} 并发测试被取消.");
+                        var cancelResult = new HardPointTestRawResult(false, "任务执行被用户取消。");
+                        _channelStateManager.SetHardPointTestOutcome(taskInstance.ChannelMapping, cancelResult, DateTime.Now);
+                        NotifyTestResultsUpdated(new[] { taskInstance.ChannelMapping.Id });
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"通道 {taskInstance.ChannelMapping.VariableName} 并发测试发生错误: {ex.Message}");
+                        var errorResult = new HardPointTestRawResult(false, $"任务 '{taskInstance.ChannelMapping.VariableName}' 执行时发生异常: {ex.Message}");
+                        _channelStateManager.SetHardPointTestOutcome(taskInstance.ChannelMapping, errorResult, DateTime.Now);
+                        NotifyTestResultsUpdated(new[] { taskInstance.ChannelMapping.Id });
+                    }
+                    finally
+                    {
+                        _semaphore.Release();
+                    }
+                }, _masterCancellationTokenSource.Token));
             }
-            catch (OperationCanceledException)
-            {
-                Console.WriteLine("测试被取消");
-                // 测试被取消，返回false
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"执行测试时出错: {ex.Message}");
-                await _messageService.ShowAsync("错误", $"执行测试时出错: {ex.Message}", MessageBoxButton.OK);
-                return false;
-            }
-            finally
+
+            _ = Task.WhenAll(executingTasks).ContinueWith(async completedTaskAggregate =>
             {
                 _isRunning = false;
-                
-                // 注意：对话框已在EvaluateTestResults方法中关闭，这里不需要再关闭
-                
-                // 更新批次状态
+                CloseProgressDialog();
                 await UpdateBatchStatusAsync();
+                System.Diagnostics.Debug.WriteLine($"并发测试全部任务执行尝试完毕. 批次: '{_currentBatch?.BatchName ?? "未知"}' @ {DateTime.Now}");
                 
-                // 通知UI刷新显示
-                NotifyTestResultsUpdated();
-            }
+                if (completedTaskAggregate.IsFaulted)
+                {
+                    System.Diagnostics.Debug.WriteLine($"一个或多个并发测试任务在Task.WhenAll后检测到未处理的异常: {completedTaskAggregate.Exception.Flatten().InnerExceptions.FirstOrDefault()?.Message}");
+                }
+                else if (completedTaskAggregate.IsCanceled)
+                {
+                    System.Diagnostics.Debug.WriteLine("并发测试任务批次因CancellationToken被取消。");
+                }
+
+                await Application.Current.Dispatcher.InvokeAsync(() => 
+                    _messageService.ShowAsync("测试完成", "所有硬点并发测试已执行完毕。请检查结果。", MessageBoxButton.OK)
+                );
+            }, TaskScheduler.Default); 
+
+            return true; 
         }
 
         /// <summary>
         /// 更新进度对话框中的信息
         /// </summary>
         /// <param name="message">进度信息</param>
-        private async Task UpdateProgressMessageAsync(string message)
-        {
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-            {
-                lock (_dialogLock)
-                {
-                    if (_progressDialog != null && _progressDialog.IsVisible)
-                    {
-                        // 查找提示文本控件
-                        var grid = _progressDialog.Content as Grid;
-                        if (grid != null)
-                        {
-                            var textBlock = grid.Children.OfType<TextBlock>().LastOrDefault();
-                            if (textBlock != null)
-                            {
-                                textBlock.Text = message;
-                            }
-                        }
-                    }
+        private async Task UpdateProgressMessageAsync(string message) { 
+             await Application.Current.Dispatcher.InvokeAsync(() => {
+                if (_progressDialog != null && _progressDialog.IsVisible && _progressDialog.Content is StackPanel sp) {
+                    TextBlock messageTextBlock = sp.Children.OfType<TextBlock>().FirstOrDefault(tb => tb.Name == "ProgressMessageTextBlock");
+                    if (messageTextBlock != null) {
+                        messageTextBlock.Text = message;
+                    } 
                 }
             });
         }
 
         /// <summary>
-        /// 按照图中所示的序列执行串行测试
-        /// </summary>
-        private async Task ExecuteSerialTestSequenceAsync(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // 1. 写入初始值
-            await UpdateProgressMessageAsync("步骤1: 写入初始测试值...");
-            await WriteInitialValues(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-            
-            // 2. 等待3000ms
-            await UpdateProgressMessageAsync("步骤2: 等待信号稳定...");
-            await Task.Delay(3000, cancellationToken);
-            
-            // 3. 读取初始值
-            await UpdateProgressMessageAsync("步骤3: 读取初始测试值...");
-            await ReadInitialValues(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-            
-            // 4. 等待1000ms
-            await UpdateProgressMessageAsync("步骤4: 短暂延时...");
-            await Task.Delay(1000, cancellationToken);
-            
-            // 5. 写入25%测试值
-            await UpdateProgressMessageAsync("步骤5: 写入25%测试值...");
-            await Write25PercentValues(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-            
-            // 6. 等待3000ms
-            await UpdateProgressMessageAsync("步骤6: 等待信号稳定...");
-            await Task.Delay(3000, cancellationToken);
-            
-            // 7. 读取25%测试值
-            await UpdateProgressMessageAsync("步骤7: 读取25%测试值...");
-            await Read25PercentValues(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-            
-            // 8. 等待1000ms
-            await UpdateProgressMessageAsync("步骤8: 短暂延时...");
-            await Task.Delay(1000, cancellationToken);
-            
-            // 9. 写入50%测试值
-            await UpdateProgressMessageAsync("步骤9: 写入50%测试值...");
-            await Write50PercentValues(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-            
-            // 10. 等待3000ms
-            await UpdateProgressMessageAsync("步骤10: 等待信号稳定...");
-            await Task.Delay(3000, cancellationToken);
-            
-            // 11. 读取50%测试值
-            await UpdateProgressMessageAsync("步骤11: 读取50%测试值...");
-            await Read50PercentValues(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-            
-            // 12. 等待1000ms
-            await UpdateProgressMessageAsync("步骤12: 短暂延时...");
-            await Task.Delay(1000, cancellationToken);
-            
-            // 13. 写入75%测试值
-            await UpdateProgressMessageAsync("步骤13: 写入75%测试值...");
-            await Write75PercentValues(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-            
-            // 14. 等待3000ms
-            await UpdateProgressMessageAsync("步骤14: 等待信号稳定...");
-            await Task.Delay(3000, cancellationToken);
-            
-            // 15. 读取75%测试值
-            await UpdateProgressMessageAsync("步骤15: 读取75%测试值...");
-            await Read75PercentValues(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-            
-            // 16. 等待1000ms
-            await UpdateProgressMessageAsync("步骤16: 短暂延时...");
-            await Task.Delay(1000, cancellationToken);
-            
-            // 17. 写入100%测试值
-            await UpdateProgressMessageAsync("步骤17: 写入100%测试值...");
-            await Write100PercentValues(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-            
-            // 18. 等待3000ms
-            await UpdateProgressMessageAsync("步骤18: 等待信号稳定...");
-            await Task.Delay(3000, cancellationToken);
-            
-            // 19. 读取100%测试值
-            await UpdateProgressMessageAsync("步骤19: 读取100%测试值...");
-            await Read100PercentValues(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-            
-            // 20. 等待1000ms
-            await UpdateProgressMessageAsync("步骤20: 短暂延时...");
-            await Task.Delay(2000, cancellationToken);
-            
-            // 21. 测试结束，写入初始值
-            await UpdateProgressMessageAsync("步骤21: 测试结束，复位所有点位...");
-            await WriteResetValues(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-            
-            // 评估测试结果
-            await UpdateProgressMessageAsync("正在评估测试结果...");
-            await EvaluateTestResults(aiTasks, aoTasks, diTasks, doTasks, cancellationToken);
-        }
-
-        #region 测试步骤实现
-
-        /// <summary>
-        /// 写入初始测试值（0%）
-        /// </summary>
-        private async Task WriteInitialValues(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // AI通道: 测试PLC写入0%值
-            foreach (var task in aiTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AITestTask)task).Write0PercentTestValueAsync(cancellationToken);
-            }
-
-            // AO通道: 被测PLC写入0%值
-            foreach (var task in aoTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AOTestTask)task).Write0PercentTestValueAsync(cancellationToken);
-            }
-
-            // DI通道: 测试PLC写入true值
-            foreach (var task in diTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((DITestTask)task).WriteHighSignalAsync(cancellationToken);
-            }
-
-            // DO通道: 被测PLC写入true值
-            //foreach (var task in doTasks)
-            //{
-            //    cancellationToken.ThrowIfCancellationRequested();
-            //    await ((DOTestTask)task).WriteHighSignalAsync(cancellationToken);
-            //}
-        }
-
-        /// <summary>
-        /// 读取初始测试值（0%）
-        /// </summary>
-        private async Task ReadInitialValues(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // AI通道: 被测PLC读取0%值
-            foreach (var task in aiTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AITestTask)task).Read0PercentTestValueAsync(cancellationToken);
-            }
-
-            // AO通道: 测试PLC读取0%值
-            foreach (var task in aoTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AOTestTask)task).Read0PercentTestValueAsync(cancellationToken);
-            }
-
-            // DI通道: 被测PLC读取true值
-            foreach (var task in diTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((DITestTask)task).ReadHighSignalAsync(cancellationToken);
-            }
-            
-            // DO通道: 测试PLC读取true值
-            //foreach (var task in doTasks)
-            //{
-            //    cancellationToken.ThrowIfCancellationRequested();
-            //    await ((DOTestTask)task).ReadHighSignalAsync(cancellationToken);
-            //}
-        }
-
-        /// <summary>
-        /// 写入25%测试值
-        /// </summary>
-        private async Task Write25PercentValues(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // AI通道: 测试PLC写入25%值
-            foreach (var task in aiTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AITestTask)task).Write25PercentTestValueAsync(cancellationToken);
-            }
-
-            // AO通道: 被测PLC写入25%值
-            foreach (var task in aoTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AOTestTask)task).Write25PercentTestValueAsync(cancellationToken);
-            }
-
-            // DI通道: 测试PLC写入false值
-            foreach (var task in diTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((DITestTask)task).WriteLowSignalAsync(cancellationToken);
-            }
-            
-            // DO通道: 被测PLC写入false值
-            //foreach (var task in doTasks)
-            //{
-            //    cancellationToken.ThrowIfCancellationRequested();
-            //    await ((DOTestTask)task).WriteLowSignalAsync(cancellationToken);
-            //}
-        }
-
-        /// <summary>
-        /// 读取25%测试值
-        /// </summary>
-        private async Task Read25PercentValues(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // AI通道: 被测PLC读取25%值
-            foreach (var task in aiTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AITestTask)task).Read25PercentTestValueAsync(cancellationToken);
-            }
-
-            // AO通道: 测试PLC读取25%值
-            foreach (var task in aoTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AOTestTask)task).Read25PercentTestValueAsync(cancellationToken);
-            }
-
-            // DI通道: 被测PLC读取false值
-            foreach (var task in diTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((DITestTask)task).ReadLowSignalAsync(cancellationToken);
-            }
-            
-            // DO通道: 测试PLC读取false值
-            //foreach (var task in doTasks)
-            //{
-            //    cancellationToken.ThrowIfCancellationRequested();
-            //    await ((DOTestTask)task).ReadLowSignalAsync(cancellationToken);
-            //}
-        }
-
-        /// <summary>
-        /// 写入50%测试值
-        /// </summary>
-        private async Task Write50PercentValues(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // AI通道: 测试PLC写入50%值
-            foreach (var task in aiTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AITestTask)task).Write50PercentTestValueAsync(cancellationToken);
-            }
-
-            // AO通道: 被测PLC写入50%值
-            foreach (var task in aoTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AOTestTask)task).Write50PercentTestValueAsync(cancellationToken);
-            }
-
-            // DI和DO通道在第5步已经测试完成，无需再次测试
-        }
-
-        /// <summary>
-        /// 读取50%测试值
-        /// </summary>
-        private async Task Read50PercentValues(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // AI通道: 被测PLC读取50%值
-            foreach (var task in aiTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AITestTask)task).Read50PercentTestValueAsync(cancellationToken);
-            }
-
-            // AO通道: 测试PLC读取50%值
-            foreach (var task in aoTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AOTestTask)task).Read50PercentTestValueAsync(cancellationToken);
-            }
-
-            // DI和DO通道在第7步已经测试完成，无需再次测试
-        }
-
-        /// <summary>
-        /// 写入75%测试值
-        /// </summary>
-        private async Task Write75PercentValues(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // AI通道: 测试PLC写入75%值
-            foreach (var task in aiTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AITestTask)task).Write75PercentTestValueAsync(cancellationToken);
-            }
-
-            // AO通道: 被测PLC写入75%值
-            foreach (var task in aoTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AOTestTask)task).Write75PercentTestValueAsync(cancellationToken);
-            }
-
-            // DI和DO通道在第5步已经测试完成，无需再次测试
-        }
-
-        /// <summary>
-        /// 读取75%测试值
-        /// </summary>
-        private async Task Read75PercentValues(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // AI通道: 被测PLC读取75%值
-            foreach (var task in aiTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AITestTask)task).Read75PercentTestValueAsync(cancellationToken);
-            }
-
-            // AO通道: 测试PLC读取75%值
-            foreach (var task in aoTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AOTestTask)task).Read75PercentTestValueAsync(cancellationToken);
-            }
-
-            // DI和DO通道在第7步已经测试完成，无需再次测试
-        }
-
-        /// <summary>
-        /// 写入100%测试值
-        /// </summary>
-        private async Task Write100PercentValues(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // AI通道: 测试PLC写入100%值
-            foreach (var task in aiTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AITestTask)task).Write100PercentTestValueAsync(cancellationToken);
-            }
-
-            // AO通道: 被测PLC写入100%值
-            foreach (var task in aoTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AOTestTask)task).Write100PercentTestValueAsync(cancellationToken);
-            }
-
-            // DI和DO通道在第5步已经测试完成，无需再次测试
-        }
-
-        /// <summary>
-        /// 读取100%测试值
-        /// </summary>
-        private async Task Read100PercentValues(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // AI通道: 被测PLC读取100%值
-            foreach (var task in aiTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AITestTask)task).Read100PercentTestValueAsync(cancellationToken);
-            }
-
-            // AO通道: 测试PLC读取100%值
-            foreach (var task in aoTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AOTestTask)task).Read100PercentTestValueAsync(cancellationToken);
-            }
-
-            // DI和DO通道在第7步已经测试完成，无需再次测试
-        }
-
-        /// <summary>
-        /// 测试结束，写入复位值
-        /// </summary>
-        private async Task WriteResetValues(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            // AI通道: 测试PLC复位为0%值
-            foreach (var task in aiTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AITestTask)task).WriteResetValueAsync(cancellationToken);
-            }
-
-            // AO通道: 被测PLC复位为0%值
-            foreach (var task in aoTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((AOTestTask)task).WriteResetValueAsync(cancellationToken);
-            }
-
-            // DI通道: 测试PLC复位为false值
-            foreach (var task in diTasks)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await ((DITestTask)task).WriteResetValueAsync(cancellationToken);
-            }
-            
-            // DO通道: 被测PLC复位为false值
-            //foreach (var task in doTasks)
-            //{
-            //    cancellationToken.ThrowIfCancellationRequested();
-            //    await ((DOTestTask)task).WriteResetValueAsync(cancellationToken);
-            //}
-        }
-
-        /// <summary>
-        /// 评估测试结果
-        /// </summary>
-        private async Task EvaluateTestResults(
-            List<TestTask> aiTasks, 
-            List<TestTask> aoTasks, 
-            List<TestTask> diTasks, 
-            List<TestTask> doTasks, 
-            CancellationToken cancellationToken)
-        {
-            try 
-            {
-                // 为每个任务评估结果
-                foreach (var task in aiTasks.Concat(aoTasks).Concat(diTasks).Concat(doTasks))
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    
-                    // 确保结果被正确写入
-                    SyncHardPointTestResult(task);
-                    
-                    // 强制将DI和DO的测试结果设置为通过
-                    //if (task is DITestTask || task is DOTestTask)
-                    //{
-                    //    task.Result.Status = "通过";
-                    //    task.ChannelMapping.HardPointTestResult = "通过";
-                    //    task.ChannelMapping.TestResultStatus = 1; // 成功状态
-                    //}
-                    //目前无法自动测试AO与DO通道所以直接将其通道测试设置为通过
-                    //if (task is DOTestTask || task is AOTestTask)
-                    //{
-                    //    task.Result.Status = "通过";
-                    //    task.ChannelMapping.HardPointTestResult = "通过";
-                    //    task.ChannelMapping.ResultText = "硬点通道测试通过";
-                    //    task.ChannelMapping.Status = "通过";
-                    //    task.ChannelMapping.TestResultStatus = 0;
-                    //}
-                    if (task is DOTestTask)
-                    {
-                        task.Result.Status = "通过";
-                        task.ChannelMapping.HardPointTestResult = "通过";
-                        task.ChannelMapping.ResultText = "硬点通道测试通过";
-                        task.ChannelMapping.Status = "通过";
-                        task.ChannelMapping.TestResultStatus = 0;
-                    }
-                }
-                
-                // 发送通知表示测试评估已完成
-                NotifyTestResultsUpdated();
-                
-                // 更新批次状态
-                await UpdateBatchStatusAsync();
-                
-                // 短暂延时确保UI更新
-                await Task.Delay(1000, cancellationToken);
-                
-                // 关闭进度对话框
-                CloseProgressDialog();
-                
-                // 显示测试完成消息
-                await Application.Current.Dispatcher.InvokeAsync(async () =>
-                {
-                    await _messageService.ShowAsync("测试完成", "所有硬点测试已完成", MessageBoxButton.OK);
-                });
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"评估测试结果时出错: {ex.Message}");
-                // 不要抛出异常，以避免整个流程中断
-                
-                // 确保在出错时也关闭进度对话框
-                CloseProgressDialog();
-            }
-        }
-
-        #endregion
-
-        /// <summary>
         /// 同步硬点测试结果到原始通道集合
         /// </summary>
         /// <param name="task">测试任务</param>
-        private void SyncHardPointTestResult(TestTask task)
-        {
-            if (task?.Result == null || task.ChannelMapping == null)
-                return;
-
-            try
-            {
-                // 确保只处理当前批次的任务
-                if (_currentBatch != null && 
-                    !string.IsNullOrEmpty(task.ChannelMapping.TestBatch) && 
-                    !task.ChannelMapping.TestBatch.Equals(_currentBatch.BatchName))
-                {
-                    return; // 跳过不属于当前批次的任务
-                }
-
-                // 首先进行测试结果评估
-                if (string.IsNullOrEmpty(task.Result.Status))
-                {
-                    // 根据任务类型进行特定的结果评估
-                    if (task is AITestTask || task is AOTestTask)
-                    {
-                        bool allPassed = EvaluateAnalogTestResults(task);
-                        task.Result.Status = allPassed ? "通过" : "失败";
-                        task.ChannelMapping.HardPointTestResult = task.Result.Status;
-                        
-                        // 如果失败，设置错误状态
-                        if (!allPassed)
-                        {
-                            //task.ChannelMapping.ErrorMessage = task.Result.ErrorMessage;
-                            task.ChannelMapping.TestResultStatus = 2;
-                        }
-                        //因为现在无法测试AO通道直接将AO通道设置为通过
-                        //if (task is AOTestTask)
-                        //{
-                        //    task.Result.Status = "通过";
-                        //    task.ChannelMapping.HardPointTestResult = "通过";
-                        //    task.ChannelMapping.ResultText = "硬点通道测试通过";
-                        //    task.ChannelMapping.Status = "通过";
-                        //    task.ChannelMapping.TestResultStatus = 0;
-                        //}
-                    }
-                    else if (task is DITestTask || task is DOTestTask)
-                    {
-                        // 数字量测试始终通过
-                        //task.Result.Status = "通过";
-                        //task.ChannelMapping.HardPointTestResult = "通过";
-                        //task.ChannelMapping.TestResultStatus = 1; // 成功状态
-                        if (task.Result.Status == "通过")
-                        {
-                            task.ChannelMapping.HardPointTestResult = "通过";
-                        }
-                        else
-                        {
-                            task.ChannelMapping.HardPointTestResult = "失败";
-                            task.ChannelMapping.TestResultStatus = 2;
-                        }
-
-                        //因为现在无法测试DO通道直接将DO通道设置为通过
-                        if (task is DOTestTask)
-                        {
-                            task.Result.Status = "通过";
-                            task.ChannelMapping.HardPointTestResult = "通过";
-                            task.ChannelMapping.ResultText = "硬点通道测试通过";
-                            task.ChannelMapping.Status = "通过";
-                            task.ChannelMapping.TestResultStatus = 0;
-                        }
-                    }
-                }//相当于对于已经测试过的点位进行判断
-                else if(task.Result.Status == "通过" || task.Result.Status == "失败")
-                {
-                    // 根据任务类型进行特定的结果评估
-                    if (task is AITestTask || task is AOTestTask)
-                    {
-                        bool allPassed = EvaluateAnalogTestResults(task);
-                        task.Result.Status = allPassed ? "通过" : "失败";
-                        task.ChannelMapping.HardPointTestResult = task.Result.Status;
-                        task.ChannelMapping.TestResultStatus = 0;
-
-                        // 如果失败，设置错误状态
-                        if (!allPassed)
-                        {
-                            //task.ChannelMapping.ErrorMessage = task.Result.ErrorMessage;
-                            task.ChannelMapping.TestResultStatus = 2;
-                        }
-                        //因为现在无法测试AO通道直接将AO通道设置为通过
-                        //if (task is AOTestTask)
-                        //{
-                        //    task.Result.Status = "通过";
-                        //    task.ChannelMapping.HardPointTestResult = "通过";
-                        //    task.ChannelMapping.ResultText = "硬点通道测试通过";
-                        //    task.ChannelMapping.Status = "通过";
-                        //    task.ChannelMapping.TestResultStatus = 0;
-                        //}
-                    }
-                    else if (task is DITestTask || task is DOTestTask)
-                    {
-                        // 数字量测试始终通过
-                        //task.Result.Status = "通过";
-                        //task.ChannelMapping.HardPointTestResult = "通过";
-                        //task.ChannelMapping.TestResultStatus = 0; // 成功状态
-                        if (task.Result.Status == "通过")
-                        {
-                            task.ChannelMapping.HardPointTestResult = "通过";
-                            task.ChannelMapping.TestResultStatus = 0;
-                        }
-                        else
-                        {
-                            task.ChannelMapping.HardPointTestResult = "失败";
-                            task.ChannelMapping.TestResultStatus = 2;
-                        }
-
-                        //因为现在无法测试DO通道直接将DO通道设置为通过
-                        if (task is DOTestTask)
-                        {
-                            task.Result.Status = "通过";
-                            task.ChannelMapping.HardPointTestResult = "通过";
-                            task.ChannelMapping.ResultText = "硬点通道测试通过";
-                            task.ChannelMapping.Status = "通过";
-                            task.ChannelMapping.TestResultStatus = 0;
-                        }
-                    }
-                }
-
-                // 确保任务状态正确
-                if (task.Status != TestTaskStatus.Completed)
-                {
-                    typeof(TestTask).GetProperty("Status").SetValue(task, TestTaskStatus.Completed);
-                    typeof(TestTask).GetProperty("IsCompleted").SetValue(task, true);
-                    task.Result.EndTime = DateTime.Now;
-                }
-
-                // 直接从当前批次获取通道，避免查询数据库
-                try
-                {
-                    // 将结果直接更新到通道映射
-                    task.ChannelMapping.HardPointTestResult = task.Result.Status;
-                    task.ChannelMapping.TestTime = DateTime.Now;
-                    task.ChannelMapping.EndTime = task.Result.EndTime;
-                    if (task is AITestTask || task is AOTestTask)
-                    {
-                        task.ChannelMapping.Value0Percent = task.Result.Value0Percent;
-                        task.ChannelMapping.Value25Percent = task.Result.Value25Percent;
-                        task.ChannelMapping.Value50Percent = task.Result.Value50Percent;
-                        task.ChannelMapping.Value75Percent = task.Result.Value75Percent;
-                        task.ChannelMapping.Value100Percent = task.Result.Value100Percent;
-                    }
-                    else
-                    {
-                        task.ChannelMapping.Value0Percent = float.NaN;
-                        task.ChannelMapping.Value25Percent = float.NaN;
-                        task.ChannelMapping.Value50Percent = float.NaN;
-                        task.ChannelMapping.Value75Percent = float.NaN;
-                        task.ChannelMapping.Value100Percent = float.NaN;
-                    }
-                    task.ChannelMapping.Status = task.Result.Status;
-                    task.ChannelMapping.ErrorMessage = task.Result.ErrorMessage;
-                    
-                    // 尝试异步更新数据库，但不等待完成
-                    Task.Run(async () => 
-                    {
-                        try 
-                        {
-                            await _channelMappingService.UpdateChannelMappingAsync(task.ChannelMapping);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"更新通道映射失败: {ex.Message}");
-                        }
-                    });
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"更新通道映射出错: {ex.Message}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"同步测试结果时出错: {ex.Message}");
-            }
-        }
+        // [Obsolete("此方法已弃用，状态更新应完全由 IChannelStateManager 处理，并通过事件通知UI更新")]
+        // private void SyncHardPointTestResult(TestTask task) { /* 方法体已移除 */ }
 
         /// <summary>
         /// 评估模拟量测试结果
@@ -1256,7 +499,7 @@ namespace FatFullVersion.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"评估模拟量测试结果时出错: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"评估模拟量测试结果时出错: {ex.Message}");
                 if (string.IsNullOrEmpty(task.Result.ErrorMessage))
                 {
                     task.Result.ErrorMessage = $"评估测试结果时出错: {ex.Message}";
@@ -1296,19 +539,12 @@ namespace FatFullVersion.Services
         /// 更新批次状态为全部已完成
         /// 只有在所有手动测试完成后才调用此方法
         /// </summary>
+        [Obsolete("CompleteAllTestsAsync 的逻辑应由ViewModel或IChannelStateManager在评估所有通道状态后处理，此方法不再安全调用")]
         public async Task<bool> CompleteAllTestsAsync()
-        {
-            if (_currentBatch != null)
-            {
-                _currentBatch.Status = BatchTestStatus.Completed.ToString();
-                _currentBatch.LastTestTime = DateTime.Now;
-                
-                // 通知UI刷新显示
-                NotifyTestResultsUpdated();
-                
-                return true;
-            }
-            return false;
+        { 
+            await Task.CompletedTask; 
+            System.Diagnostics.Debug.WriteLine("警告: TestTaskManager.CompleteAllTestsAsync 被调用，但其功能已废弃或应移至ViewModel。");
+            return false; 
         }
 
         /// <summary>
@@ -1337,7 +573,7 @@ namespace FatFullVersion.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"停止任务时出错: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"停止任务时出错: {ex.Message}");
                 return false;
             }
         }
@@ -1346,41 +582,34 @@ namespace FatFullVersion.Services
         /// 暂停所有测试任务
         /// </summary>
         /// <returns>操作是否成功</returns>
-        public async Task<bool> PauseAllTasksAsync()
-        {
-            if (!_isRunning)
-                return false;
-
-            try
-            {
-                // 对每个任务执行暂停操作
-                await Task.WhenAll(_activeTasks.Values.Select(t => t.PauseAsync()));
-                return true;
+        public async Task<bool> PauseAllTasksAsync() 
+        { 
+            bool onePausedOrAttempted = false;
+            var tasksToPause = _activeTasks.Values.ToList(); 
+            foreach(var task in tasksToPause) { 
+                await task.PauseAsync(); 
+                onePausedOrAttempted = true;
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"暂停任务时出错: {ex.Message}");
-                return false;
-            }
+            if (onePausedOrAttempted) await UpdateProgressMessageAsync("所有任务已请求暂停。");
+            else await UpdateProgressMessageAsync("没有可暂停的任务。");
+            return true; 
         }
 
         /// <summary>
         /// 恢复所有测试任务
         /// </summary>
         /// <returns>操作是否成功</returns>
-        public async Task<bool> ResumeAllTasksAsync()
-        {
-            try
-            {
-                // 对每个任务执行恢复操作
-                await Task.WhenAll(_activeTasks.Values.Select(t => t.ResumeAsync()));
-                return true;
+        public async Task<bool> ResumeAllTasksAsync() 
+        { 
+            bool oneResumedOrAttempted = false;
+            var tasksToResume = _activeTasks.Values.ToList();
+            foreach(var task in tasksToResume) { 
+                await task.ResumeAsync(); 
+                oneResumedOrAttempted = true;
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"恢复任务时出错: {ex.Message}");
-                return false;
-            }
+            if (oneResumedOrAttempted) await UpdateProgressMessageAsync("所有任务已恢复执行。");
+            else await UpdateProgressMessageAsync("没有可恢复的任务。");
+            return true; 
         }
 
         /// <summary>
@@ -1390,10 +619,8 @@ namespace FatFullVersion.Services
         /// <returns>测试任务实例，如果不存在则返回null</returns>
         public TestTask GetTaskById(string taskId)
         {
-            if (string.IsNullOrEmpty(taskId) || !_activeTasks.ContainsKey(taskId))
-                return null;
-
-            return _activeTasks[taskId];
+            _activeTasks.TryGetValue(taskId, out var task); 
+            return task; 
         }
 
         /// <summary>
@@ -1401,12 +628,13 @@ namespace FatFullVersion.Services
         /// </summary>
         /// <param name="channelMapping">通道映射实例</param>
         /// <returns>测试任务实例，如果不存在则返回null</returns>
-        public TestTask GetTaskByChannel(ChannelMapping channelMapping)
-        {
-            if (channelMapping == null)
-                return null;
-
-            return _activeTasks.Values.FirstOrDefault(t => t.ChannelMapping.VariableName == channelMapping.VariableName);
+        public TestTask GetTaskByChannel(ChannelMapping channelMapping) { 
+            if (channelMapping == null) return null;
+            if (!string.IsNullOrEmpty(channelMapping.Id.ToString()) && _activeTasks.TryGetValue(channelMapping.Id.ToString(), out var taskById))
+            {
+                return taskById;
+            }
+            return _activeTasks.Values.FirstOrDefault(t => t.ChannelMapping != null && t.ChannelMapping.Id == channelMapping.Id); 
         }
 
         /// <summary>
@@ -1425,18 +653,12 @@ namespace FatFullVersion.Services
         /// <returns>操作是否成功</returns>
         public async Task<bool> RemoveTaskAsync(string taskId)
         {
-            if (string.IsNullOrEmpty(taskId) || !_activeTasks.ContainsKey(taskId))
-                return false;
-
-            if (_activeTasks.TryRemove(taskId, out TestTask task))
-            {
-                // 确保任务停止
-                await task.StopAsync();
-                task.Dispose();
+            if(_activeTasks.TryRemove(taskId, out var task)) { 
+                await task.StopAsync(); 
+                task.Dispose(); 
                 return true;
-            }
-
-            return false;
+            } 
+            return false; 
         }
 
         /// <summary>
@@ -1444,12 +666,29 @@ namespace FatFullVersion.Services
         /// </summary>
         /// <param name="task">要添加的测试任务</param>
         /// <returns>操作是否成功</returns>
-        public bool AddTask(TestTask task)
-        {
-            if (task == null || _activeTasks.ContainsKey(task.Id))
+        public bool AddTask(TestTask task) { 
+            if (task == null || string.IsNullOrEmpty(task.Id)) 
+            {
+                System.Diagnostics.Debug.WriteLine("警告：尝试添加空任务或ID为空的任务。");
                 return false;
-
-            return _activeTasks.TryAdd(task.Id, task);
+            }
+            if (_activeTasks.ContainsKey(task.Id)) {
+                if (_activeTasks.TryRemove(task.Id, out var oldTask))
+                {
+                    oldTask.Dispose(); 
+                    System.Diagnostics.Debug.WriteLine($"信息：已移除并清理了具有相同ID ({task.Id}) 的旧任务，准备添加新任务。");
+                }
+            }
+            bool added = _activeTasks.TryAdd(task.Id, task);
+            if(added) 
+            {
+                System.Diagnostics.Debug.WriteLine($"信息：已添加任务: {task.Id} ({task.ChannelMapping?.VariableName})");
+            }
+            else 
+            {
+                System.Diagnostics.Debug.WriteLine($"错误：添加任务失败: {task.Id} ({task.ChannelMapping?.VariableName})");
+            }
+            return added; 
         }
 
         /// <summary>
@@ -1458,69 +697,8 @@ namespace FatFullVersion.Services
         /// <returns>操作是否成功</returns>
         public async Task<bool> ClearAllTasksAsync()
         {
-            try
-            {
-                // 如果当前有任务在运行，先停止所有任务
-                if (_isRunning)
-                {
-                    await StopAllTasksAsync();
-                }
-                else
-                {
-                    // 即使没有任务在运行，也应确保所有任务都被适当地停止
-                    if (_masterCancellationTokenSource != null && !_masterCancellationTokenSource.IsCancellationRequested)
-                    {
-                        _masterCancellationTokenSource.Cancel();
-                    }
-
-                    foreach (var task in _activeTasks.Values)
-                    {
-                        try
-                        {
-                            // 尝试停止任务，但不等待太长时间
-                            var stopTask = task.StopAsync();
-                            await Task.WhenAny(stopTask, Task.Delay(500));
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"停止任务时出错: {ex.Message}");
-                        }
-                    }
-                }
-
-                // 逐个释放资源并删除任务
-                foreach (var task in _activeTasks.Values.ToList())
-                {
-                    try
-                    {
-                        task.Dispose();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"释放任务资源时出错: {ex.Message}");
-                    }
-                }
-
-                // 清空集合
-                _activeTasks.Clear();
-                
-                // 创建新的取消令牌源
-                if (_masterCancellationTokenSource != null)
-                {
-                    _masterCancellationTokenSource.Dispose();
-                    _masterCancellationTokenSource = new CancellationTokenSource();
-                }
-                
-                // 重置运行标志
-                _isRunning = false;
-                
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"清空任务时出错: {ex.Message}");
-                return false;
-            }
+            await ClearAllTasksAsyncInternal();
+            return true;
         }
 
         /// <summary>
@@ -1528,24 +706,19 @@ namespace FatFullVersion.Services
         /// </summary>
         public void Dispose()
         {
-            // 停止所有任务
-            StopAllTasksAsync().Wait();
-
-            // 关闭进度对话框
-            CloseProgressDialog();
-
-            // 释放资源
-            _masterCancellationTokenSource.Dispose();
-            _semaphore.Dispose();
-
-            // 清理所有任务资源
-            foreach (var task in _activeTasks.Values)
+            // 尝试优雅停止，如果不行则继续Dispose
+            try 
             {
-                task.Dispose();
+                StopAllTasksAsync().GetAwaiter().GetResult(); 
             }
-            
-            // 清空任务集合
-            _activeTasks.Clear();
+            catch(Exception ex) 
+            {
+                 System.Diagnostics.Debug.WriteLine($"Dispose时停止任务出错: {ex.Message}");
+            }
+            _masterCancellationTokenSource?.Cancel(); // 确保CTS被取消
+            _masterCancellationTokenSource?.Dispose();
+            _semaphore?.Dispose();
+            ClearAllTasksAsyncInternal().GetAwaiter().GetResult(); // 清理任务列表
         }
 
         /// <summary>
@@ -1564,421 +737,190 @@ namespace FatFullVersion.Services
         /// <summary>
         /// 通知测试结果已更新
         /// </summary>
-        private void NotifyTestResultsUpdated()
+        private void NotifyTestResultsUpdated(IEnumerable<Guid> updatedChannelIds = null)
         {
-            try
+            if (updatedChannelIds != null && updatedChannelIds.Any())
             {
-                // 使用反射获取事件聚合器
-                var eventAggregatorField = this.GetType().GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                    .FirstOrDefault(f => f.FieldType.Name.Contains("EventAggregator"));
-
-                if (eventAggregatorField != null)
-                {
-                    var eventAggregator = eventAggregatorField.GetValue(this);
-                    
-                    // 发布测试结果更新事件
-                    var publishMethod = eventAggregator.GetType().GetMethod("Publish");
-                    if (publishMethod != null)
-                    {
-                        // 找一个TestResultsUpdatedEvent类型或创建一个空对象
-                        var eventInstance = Activator.CreateInstance(Type.GetType("FatFullVersion.Events.TestResultsUpdatedEvent, FatFullVersion") 
-                            ?? typeof(object));
-                            
-                        publishMethod.Invoke(eventAggregator, new[] { eventInstance });
-                        
-                        Console.WriteLine("已通知UI刷新测试结果");
-                    }
-                }
-                else
-                {
-                    // 直接通过调度器尝试刷新
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        // 尝试获取主要ViewModel
-                        var mainWindow = Application.Current.MainWindow;
-                        if (mainWindow != null)
-                        {
-                            var dataContext = mainWindow.DataContext;
-                            if (dataContext != null)
-                            {
-                                // 尝试刷新属性
-                                var propertyInfo = dataContext.GetType().GetProperty("TestResults");
-                                if (propertyInfo != null)
-                                {
-                                    propertyInfo.SetValue(dataContext, propertyInfo.GetValue(dataContext));
-                                    Console.WriteLine("已通过主窗口刷新测试结果");
-                                }
-                            }
-                        }
-                    });
-                }
+                 _eventAggregator.GetEvent<ChannelStatesModifiedEvent>().Publish(updatedChannelIds.ToList());
             }
-            catch (Exception ex)
+            else 
             {
-                Console.WriteLine($"通知UI更新失败: {ex.Message}");
+                 _eventAggregator.GetEvent<TestResultsUpdatedEvent>().Publish(); // 通用通知
             }
         }
 
         /// <summary>
-        /// 处理单个通道复测的串行执行逻辑
+        /// 复测指定的通道。
         /// </summary>
-        public async Task<bool> RetestChannelSerialAsync(ChannelMapping channelMapping)
+        /// <param name="channelMapping">需要复测的通道映射对象。</param>
+        /// <returns>如果复测操作成功执行（无论测试本身是否通过），则返回true。</returns>
+        public async Task<bool> RetestChannelAsync(ChannelMapping channelMapping) 
         {
-            if (channelMapping == null)
+            if (channelMapping == null) 
+            {
+                await _messageService.ShowAsync("错误", "需要复测的通道信息不能为空。", MessageBoxButton.OK);
                 return false;
+            }
+
+            // 检查是否正在运行其他测试
+            if (_isRunning && (_activeTasks.Any(t => t.Value.ChannelMapping.Id != channelMapping.Id) || _activeTasks.Count > 1) )
+            {
+                 var continueRetest = await _messageService.ShowAsync("警告", "当前有其他测试正在运行中或已计划。是否仍要单独复测此通道？", MessageBoxButton.YesNo);
+                 if (continueRetest != MessageBoxResult.Yes) return false;
+                 // 如果用户选择继续，可能需要考虑是否取消现有任务，或以某种方式隔离复测
+                 // 目前简单处理为允许继续，但可能会有并发问题，需要更完善的逻辑
+            }
+
+            if (!await EnsurePlcConnectionsAsync()) return false;
+
+            // 1. 重置通道状态以便复测
+            _channelStateManager.ResetForRetest(channelMapping);
+            NotifyTestResultsUpdated(new[] { channelMapping.Id }); // 通知UI状态已重置
+
+            // 2. 创建单个测试任务
+            TestTask retestTask = null;
+            string taskId = channelMapping.Id.ToString();
+            switch (channelMapping.ModuleType?.ToUpper())
+            {
+                case "AI":
+                    retestTask = new AITestTask(taskId, channelMapping, _testPlcCommunication, _targetPlcCommunication);
+                    break;
+                case "AO":
+                    retestTask = new AOTestTask(taskId, channelMapping, _testPlcCommunication, _targetPlcCommunication);
+                    break;
+                case "DI":
+                    retestTask = new DITestTask(taskId, channelMapping, _testPlcCommunication, _targetPlcCommunication);
+                    break;
+                case "DO":
+                    retestTask = new DOTestTask(taskId, channelMapping, _testPlcCommunication, _targetPlcCommunication);
+                    break;
+                default:
+                    await _messageService.ShowAsync("错误", $"不支持的模块类型 '{channelMapping.ModuleType}'，无法为通道 '{channelMapping.VariableName}' 创建复测任务。", MessageBoxButton.OK);
+                    return false;
+            }
+
+            if (retestTask == null) return false;
+
+            // 清理可能存在的旧任务 (如果ID相同)
+            _activeTasks.TryRemove(retestTask.Id, out _);
+            // 添加新任务
+            if (!_activeTasks.TryAdd(retestTask.Id, retestTask))
+            {
+                await _messageService.ShowAsync("错误", "将复测任务添加到活动列表失败。", MessageBoxButton.OK);
+                return false;
+            }
+            
+            _isRunning = true; // 标记测试正在运行
+            _masterCancellationTokenSource?.Dispose();
+            _masterCancellationTokenSource = new CancellationTokenSource();
+
+            await ShowTestProgressDialogAsync(true, channelMapping);
+            System.Diagnostics.Debug.WriteLine($"通道复测启动: {channelMapping.VariableName} @ {DateTime.Now}");
 
             try
             {
-                // 移除旧的相关测试任务
-                var existingTask = GetTaskByChannel(channelMapping);
-                if (existingTask != null)
-                {
-                    // 如果任务正在运行，先停止
-                    if (existingTask.Status == TestTaskStatus.Running || existingTask.Status == TestTaskStatus.Paused)
-                    {
-                        await existingTask.StopAsync();
-                    }
-                    
-                    // 从活跃任务列表中移除
-                    await RemoveTaskAsync(existingTask.Id);
-                }
+                await UpdateProgressMessageAsync($"复测中: {channelMapping.VariableName} ({channelMapping.ChannelTag})...");
+                // 3. 准备硬点测试状态
+                _channelStateManager.BeginHardPointTest(channelMapping, DateTime.Now);
+                NotifyTestResultsUpdated(new[] { channelMapping.Id });
 
-                // 根据通道类型创建新的测试任务
-                string taskId = string.Empty;
-                List<string> taskIds = new List<string>();
+                // 4. 执行测试
+                HardPointTestRawResult rawResult = await retestTask.RunTestAsync(_masterCancellationTokenSource.Token);
+                System.Diagnostics.Debug.WriteLine($"通道 {channelMapping.VariableName} 复测完成. 成功: {rawResult.IsSuccess}");
+
+                // 5. 设置测试结果
+                _channelStateManager.SetHardPointTestOutcome(channelMapping, rawResult, DateTime.Now);
+                NotifyTestResultsUpdated(new[] { channelMapping.Id });
                 
-                switch (channelMapping.ModuleType?.ToLower())
-                {
-                    case "ai":
-                        taskIds = (await CreateAITasksAsync(new[] { channelMapping })).ToList();
-                        break;
-                    case "ao":
-                        taskIds = (await CreateAOTasksAsync(new[] { channelMapping })).ToList();
-                        break;
-                    case "di":
-                        taskIds = (await CreateDITasksAsync(new[] { channelMapping })).ToList();
-                        break;
-                    case "do":
-                        taskIds = (await CreateDOTasksAsync(new[] { channelMapping })).ToList();
-                        break;
-                    default:
-                        return false;
-                }
-
-                // 如果成功创建了任务
-                if (taskIds.Count > 0)
-                {
-                    taskId = taskIds[0];
-                    var newTask = GetTaskById(taskId);
-                    if (newTask != null)
-                    {
-                        // 设置测试起始时间
-                        channelMapping.StartTime = DateTime.Now;
-                        channelMapping.TestTime = DateTime.Now;
-                        channelMapping.FinalTestTime = null;
-                        channelMapping.TestResultStatus = 0; // 重置结果状态为未测试
-                        channelMapping.HardPointTestResult = "正在复测中...";
-                        channelMapping.ResultText = "正在复测中..."; // 更新最终测试结果文本
-
-                        // 显示进度对话框
-                        await ShowTestProgressDialogAsync(true, channelMapping);
-                        
-                        // 准备单通道测试所需的分类列表
-                        List<TestTask> aiTasks = new List<TestTask>();
-                        List<TestTask> aoTasks = new List<TestTask>();
-                        List<TestTask> diTasks = new List<TestTask>();
-                        List<TestTask> doTasks = new List<TestTask>();
-                        
-                        // 根据类型添加到对应列表
-                        switch (channelMapping.ModuleType?.ToLower())
-                        {
-                            case "ai":
-                                aiTasks.Add(newTask);
-                                break;
-                            case "ao":
-                                aoTasks.Add(newTask);
-                                break;
-                            case "di":
-                                diTasks.Add(newTask);
-                                break;
-                            case "do":
-                                doTasks.Add(newTask);
-                                break;
-                        }
-
-                        // 创建取消令牌
-                        using (var cts = new CancellationTokenSource())
-                        {
-                            try
-                            {
-                                // 调用核心测试序列执行单通道测试
-                                await ExecuteSerialTestSequenceAsync(aiTasks, aoTasks, diTasks, doTasks, cts.Token);
-                                
-                                // 同步测试结果
-                                SyncHardPointTestResult(newTask);
-                                
-                                // 更新最终测试结果
-                                if (newTask.Result?.Status == "通过")
-                                {
-                                    channelMapping.ResultText = "硬点通道测试通过";
-                                    channelMapping.TestResultStatus = 0; // 成功状态是只是完成了自动测试部分后续还有手动测试部分，所以将状态设置为0底色设置为白色
-                                }
-                                else
-                                {
-                                    channelMapping.ResultText = newTask.Result?.Status ?? "复测失败";
-                                    channelMapping.TestResultStatus = 2; // 失败状态
-                                }
-                                
-                                // 设置最终测试时间
-                                channelMapping.FinalTestTime = DateTime.Now;
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"复测通道时出错: {ex.Message}");
-                                channelMapping.HardPointTestResult = "复测失败";
-                                channelMapping.ResultText = "复测失败: " + ex.Message;
-                                channelMapping.TestResultStatus = 2; // 失败
-                                channelMapping.ErrorMessage = ex.Message;
-                            }
-                        }
-                        
-                        // 关闭进度对话框
-                        CloseProgressDialog();
-                        
-                        // 通知UI刷新
-                        NotifyTestResultsUpdated();
-                        
-                        return true;
-                    }
-                }
-
-                return false;
+                await _messageService.ShowAsync("复测完成", $"通道 '{channelMapping.VariableName}' 的复测已完成。请检查结果。", MessageBoxButton.OK);
+            }
+            catch (OperationCanceledException)
+            {
+                System.Diagnostics.Debug.WriteLine($"通道 {channelMapping.VariableName} 复测被取消.");
+                var cancelResult = new HardPointTestRawResult(false, "复测任务被用户取消。");
+                _channelStateManager.SetHardPointTestOutcome(channelMapping, cancelResult, DateTime.Now);
+                NotifyTestResultsUpdated(new[] { channelMapping.Id });
+                await _messageService.ShowAsync("复测取消", $"通道 '{channelMapping.VariableName}' 的复测已被取消。", MessageBoxButton.OK);
             }
             catch (Exception ex)
             {
-                await _messageService.ShowAsync("错误", $"复测通道失败: {ex.Message}", MessageBoxButton.OK);
-                return false;
+                System.Diagnostics.Debug.WriteLine($"通道 {channelMapping.VariableName} 复测发生错误: {ex.Message}");
+                var errorResult = new HardPointTestRawResult(false, $"复测 '{channelMapping.VariableName}' 时发生异常: {ex.Message}");
+                _channelStateManager.SetHardPointTestOutcome(channelMapping, errorResult, DateTime.Now);
+                NotifyTestResultsUpdated(new[] { channelMapping.Id });
+                await _messageService.ShowAsync("复测错误", $"通道 '{channelMapping.VariableName}' 复测过程中发生错误: {ex.Message}", MessageBoxButton.OK);
             }
+            finally
+            {
+                _isRunning = false;
+                CloseProgressDialog();
+                _activeTasks.TryRemove(retestTask.Id, out _); // 从活动任务中移除
+                await UpdateBatchStatusAsync(); // 更新批次状态
+            }
+            return true;
         }
 
         #endregion
 
         #region 私有辅助方法
 
-        /// <summary>
-        /// 创建AI类型的测试任务
-        /// </summary>
-        /// <param name="aiChannels">AI通道映射集合</param>
-        /// <returns>创建的任务ID集合</returns>
-        private async Task<IEnumerable<string>> CreateAITasksAsync(IEnumerable<ChannelMapping> aiChannels)
+        private async Task ClearAllTasksAsyncInternal() 
         {
-            List<string> taskIds = new List<string>();
-
-            foreach (var channel in aiChannels)
+            var tasksToStop = _activeTasks.Values.ToList();
+            _activeTasks.Clear(); 
+            foreach (var task in tasksToStop)
             {
-                // 确保使用批次名称而不是ID
-                if (_currentBatch != null && string.IsNullOrEmpty(channel.TestBatch))
-                {
-                    channel.TestBatch = _currentBatch.BatchName;
-                }
-                
-                string taskId = Guid.NewGuid().ToString();
-                var task = new AITestTask(
-                    taskId,
-                    channel,
-                    _testPlcCommunication,
-                    _targetPlcCommunication);
-                
-                if (_activeTasks.TryAdd(taskId, task))
-                {
-                    taskIds.Add(taskId);
-                }
-            }
-
-            return await Task.FromResult(taskIds);
-        }
-
-        /// <summary>
-        /// 创建AO类型的测试任务
-        /// </summary>
-        /// <param name="aoChannels">AO通道映射集合</param>
-        /// <returns>创建的任务ID集合</returns>
-        private async Task<IEnumerable<string>> CreateAOTasksAsync(IEnumerable<ChannelMapping> aoChannels)
-        {
-            List<string> taskIds = new List<string>();
-
-            foreach (var channel in aoChannels)
-            {
-                // 确保使用批次名称而不是ID
-                if (_currentBatch != null && string.IsNullOrEmpty(channel.TestBatch))
-                {
-                    channel.TestBatch = _currentBatch.BatchName;
-                }
-                
-                string taskId = Guid.NewGuid().ToString();
-                var task = new AOTestTask(
-                    taskId,
-                    channel,
-                    _testPlcCommunication,
-                    _targetPlcCommunication);
-                
-                if (_activeTasks.TryAdd(taskId, task))
-                {
-                    taskIds.Add(taskId);
-                }
-            }
-
-            return await Task.FromResult(taskIds);
-        }
-
-        /// <summary>
-        /// 创建DI类型的测试任务
-        /// </summary>
-        /// <param name="diChannels">DI通道映射集合</param>
-        /// <returns>创建的任务ID集合</returns>
-        private async Task<IEnumerable<string>> CreateDITasksAsync(IEnumerable<ChannelMapping> diChannels)
-        {
-            List<string> taskIds = new List<string>();
-
-            foreach (var channel in diChannels)
-            {
-                // 确保使用批次名称而不是ID
-                if (_currentBatch != null && string.IsNullOrEmpty(channel.TestBatch))
-                {
-                    channel.TestBatch = _currentBatch.BatchName;
-                }
-                
-                string taskId = Guid.NewGuid().ToString();
-                var task = new DITestTask(
-                    taskId,
-                    channel,
-                    _testPlcCommunication,
-                    _targetPlcCommunication);
-                
-                if (_activeTasks.TryAdd(taskId, task))
-                {
-                    taskIds.Add(taskId);
-                }
-            }
-
-            return await Task.FromResult(taskIds);
-        }
-
-        /// <summary>
-        /// 创建DO类型的测试任务
-        /// </summary>
-        /// <param name="doChannels">DO通道映射集合</param>
-        /// <returns>创建的任务ID集合</returns>
-        private async Task<IEnumerable<string>> CreateDOTasksAsync(IEnumerable<ChannelMapping> doChannels)
-        {
-            List<string> taskIds = new List<string>();
-
-            foreach (var channel in doChannels)
-            {
-                // 确保使用批次名称而不是ID
-                if (_currentBatch != null && string.IsNullOrEmpty(channel.TestBatch))
-                {
-                    channel.TestBatch = _currentBatch.BatchName;
-                }
-                
-                string taskId = Guid.NewGuid().ToString();
-                var task = new DOTestTask(
-                    taskId,
-                    channel,
-                    _testPlcCommunication,
-                    _targetPlcCommunication);
-                
-                if (_activeTasks.TryAdd(taskId, task))
-                {
-                    taskIds.Add(taskId);
-                }
-            }
-
-            return await Task.FromResult(taskIds);
-        }
-
-        /// <summary>
-        /// 实现受限并发的异步ForEach方法
-        /// </summary>
-        /// <typeparam name="T">元素类型</typeparam>
-        /// <param name="source">数据源</param>
-        /// <param name="body">对每个元素执行的方法</param>
-        /// <param name="maxDegreeOfParallelism">最大并行度</param>
-        /// <returns>异步任务</returns>
-        private async Task ForEachAsyncWithThrottling<T>(IEnumerable<T> source, Func<T, Task> body, int maxDegreeOfParallelism)
-        {
-            // 创建任务列表
-            var tasks = new List<Task>();
-            
-            foreach (var item in source)
-            {
-                // 等待信号量，限制并发数
-                await _semaphore.WaitAsync(_masterCancellationTokenSource.Token);
-                
-                // 创建并启动任务
-                tasks.Add(Task.Run(async () =>
-                {
-                    try
-                    {
-                        // 执行主体方法
-                        await body(item);
-                    }
-                    finally
-                    {
-                        // 释放信号量
-                        _semaphore.Release();
-                    }
-                }, _masterCancellationTokenSource.Token));
-            }
-            
-            // 等待所有任务完成
-            await Task.WhenAll(tasks);
-        }
-
-        /// <summary>
-        /// 更新批次状态逻辑
-        /// </summary>
-        private async Task UpdateBatchStatusAsync()
-        {
-            if (_currentBatch != null)
-            {
-                // 更新批次状态
-                _currentBatch.Status = GetOverallBatchStatus().ToString();
-                _currentBatch.LastTestTime = DateTime.Now;
-
                 try
                 {
-                    // 通知ViewModel更新批次状态
-                    // 这里可以使用事件聚合器发布消息，让ViewModel订阅并更新UI
-                    // 或者由ViewModel在适当的时机调用服务来刷新批次状态
-                    
-                    // 如果还有其他需要保存的操作，可以在这里进行
-                    // 例如将测试结果保存到数据库等
+                    await task.StopAsync(); 
+                    task.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    await _messageService.ShowAsync("错误", $"更新批次状态时出错: {ex.Message}", MessageBoxButton.OK);
+                    System.Diagnostics.Debug.WriteLine($"停止和释放旧任务 {task.Id} 时出错: {ex.Message}");
                 }
             }
+        }
+
+        private async Task<bool> EnsurePlcConnectionsAsync()
+        {
+            if (!_testPlcCommunication.IsConnected)
+            {
+                var testPlcConnectResult = await _testPlcCommunication.ConnectAsync();
+                if (!testPlcConnectResult.IsSuccess)
+                {
+                    await _messageService.ShowAsync("错误", $"无法连接测试PLC: {testPlcConnectResult.ErrorMessage}", MessageBoxButton.OK);
+                    return false;
+                }
+            }
+            if (!_targetPlcCommunication.IsConnected)
+            {
+                var targetPlcConnectResult = await _targetPlcCommunication.ConnectAsync();
+                if (!targetPlcConnectResult.IsSuccess)
+                {
+                    await _messageService.ShowAsync("错误", $"无法连接被测PLC: {targetPlcConnectResult.ErrorMessage}", MessageBoxButton.OK);
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private async Task UpdateBatchStatusAsync() { 
+            System.Diagnostics.Debug.WriteLine("信息: TestTaskManager.UpdateBatchStatusAsync 被调用（已废弃），批次状态更新应由ViewModel处理。");
+            await Task.CompletedTask;
         }
 
         #endregion
 
-        /// <summary>
-        /// 启动所有测试任务
-        /// </summary>
-        /// <returns>操作是否成功</returns>
-        public async Task<bool> StartAllTasksAsync()
-        {
-            // 调用串行执行方法
-            return await StartAllTasksSerialAsync();
+        // StartAllTasks_Refactored 和 RetestChannelAsync 将在下一步骤中实现
+        // ... (其他方法存根) ...
+        [Obsolete("使用 StartAllTasksSerialAsync_Refactored (串行) 或 StartAllTasksAsync (并发) 替代此方法名")]
+        public async Task<bool> StartAllTasksSerialAsync() { 
+            return await StartAllTasksSerialAsync_Refactored();
         }
-
-        // 实现RetestChannelAsync接口方法
-        public async Task<bool> RetestChannelAsync(ChannelMapping channelMapping)
-        {
-            // 调用新的串行测试方法实现复测功能
-            return await RetestChannelSerialAsync(channelMapping);
+        [Obsolete("使用 RetestChannelAsync 替代此方法")]
+        public async Task<bool> RetestChannelSerialAsync(ChannelMapping channelMapping) { 
+            return await RetestChannelAsync(channelMapping); 
         }
     }
 }

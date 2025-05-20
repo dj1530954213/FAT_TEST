@@ -11,7 +11,7 @@ namespace FatFullVersion.Models
     /// <summary>
     /// 测试任务基类，定义测试任务的通用行为和属性
     /// </summary>
-    public abstract class TestTask : IDisposable
+    public abstract class TestTask : IDisposable, ITestPausable
     {
         #region 属性与字段
 
@@ -41,7 +41,8 @@ namespace FatFullVersion.Models
         protected readonly IPlcCommunication TargetPlcCommunication;
 
         /// <summary>
-        /// 测试结果
+        /// 用于存储测试过程中收集的测量数据（如ValueXPercent）和详细日志。
+        /// 注意：此对象的Status属性不应再用于驱动最终的硬点测试结果，该职责已移交。
         /// </summary>
         public ChannelMapping Result { get; protected set; }
 
@@ -101,8 +102,6 @@ namespace FatFullVersion.Models
             Result = new ChannelMapping
             {
                 VariableName = channelMapping.VariableName,
-                TestPLCChannelTag = channelMapping.TestPLCChannelTag,
-                StartTime = DateTime.Now
             };
 
             IsCompleted = false;
@@ -118,147 +117,122 @@ namespace FatFullVersion.Models
         #region 公共方法
 
         /// <summary>
-        /// 启动测试任务
+        /// 启动并执行测试任务的核心逻辑，并返回原始测试结果。
+        /// 此方法由 TestTaskManager 调用。
         /// </summary>
-        /// <param name="cancellationToken">外部取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task StartAsync(CancellationToken cancellationToken = default)
+        /// <param name="cancellationToken">外部取消令牌。</param>
+        /// <returns>包含测试原始结果的 HardPointTestRawResult。</returns>
+        public async Task<HardPointTestRawResult> RunTestAsync(CancellationToken cancellationToken)
         {
+            HardPointTestRawResult testOutcome;
             lock (TaskLock)
             {
-                if (Status == TestTaskStatus.Running)
-                    return;
-
-                if (IsCompleted || IsCancelled)
-                    return;
-
-                // 确保取消令牌源是有效的
-                if (CancellationTokenSource.IsCancellationRequested)
+                if (Status == TestTaskStatus.Running && !IsPaused) // 防止重入，除非是暂停后恢复
                 {
-                    CancellationTokenSource.Dispose();
-                    CancellationTokenSource = new CancellationTokenSource();
+                    return new HardPointTestRawResult(false, "任务已在运行中。");
+                }
+                if (IsCompleted || IsCancelled) 
+                {
+                     return new HardPointTestRawResult(false, $"任务已完成({Status})，无法再次运行。");
                 }
 
-                // 确保PauseEvent是设置状态（非暂停）
-                PauseEvent.Set();
-
-                // 合并外部令牌与内部令牌
-                var linkedTokenSource = CancellationTokenSource.Token.Register(() => { });
-                
+                // 合并外部令牌与内部令牌，如果需要单独取消此任务，应使用CancellationTokenSource
+                // 但通常 _masterCancellationTokenSource 由 TestTaskManager 控制全局取消
+                // 此处cancellationToken主要用于传递 TestTaskManager 的全局取消信号
                 Status = TestTaskStatus.Running;
                 IsPaused = false;
+                IsCancelled = false; // 重置取消状态
+                IsCompleted = false; // 重置完成状态
+                PauseEvent.Set(); // 确保开始时不是暂停状态
             }
 
             try
             {
-                // 更新开始时间
-                Result.StartTime = DateTime.Now;
+                testOutcome = await ExecuteTestAsync(cancellationToken); // 调用子类实现的具体测试逻辑
 
-                // 执行实际的测试逻辑
-                await ExecuteTestAsync(cancellationToken);
-
-                // 如果测试完成且未取消，则更新任务状态
-                if (!IsCancelled)
+                lock (TaskLock)
                 {
-                    lock (TaskLock)
+                    if (!IsCancelled) // 仅当未被外部取消时，才根据测试结果更新状态
                     {
-                        Status = TestTaskStatus.Completed;
-                        IsCompleted = true;
-                        Result.EndTime = DateTime.Now;
+                        Status = testOutcome.IsSuccess ? TestTaskStatus.Completed : TestTaskStatus.Failed;
+                        IsCompleted = true; 
                     }
                 }
             }
             catch (OperationCanceledException)
             {
-                // 任务被取消，设置状态
                 lock (TaskLock)
                 {
                     Status = TestTaskStatus.Cancelled;
                     IsCancelled = true;
-                    Result.EndTime = DateTime.Now;
-                    Result.Status = "已取消";
                 }
+                testOutcome = new HardPointTestRawResult(false, "测试任务执行被取消。");
             }
             catch (Exception ex)
             {
-                // 任务执行出错，设置状态和错误信息
                 lock (TaskLock)
                 {
                     Status = TestTaskStatus.Failed;
-                    Result.EndTime = DateTime.Now;
-                    Result.Status = "失败";
-                    Result.ErrorMessage = ex.Message;
+                    IsCompleted = true; // 即使失败也标记为完成
                 }
+                testOutcome = new HardPointTestRawResult(false, $"测试任务执行时发生未知异常: {ex.Message}");
             }
+            return testOutcome;
         }
 
         /// <summary>
-        /// 停止测试任务
+        /// 停止测试任务。
         /// </summary>
-        /// <returns>异步任务</returns>
         public virtual async Task StopAsync()
         {
+            bool wasCancelled = false;
             lock (TaskLock)
             {
                 if (Status == TestTaskStatus.Completed || Status == TestTaskStatus.Cancelled)
                     return;
-
-                // 请求取消任务
-                CancellationTokenSource.Cancel();
                 
-                // 确保暂停状态解除，以便任务能够处理取消
-                PauseEvent.Set();
+                if(!CancellationTokenSource.IsCancellationRequested) CancellationTokenSource.Cancel();
+                PauseEvent.Set(); 
                 
                 Status = TestTaskStatus.Cancelled;
                 IsCancelled = true;
-                Result.EndTime = DateTime.Now;
-                Result.Status = "已取消";
+                wasCancelled = true;
             }
-
-            // 给予异步操作一些时间来响应取消
-            await Task.Delay(100);
+            if (wasCancelled) await Task.Delay(50); // 短暂等待异步操作响应取消
         }
 
         /// <summary>
-        /// 暂停测试任务
+        /// 暂停测试任务的执行。
         /// </summary>
-        /// <returns>异步任务</returns>
-        public virtual async Task PauseAsync()
+        public virtual Task PauseAsync() // 实现 IPausableTask
         {
             lock (TaskLock)
             {
-                if (Status != TestTaskStatus.Running || IsPaused || IsCompleted || IsCancelled)
-                    return;
-
-                // 重置事件，使任务暂停
-                PauseEvent.Reset();
-                
-                Status = TestTaskStatus.Paused;
-                IsPaused = true;
+                if (Status == TestTaskStatus.Running && !IsPaused)
+                {
+                    PauseEvent.Reset();
+                    Status = TestTaskStatus.Paused;
+                    IsPaused = true;
+                }
             }
-
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         /// <summary>
-        /// 恢复测试任务
+        /// 恢复已暂停的测试任务的执行。
         /// </summary>
-        /// <returns>异步任务</returns>
-        public virtual async Task ResumeAsync()
+        public virtual Task ResumeAsync() // 实现 IPausableTask
         {
             lock (TaskLock)
             {
-                if (Status != TestTaskStatus.Paused || !IsPaused || IsCompleted || IsCancelled)
-                    return;
-
-                // 设置事件，使任务继续执行
-                PauseEvent.Set();
-                
-                Status = TestTaskStatus.Running;
-                IsPaused = false;
+                if (Status == TestTaskStatus.Paused && IsPaused)
+                {
+                    PauseEvent.Set();
+                    Status = TestTaskStatus.Running;
+                    IsPaused = false;
+                }
             }
-
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -276,189 +250,36 @@ namespace FatFullVersion.Models
 
         #endregion
 
-        #region 串行测试接口方法
-
-        /// <summary>
-        /// 写入0%测试值
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task Write0PercentTestValueAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 读取0%测试值
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task Read0PercentTestValueAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 写入25%测试值
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task Write25PercentTestValueAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 读取25%测试值
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task Read25PercentTestValueAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 写入50%测试值
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task Write50PercentTestValueAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 读取50%测试值
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task Read50PercentTestValueAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 写入75%测试值
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task Write75PercentTestValueAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 读取75%测试值
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task Read75PercentTestValueAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 写入100%测试值
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task Write100PercentTestValueAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 读取100%测试值
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task Read100PercentTestValueAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 写入高信号（true）
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task WriteHighSignalAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 读取高信号（true）
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task ReadHighSignalAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 写入低信号（false）
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task WriteLowSignalAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 读取低信号（false）
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task ReadLowSignalAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 写入复位值
-        /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        public virtual async Task WriteResetValueAsync(CancellationToken cancellationToken)
-        {
-            await Task.CompletedTask;
-        }
-
-        #endregion
-
         #region 抽象方法
 
         /// <summary>
-        /// 执行测试逻辑，由派生类实现
+        /// 子类必须实现此方法以定义具体的测试执行逻辑，并返回原始测试结果。
         /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
-        /// <returns>异步任务</returns>
-        protected abstract Task ExecuteTestAsync(CancellationToken cancellationToken);
+        /// <param name="cancellationToken">取消令牌。</param>
+        /// <returns>包含测试原始结果的 HardPointTestRawResult。</returns>
+        protected abstract Task<HardPointTestRawResult> ExecuteTestAsync(CancellationToken cancellationToken);
 
         #endregion
 
         #region 保护方法
 
         /// <summary>
-        /// 检查是否应该暂停，如果是则等待恢复
+        /// 在测试步骤中检查是否应该暂停，如果是则等待恢复信号。
         /// </summary>
-        /// <param name="cancellationToken">取消令牌</param>
+        /// <param name="cancellationToken">外部取消令牌，如果触发则中断等待。</param>
         protected async Task CheckAndWaitForResumeAsync(CancellationToken cancellationToken)
         {
-            // 等待PauseEvent被设置（非暂停状态）或者取消令牌被触发
             await Task.Run(() =>
             {
                 try
                 {
-                    PauseEvent.Wait(cancellationToken);
+                    // WaitAny 等待暂停事件被Set，或者外部取消信号
+                    WaitHandle.WaitAny(new[] { PauseEvent.WaitHandle, cancellationToken.WaitHandle });
+                    cancellationToken.ThrowIfCancellationRequested(); // 如果是由于取消而结束等待，则抛出
                 }
                 catch (OperationCanceledException)
                 {
-                    // 捕获取消异常，重新抛出以便调用方知道任务已取消
+                    // 此处捕获的取消是方法级别的，重新抛出以通知调用者
                     throw;
                 }
             });
