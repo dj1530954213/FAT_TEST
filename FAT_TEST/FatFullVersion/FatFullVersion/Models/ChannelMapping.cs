@@ -173,11 +173,13 @@ namespace FatFullVersion.Models
         
         private float _rangeLowerLimitValue;
         /// <summary>
-        /// 量程低限数值
+        /// 量程低限数值 (AI/AO必填，统一为float)
         /// </summary>
         public float RangeLowerLimitValue
         {
             get { return _rangeLowerLimitValue; }
+            // 对于DI/DO，DataEditViewModel 初始化时设为 float.NaN，维持此行为或改为 float? 并设为 null
+            // 考虑到InitializeChannelFromImport中可以根据ModuleType处理，此处维持float，由初始化逻辑保证其值对DI/DO的特殊性
             set { SetProperty(ref _rangeLowerLimitValue, value); }
         }
         
@@ -193,11 +195,12 @@ namespace FatFullVersion.Models
         
         private float _rangeUpperLimitValue;
         /// <summary>
-        /// 量程高限数值
+        /// 量程高限数值 (AI/AO必填，统一为float)
         /// </summary>
         public float RangeUpperLimitValue
         {
             get { return _rangeUpperLimitValue; }
+            // 同上
             set { SetProperty(ref _rangeUpperLimitValue, value); }
         }
         
@@ -211,14 +214,14 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _sllSetValue, value); }
         }
         
-        private float _sllSetValueNumber;
+        private float? _sllSetValueNumber;
         /// <summary>
-        /// SLL设定值数值
+        /// SLL设定值数值 (由SLLSetValue解析，可为空)
         /// </summary>
-        public float SLLSetValueNumber
+        public float? SLLSetValueNumber
         {
             get { return _sllSetValueNumber; }
-            set { SetProperty(ref _sllSetValueNumber, value); }
+            set { SetProperty(ref _sllSetValueNumber, value); RaisePropertyChanged(nameof(LowLowLimit)); }
         }
         
         private string _sllSetPoint;
@@ -261,14 +264,14 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _slSetValue, value); }
         }
         
-        private float _slSetValueNumber;
+        private float? _slSetValueNumber;
         /// <summary>
-        /// SL设定值数值
+        /// SL设定值数值 (由SLSetValue解析，可为空)
         /// </summary>
-        public float SLSetValueNumber
+        public float? SLSetValueNumber
         {
             get { return _slSetValueNumber; }
-            set { SetProperty(ref _slSetValueNumber, value); }
+            set { SetProperty(ref _slSetValueNumber, value); RaisePropertyChanged(nameof(LowLimit)); }
         }
         
         private string _slSetPoint;
@@ -311,14 +314,14 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _shSetValue, value); }
         }
         
-        private float _shSetValueNumber;
+        private float? _shSetValueNumber;
         /// <summary>
-        /// SH设定值数值
+        /// SH设定值数值 (由SHSetValue解析，可为空)
         /// </summary>
-        public float SHSetValueNumber
+        public float? SHSetValueNumber
         {
             get { return _shSetValueNumber; }
-            set { SetProperty(ref _shSetValueNumber, value); }
+            set { SetProperty(ref _shSetValueNumber, value); RaisePropertyChanged(nameof(HighLimit)); }
         }
         
         private string _shSetPoint;
@@ -361,14 +364,14 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _shhSetValue, value); }
         }
         
-        private float _shhSetValueNumber;
+        private float? _shhSetValueNumber;
         /// <summary>
-        /// SHH设定值数值
+        /// SHH设定值数值 (由SHHSetValue解析，可为空)
         /// </summary>
-        public float SHHSetValueNumber
+        public float? SHHSetValueNumber
         {
             get { return _shhSetValueNumber; }
-            set { SetProperty(ref _shhSetValueNumber, value); }
+            set { SetProperty(ref _shhSetValueNumber, value); RaisePropertyChanged(nameof(HighHighLimit)); }
         }
         
         private string _shhSetPoint;
@@ -670,24 +673,24 @@ namespace FatFullVersion.Models
         #region 计算属性
         
         /// <summary>
-        /// 获取低低限值
+        /// 获取低低限值 (如果未设定则为null)
         /// </summary>
-        public float LowLowLimit => SLLSetValueNumber;
+        public float? LowLowLimit => SLLSetValueNumber;
 
         /// <summary>
-        /// 获取低限值
+        /// 获取低限值 (如果未设定则为null)
         /// </summary>
-        public float LowLimit => SLSetValueNumber;
+        public float? LowLimit => SLSetValueNumber;
 
         /// <summary>
-        /// 获取高限值
+        /// 获取高限值 (如果未设定则为null)
         /// </summary>
-        public float HighLimit => SHSetValueNumber;
+        public float? HighLimit => SHSetValueNumber;
 
         /// <summary>
-        /// 获取高高限值
+        /// 获取高高限值 (如果未设定则为null)
         /// </summary>
-        public float HighHighLimit => SHHSetValueNumber;
+        public float? HighHighLimit => SHHSetValueNumber;
 
         #endregion
 
@@ -853,100 +856,104 @@ namespace FatFullVersion.Models
 
         // RangeLowerLimitValue和RangeUpperLimitValue已经存在，作为量程低限和高限
 
-        private double _expectedValue;
+        private float? _expectedValue;
         /// <summary>
-        /// 期望值
+        /// 期望值 (可为空)
         /// </summary>
-        public double ExpectedValue
+        public float? ExpectedValue
         {
             get { return _expectedValue; }
-            set { SetProperty(ref _expectedValue, value); }
+            set { SetProperty(ref _expectedValue, value); RaisePropertyChanged(nameof(Deviation)); RaisePropertyChanged(nameof(DeviationPercent)); }
         }
 
-        private double _actualValue;
+        private float? _actualValue;
         /// <summary>
-        /// 实际值
+        /// 实际值 (可为空)
         /// </summary>
-        public double ActualValue
+        public float? ActualValue
         {
             get { return _actualValue; }
-            set 
-            { 
+            set
+            {
                 SetProperty(ref _actualValue, value);
-                // 当实际值设置时，自动计算偏差值
                 RaisePropertyChanged(nameof(Deviation));
                 RaisePropertyChanged(nameof(DeviationPercent));
             }
         }
 
         /// <summary>
-        /// 偏差值
+        /// 偏差值 (如果期望值或实际值为空，则结果也为空)
         /// </summary>
-        public double Deviation
-        {
-            get { return ActualValue - ExpectedValue; }
-        }
-
-        /// <summary>
-        /// 偏差百分比
-        /// </summary>
-        public double DeviationPercent
+        public float? Deviation
         {
             get
             {
-                if (ExpectedValue != 0)
-                {
-                    return (Deviation / ExpectedValue) * 100;
-                }
-                return 0;
+                if (ActualValue.HasValue && ExpectedValue.HasValue)
+                    return ActualValue.Value - ExpectedValue.Value;
+                return null;
             }
         }
 
-        private double _value0Percent;
         /// <summary>
-        /// 0%对比值
+        /// 偏差百分比 (如果期望值、实际值为空或期望值为0，则结果为空)
         /// </summary>
-        public double Value0Percent
+        public float? DeviationPercent
+        {
+            get
+            {
+                if (ActualValue.HasValue && ExpectedValue.HasValue && ExpectedValue.Value != 0)
+                {
+                    return ((ActualValue.Value - ExpectedValue.Value) / ExpectedValue.Value) * 100f;
+                }
+                return null;
+            }
+        }
+
+        private float? _value0Percent;
+        /// <summary>
+        /// 0%对比值 (可为空)
+        /// </summary>
+        public float? Value0Percent
         {
             get { return _value0Percent; }
             set { SetProperty(ref _value0Percent, value); }
         }
 
-        private double _value25Percent;
+        private float? _value25Percent;
         /// <summary>
-        /// 25%对比值
+        /// 25%对比值 (可为空)
         /// </summary>
-        public double Value25Percent
+        public float? Value25Percent
         {
             get { return _value25Percent; }
             set { SetProperty(ref _value25Percent, value); }
         }
 
-        private double _value50Percent;
+        private float? _value50Percent;
         /// <summary>
-        /// 50%对比值
+        /// 50%对比值 (可为空)
         /// </summary>
-        public double Value50Percent
+        public float? Value50Percent
         {
             get { return _value50Percent; }
             set { SetProperty(ref _value50Percent, value); }
         }
 
-        private double _value75Percent;
+        private float? _value75Percent;
         /// <summary>
-        /// 75%对比值
+        /// 75%对比值 (可为空)
         /// </summary>
-        public double Value75Percent
+        public float? Value75Percent
         {
             get { return _value75Percent; }
             set { SetProperty(ref _value75Percent, value); }
         }
 
-        private double _value100Percent;
+        private float? _value100Percent;
         /// <summary>
-        /// 100%对比值
+        /// 100%对比值 (可为空)
         /// </summary>
-        public double Value100Percent
+        public float? Value100Percent
         {
             get { return _value100Percent; }
             set { SetProperty(ref _value100Percent, value); }

@@ -1,0 +1,225 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 项目编码与架构规则 (.mdc)
+
+## 1. C# 编码准则 (General C# Best Practices)
+
+### 1.1. 命名规范 (Naming Conventions)
+*   **Rule-ID**: CS-NAM-001
+*   **Severity**: Warning
+*   **Description**: 类名、接口名、枚举名、方法名、属性名应使用PascalCase。
+    *   **Good**: `public class ChannelMappingService`, `public interface IChannelStateManager`, `public enum ManualTestItem`, `public void InitializeChannel()`, `public string ResultText { get; set; }`
+    *   **Bad**: `public class channelmapping_service`, `public interface ichannelStateManager`, `void initialize_channel()`
+*   **Rule-ID**: CS-NAM-002
+*   **Severity**: Warning
+*   **Description**: 方法参数、局部变量应使用camelCase。
+    *   **Good**: `void ProcessData(ChannelMapping channelMapping, int retryCount)`
+    *   **Bad**: `void ProcessData(ChannelMapping ChannelMapping, int Retry_Count)`
+*   **Rule-ID**: CS-NAM-003
+*   **Severity**: Suggestion
+*   **Description**: 私有字段应使用camelCase并以下划线 `_` 开头 (e.g., `_channelStateManager`)。
+*   **Rule-ID**: CS-NAM-004
+*   **Severity**: Warning
+*   **Description**: 接口名称应以 `I` 作为前缀 (e.g., `IChannelStateManager`)。
+*   **Rule-ID**: CS-NAM-005
+*   **Severity**: Suggestion
+*   **Description**: 避免使用缩写，除非它们是广泛接受的 (e.g., `Id` 可以接受, `Http` 可以接受)。
+
+### 1.2. 代码格式与可读性 (Formatting & Readability)
+*   **Rule-ID**: CS-FMT-001
+*   **Severity**: Suggestion
+*   **Description**: 使用一致的代码缩进（推荐4个空格）。
+*   **Rule-ID**: CS-FMT-002
+*   **Severity**: Suggestion
+*   **Description**: 大括号 `{}` 应在声明的下一行开始，并保持对齐。
+    ```csharp
+    public class MyClass
+    { // Good
+        public void MyMethod()
+        { // Good
+            // ...
+        }
+    }
+    ```
+*   **Rule-ID**: CS-FMT-003
+*   **Severity**: Warning
+*   **Description**: 方法长度不应过长。考虑将超过 ~100-150 行的方法重构为更小的、单一职责的方法。
+    *   **Context**: `DataEditViewModel.cs` 中的许多方法过长。
+*   **Rule-ID**: CS-FMT-004
+*   **Severity**: Suggestion
+*   **Description**: 类文件不应过长。考虑将超过 ~500-700 行的类进行拆分，遵循单一职责原则。
+    *   **Context**: `DataEditViewModel.cs` 文件过大。
+*   **Rule-ID**: CS-FMT-005
+*   **Severity**: Suggestion
+*   **Description**: 使用 `var` 进行类型推断，当类型从右侧明显可知时。如果能提高可读性，则明确写出类型。
+    *   **Good**: `var channel = new ChannelMapping();`, `var name = GetName();`
+    *   **Consider explicit**: `IEnumerable<ChannelMapping> channels = _channelService.GetChannels();` (如果 `GetChannels()` 返回类型不明显)
+*   **Rule-ID**: CS-FMT-006
+*   **Severity**: Suggestion
+*   **Description**: 使用空行分隔逻辑代码块，以提高可读性。
+
+### 1.3. 注释 (Comments)
+*   **Rule-ID**: CS-CMT-001
+*   **Severity**: Suggestion
+*   **Description**: 为公共API（类、方法、属性）编写XML文档注释。
+*   **Rule-ID**: CS-CMT-002
+*   **Severity**: Warning
+*   **Description**: 避免不必要的或解释显而易见代码的注释。注释应该解释“为什么”做某事，而不是“正在做什么”。
+*   **Rule-ID**: CS-CMT-003
+*   **Severity**: Suggestion
+*   **Description**: 使用 `//TODO:` 或 `//FIXME:` 标记需要后续处理的代码，并简要说明原因。
+
+### 1.4. 异常处理 (Exception Handling)
+*   **Rule-ID**: CS-EXH-001
+*   **Severity**: Warning
+*   **Description**: 不要捕获泛型 `Exception`，除非在顶层异常处理器中准备记录并重新抛出或优雅处理。应捕获更具体的异常类型。
+    *   **Bad**: `catch (Exception ex) { /* ... */ }`
+    *   **Good**: `catch (IOException ex) { /* ... */ }`
+*   **Rule-ID**: CS-EXH-002
+*   **Severity**: Warning
+*   **Description**: 避免空的 `catch` 块。如果捕获异常，至少应记录它。
+*   **Rule-ID**: CS-EXH-003
+*   **Severity**: Suggestion
+*   **Description**: 使用 `try-finally` 确保资源（如 `IDisposable` 对象）总是被释放，或者优先使用 `using` 语句。
+
+### 1.5. LINQ 使用 (LINQ Usage)
+*   **Rule-ID**: CS-LNQ-001
+*   **Severity**: Suggestion
+*   **Description**: 优先使用LINQ方法语法（点操作符）而非查询语法，以保持一致性，除非查询语法能显著提高复杂查询的可读性。
+*   **Rule-ID**: CS-LNQ-002
+*   **Severity**: Suggestion
+*   **Description**: 对于可能返回null或空集合的LINQ查询，在使用结果前进行检查，或使用如 `FirstOrDefault()` 后检查null，或使用 `.ToList()` 避免多次枚举。
+
+## 2. SOLID 原则 (SOLID Principles)
+
+*   **Rule-ID**: SOLID-SRP-001
+*   **Severity**: Error
+*   **Description**: **单一职责原则 (Single Responsibility Principle)**：一个类应该只有一个改变的理由。
+    *   **Context**: `DataEditViewModel` 当前违反此原则，承担了UI逻辑、状态管理、流程编排等多重职责。重构目标是将其状态管理职责分离到 `IChannelStateManager`。
+    *   **Guideline**: 服务类（如 `ChannelMappingService`, `TestTaskManager`）也应遵循SRP，专注于其核心领域。
+*   **Rule-ID**: SOLID-OCP-001
+*   **Severity**: Warning
+*   **Description**: **开闭原则 (Open/Closed Principle)**：软件实体（类、模块、函数等）应该对扩展开放，对修改关闭。
+    *   **Guideline**: 使用接口和抽象类，依赖注入，策略模式等来促进扩展性，而不是频繁修改现有已测试的代码。`IChannelStateManager` 的引入有助于此。
+*   **Rule-ID**: SOLID-LSP-001
+*   **Severity**: Warning
+*   **Description**: **里氏替换原则 (Liskov Substitution Principle)**：子类型必须能够替换掉它们的基类型。
+    *   **Guideline**: 在使用继承时确保子类行为与基类契约一致。
+*   **Rule-ID**: SOLID-ISP-001
+*   **Severity**: Warning
+*   **Description**: **接口隔离原则 (Interface Segregation Principle)**：客户端不应该被迫依赖于它们不使用的方法。创建小而专一的接口。
+    *   **Guideline**: `IChannelStateManager` 接口应专注于状态管理。如果未来有其他不相关的 `ChannelMapping` 操作，应考虑新的接口。
+*   **Rule-ID**: SOLID-DIP-001
+*   **Severity**: Error
+*   **Description**: **依赖倒置原则 (Dependency Inversion Principle)**：高层模块不应该依赖于低层模块。两者都应该依赖于抽象。抽象不应该依赖于细节；细节应该依赖于抽象。
+    *   **Guideline**: 大量使用依赖注入。ViewModel和服务应依赖于接口（如 `IChannelStateManager`, `ITestTaskManager`）而不是具体实现。
+    *   **Context**: 项目中已使用Prism，鼓励了DIP。
+
+## 3. WPF 与 MVVM 架构准则 (WPF & MVVM Architectural Guidelines)
+
+### 3.1. ViewModel 职责
+*   **Rule-ID**: MVVM-VM-001
+*   **Severity**: Error
+*   **Description**: ViewModel 不应直接操作UI元素 (e.g., `System.Windows.Controls.Button`)。所有UI交互应通过数据绑定、命令、附加行为或服务进行。
+*   **Rule-ID**: MVVM-VM-002
+*   **Severity**: Error
+*   **Description**: ViewModel 中不应包含或直接引用 `System.Windows.MessageBox`。应使用对话服务 (`IDialogService` 或类似) 进行抽象。
+    *   **Context**: `DataEditViewModel` 中有多处 `MessageBox.Show()`。
+*   **Rule-ID**: MVVM-VM-003
+*   **Severity**: Warning
+*   **Description**: ViewModel 的构造函数应轻量，主要用于依赖注入和初始化命令及简单属性。耗时操作（如数据加载）应在单独的方法中异步执行 (e.g., `LoadedCommand` 或 `InitializeAsync` 方法)。
+*   **Rule-ID**: MVVM-VM-004
+*   **Severity**: Warning
+*   **Description**: ViewModel 中的属性如果用于UI绑定，必须通过 `SetProperty` (来自 `BindableBase`) 或类似机制调用 `RaisePropertyChanged`。
+*   **Rule-ID**: MVVM-VM-005
+*   **Severity**: Suggestion
+*   **Description**: 将复杂的转换逻辑或多值依赖的显示逻辑封装在 `IValueConverter` 或 ViewModel 的只读属性中，而不是在XAML绑定表达式中过度使用复杂路径或转换器参数。
+*   **Rule-ID**: MVVM-VM-006
+*   **Severity**: Error
+*   **Description**: ViewModel 不应包含过多的业务逻辑。核心业务规则和状态转换逻辑应位于领域模型或服务中（如 `IChannelStateManager`）。ViewModel 负责编排和适配。
+    *   **Context**: 这是本次重构的核心驱动力。
+
+### 3.2. Model 职责
+*   **Rule-ID**: MVVM-MDL-001
+*   **Severity**: Warning
+*   **Description**: Model (如 `ChannelMapping`) 通常应为POCO (Plain Old CLR Object)，主要包含数据和基本验证。它不应直接了解ViewModel或View。
+*   **Rule-ID**: MVVM-MDL-002
+*   **Severity**: Suggestion
+*   **Description**: 如果Model需要通知属性变更（例如，如果它们直接绑定到UI或被集合观察），它们可以实现 `INotifyPropertyChanged`，但这更常见于ViewModel包装器或直接在ViewModel中管理的属性。对于纯领域模型，通常不实现。
+
+### 3.3. View (XAML) 职责
+*   **Rule-ID**: MVVM-VW-001
+*   **Severity**: Error
+*   **Description**: View 的 Code-behind (`.xaml.cs`) 文件应尽可能保持最少代码。逻辑应主要在ViewModel中。Code-behind通常只包含构造函数、UI特定的事件处理器（如果无法通过命令或行为处理）或与UI元素直接相关的控制逻辑。
+*   **Rule-ID**: MVVM-VW-002
+*   **Severity**: Suggestion
+*   **Description**: 优先使用数据绑定和命令，而不是在Code-behind中处理事件来调用ViewModel方法。
+*   **Rule-ID**: MVVM-VW-003
+*   **Severity**: Suggestion
+*   **Description**: 使用样式 (Styles)、模板 (Templates)、资源字典 (ResourceDictionaries) 来管理UI的外观和行为，提高可重用性和可维护性。
+
+### 3.4. 服务 (Services)
+*   **Rule-ID**: MVVM-SVC-001
+*   **Severity**: Warning
+*   **Description**: 服务应具有单一职责，并且通过接口进行抽象和注入。
+    *   **Context**: `IChannelStateManager`, `ITestTaskManager`, `IPointDataService` 等。
+*   **Rule-ID**: MVVM-SVC-002
+*   **Severity**: Suggestion
+*   **Description**: 服务不应直接了解View或ViewModel。它们提供ViewModel完成其工作所需的功能。
+
+## 4. 项目特定规则 (Project Specific Rules - FAT_TEST)
+
+*   **Rule-ID**: FAT-CSM-001
+*   **Severity**: Error
+*   **Description**: **`ChannelMapping` 状态修改必须通过 `IChannelStateManager` 服务**。禁止在ViewModel、其他服务（如 `TestTaskManager`, `ChannelMappingService`）或 `ChannelTask` 子类中直接修改 `ChannelMapping` 的核心状态属性（`TestResultStatus`, `ResultText`, `HardPointTestResult`, 各子测试状态, `FinalTestTime` 等）。
+    *   **Rationale**: 确保状态逻辑的集中、一致和可测试。
+*   **Rule-ID**: FAT-CSM-002
+*   **Severity**: Warning
+*   **Description**: `IChannelStateManager` 的实现 (`ChannelStateManager`) 不应包含任何直接的I/O操作（PLC通信、数据库访问、文件读写）或UI交互。这些应由专门的服务处理，`ChannelStateManager` 仅负责纯粹的状态转换逻辑。
+*   **Rule-ID**: FAT-CTK-001
+*   **Severity**: Error
+*   **Description**: `ChannelTask` 子类（如 `AITestTask`）在完成其测试逻辑后，必须返回一个原始的测试结果对象/结构（如 `HardPointTestRawResult`）给调用者 (`TestTaskManager`)，而不是直接修改 `ChannelMapping` 对象的状态。
+*   **Rule-ID**: FAT-TTM-001
+*   **Severity**: Error
+*   **Description**: `TestTaskManager` 在收到 `ChannelTask` 的原始测试结果后，必须调用 `IChannelStateManager` 的相应方法（如 `SetHardPointTestOutcome`）来更新 `ChannelMapping` 状态。
+*   **Rule-ID**: FAT-EVT-001
+*   **Severity**: Suggestion
+*   **Description**: `IChannelStateManager` 不应发布事件。状态变更的通知（如果需要）应由调用 `IChannelStateManager` 的服务（如 `TestTaskManager`）或 `DataEditViewModel` 自身在操作后发起。ViewModel中的事件处理器应仅用于UI刷新和ViewModel自身属性的更新，不应包含 `ChannelMapping` 的状态计算逻辑。
+*   **Rule-ID**: FAT-VML-001
+*   **Severity**: Error
+*   **Description**: `DataEditViewModel` 中的所有 `MessageBox.Show` 调用必须替换为通过注入的对话服务 (e.g., `IMessageService` or Prism's `IDialogService`) 来显示消息或确认。
+
+## 5. 异步编程 (Asynchronous Programming)
+
+*   **Rule-ID**: CS-ASY-001
+*   **Severity**: Warning
+*   **Description**: 对于I/O密集型或长时间运行的操作，应使用 `async` 和 `await`。
+    *   **Context**: PLC通信、文件导入/导出、数据库操作。
+*   **Rule-ID**: CS-ASY-002
+*   **Severity**: Warning
+*   **Description**: 异步方法应以 `Async` 后缀命名 (e.g., `LoadDataAsync`)。
+*   **Rule-ID**: CS-ASY-003
+*   **Severity**: Error
+*   **Description**: 避免 `async void`，除非是事件处理器。优先使用 `async Task`。如果事件处理器是 `async void`，确保妥善处理其中的异常。
+*   **Rule-ID**: CS-ASY-004
+*   **Severity**: Suggestion
+*   **Description**: 在库代码中，使用 `ConfigureAwait(false)` 来避免不必要的上下文切换，除非确实需要回到原始上下文（通常在UI相关的ViewModel代码中是默认行为，可以不显式写）。
+
+---
+
+**如何使用此 .mdc 文件 (通用建议):**
+
+*   将其内容保存为 `project_rules.mdc` (或您选择的任何名称) 在项目根目录或特定配置目录下。
+*   根据您使用的静态分析工具或IDE插件（如某些版本的ReSharper、Roslyn分析器、SonarLint，或Cursor自身的特定功能），配置它以读取此规则文件。具体步骤因工具而异。
+*   某些工具可能需要将这些规则转换为其特定的格式（如XML、JSON），或者可能仅支持部分规则的自动化检查。
+*   `Rule-ID` 提供了一个唯一标识符，方便讨论和跟踪。
+*   `Severity` (Error, Warning, Suggestion) 表明了违反规则的严重性。
+*   `Description` 解释了规则。
+*   `Context` (如果提供) 指出了规则在当前项目中的具体应用场景或现有问题。
+*   `Good` / `Bad` 示例提供了清晰的对比。
+
+
+这个规则集旨在作为指导，您可以根据团队的实际情况进行调整和增删。关键是建立一套共同理解和遵守的标准。
