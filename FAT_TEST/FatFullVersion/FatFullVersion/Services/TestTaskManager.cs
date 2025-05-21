@@ -204,10 +204,6 @@ namespace FatFullVersion.Services
             await ClearAllTasksAsyncInternal(); 
             await CreateTestTasksAsync(channelMappingsInBatch.Where(c => c.TestResultStatus != 3)); 
 
-            if (isConfirmed && _activeTasks.Any())
-            {
-                return await StartAllTasksAsync(channelMappingsInBatch.Where(c => c.TestResultStatus != 3 && _activeTasks.ContainsKey(c.Id.ToString())).ToList()); 
-            }
             return true;
         }
 
