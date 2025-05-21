@@ -133,10 +133,10 @@ namespace FatFullVersion.Services
                     
                     // 仅当所有相关报警项都明确配置（即其数值不为null导致状态为Passed/NA）时，才认为报警值设定需要测试
                     // 或者更简单的规则：如果 Excel 中所有报警设定值文本都为空，则 AlarmValueSetStatus 通过
-                    bool allRawAlarmSettingsEmptyForAI = string.IsNullOrEmpty(pointData.SLLSetValue) &&
-                                                   string.IsNullOrEmpty(pointData.SLSetValue) &&
-                                                   string.IsNullOrEmpty(pointData.SHSetValue) &&
-                                                   string.IsNullOrEmpty(pointData.SHHSetValue);
+                    bool allRawAlarmSettingsEmptyForAI = string.IsNullOrWhiteSpace(pointData.SLLSetValue) &&
+                                                   string.IsNullOrWhiteSpace(pointData.SLSetValue) &&
+                                                   string.IsNullOrWhiteSpace(pointData.SHSetValue) &&
+                                                   string.IsNullOrWhiteSpace(pointData.SHHSetValue);
 
                     if (allRawAlarmSettingsEmptyForAI) // 如果原始excel文本都为空，则报警设定通过
                     {
@@ -721,9 +721,7 @@ namespace FatFullVersion.Services
             if (channel.HardPointTestResult == StatusFailed || (channel.HardPointTestResult != null && channel.HardPointTestResult.StartsWith(StatusFailed))) // 更稳健的失败检查
             {
                 channel.TestResultStatus = 2; // 失败
-                // ResultText 应已由 SetHardPointTestOutcome 设置为具体的硬点失败原因。
-                // 如果需要，这里可以附加手动测试已完成的信息，但通常硬点失败是主导。
-                // channel.ResultText = channel.HardPointTestResult; // 或者保留已有的硬点失败信息
+                channel.ResultText = channel.HardPointTestResult;
                 channel.FinalTestTime = eventTimeForFinalTest ?? DateTime.Now;
                 return;
             }
@@ -756,7 +754,7 @@ namespace FatFullVersion.Services
             if ((strictHardPointPassed || hardPointNotRequiredOrNA) && allRequiredManualSubTestsPassed && allManualSubTestsCompletedOrNA)
             {
                 channel.TestResultStatus = 1; // 通过
-                channel.ResultText = "测试已通过";
+                channel.ResultText = StatusPassed;
                 channel.FinalTestTime = eventTimeForFinalTest ?? DateTime.Now;
                 return;
             }
@@ -771,12 +769,21 @@ namespace FatFullVersion.Services
                 return;
             }
             // 如果手动测试项有未完成的 (不是Pass/Fail/NA，即还是NotTested)
-            if (!allManualSubTestsCompletedOrNA && !anyManualSubTestFailed) 
+            if (!allManualSubTestsCompletedOrNA && !anyManualSubTestFailed && channel.HardPointTestResult != StatusNotTested) 
             {
                 channel.TestResultStatus = 0; // 未完成/测试中
                 channel.ResultText = StatusManualTesting; 
                 // 可以构建更详细的 ResultText, e.g., "手动测试中: XXX项未完成"
                 channel.FinalTestTime = null; 
+                return;
+            }
+
+            // 规则 4.1: 硬点未测试且尚无失败时保持"未测试"/初始状态
+            if (channel.HardPointTestResult == StatusNotTested && !anyManualSubTestFailed)
+            {
+                channel.TestResultStatus = 0;
+                channel.ResultText = StatusNotTested;
+                channel.FinalTestTime = null;
                 return;
             }
 

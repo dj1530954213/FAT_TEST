@@ -7,6 +7,7 @@ using FatFullVersion.Models;
 using FatFullVersion.Entities;
 using FatFullVersion.ViewModels;
 using FatFullVersion.Entities.EntitiesEnum;
+using System.Collections.ObjectModel;
 
 namespace FatFullVersion.IServices
 {
@@ -78,12 +79,11 @@ namespace FatFullVersion.IServices
         Task<bool> DeleteChannelMappingsAsync(IEnumerable<string> ids);
 
         /// <summary>
-        /// 分配通道测试关系
+        /// 分配通道测试关系（唯一入口）
         /// </summary>
-        /// <param name="allChannels">所有通道集合</param>
-        /// <returns>分配结果</returns>
-        Task<IEnumerable<ChannelMapping>> AllocateChannelsTestAsync(
-            IEnumerable<ChannelMapping> allChannels);
+        /// <param name="channels">ObservableCollection 通道集合</param>
+        /// <returns>分配后同一引用的集合</returns>
+        Task<ObservableCollection<ChannelMapping>> AllocateChannelsTestAsync(ObservableCollection<ChannelMapping> channels);
 
         /// <summary>
         /// 将通道分配结果同步到通道集合中

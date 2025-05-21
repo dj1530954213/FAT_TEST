@@ -365,8 +365,7 @@ namespace FatFullVersion.Services
                 {
                     // 从通道列表中提取批次信息
                     var batchGroups = allChannels
-                        .Where(c => !string.IsNullOrEmpty(c.TestBatch))
-                        .GroupBy(c => c.TestBatch)
+                        .GroupBy(c => string.IsNullOrWhiteSpace(c.TestBatch) ? "未分配" : c.TestBatch)
                         .Select(g => new
                         {
                             BatchName = g.Key,
@@ -554,104 +553,14 @@ namespace FatFullVersion.Services
         /// </summary>
         /// <param name="allChannels">所有通道集合</param>
         /// <returns>分配通道后的通道映射信息</returns>
-        public async Task<IEnumerable<ChannelMapping>> AllocateChannelsTestAsync(
-            IEnumerable<ChannelMapping> allChannels)
-        {
-            if (allChannels == null)
-            {
-                return Enumerable.Empty<ChannelMapping>();
-            }
-
-            try
-            {
-                // 读取相关点位配置
-                _testPlcConfig.CommentsTables = await _repository.GetComparisonTablesAsync();
-                
-                // 获取各类型通道集合
-                var aiChannels = GetAIChannels(allChannels).ToList();
-                var aoChannels = GetAOChannels(allChannels).ToList();
-                var diChannels = GetDIChannels(allChannels).ToList();
-                var doChannels = GetDOChannels(allChannels).ToList();
-                var aiNoneChannels = GetAINoneChannels(allChannels).ToList();
-                var aoNoneChannels = GetAONoneChannels(allChannels).ToList();
-                var diNoneChannels = GetDINoneChannels(allChannels).ToList();
-                var doNoneChannels = GetDONoneChannels(allChannels).ToList();
-
-                // 设置当前使用的配置
-                await SetTestPlcConfigAsync(_testPlcConfig);
-
-                // 获取各类型测试通道数量
-                var channelCounts = GetChannelCountsFromConfig();
-                
-                // 使用配置中的通道信息进行分配
-                await Task.Run(() =>
-                {
-                    // 获取通道映射
-                    var aoMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.AO)
-                        ?.ToList() ?? new List<ComparisonTable>();
-                        
-                    var aiMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.AI)
-                        ?.ToList() ?? new List<ComparisonTable>();
-                        
-                    var doMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.DO)
-                        ?.ToList() ?? new List<ComparisonTable>();
-                        
-                    var diMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.DI)
-                        ?.ToList() ?? new List<ComparisonTable>();
-                    var aoNoneMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.AONone)
-                        ?.ToList() ?? new List<ComparisonTable>();
-
-                    var aiNoneMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.AINone)
-                        ?.ToList() ?? new List<ComparisonTable>();
-
-                    var doNoneMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.DONone)
-                        ?.ToList() ?? new List<ComparisonTable>();
-
-                    var diNoneMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.DINone)
-                        ?.ToList() ?? new List<ComparisonTable>();
-
-                    // 1. 为AI通道分配批次和测试PLC的AO通道(AI-AO)
-                    AllocateChannelsWithConfig(aiChannels, aoNoneMappings, aoNoneMappings.Count);
-
-                    // 2. 为AO通道分配批次和测试PLC的AI通道(AO-AI)
-                    AllocateChannelsWithConfig(aoChannels, aiNoneMappings, aiNoneMappings.Count);
-
-                    // 3. 为DI通道分配批次和测试PLC的DO通道(DI-DO)
-                    AllocateChannelsWithConfig(diChannels, doNoneMappings, doNoneMappings.Count);
-
-                    // 4. 为DO通道分配批次和测试PLC的DI通道(DO-DI)
-                    AllocateChannelsWithConfig(doChannels, diNoneMappings, diNoneMappings.Count);
-
-                    // 1. 为AI通道分配批次和测试PLC的AO通道(AI-AO)
-                    AllocateChannelsWithConfig(aiNoneChannels, aoMappings, aoMappings.Count);
-
-                    // 2. 为AO通道分配批次和测试PLC的AI通道(AO-AI)
-                    AllocateChannelsWithConfig(aoNoneChannels, aiMappings, aiMappings.Count);
-
-                    // 3. 为DI通道分配批次和测试PLC的DO通道(DI-DO)
-                    AllocateChannelsWithConfig(diNoneChannels, doMappings, doMappings.Count);
-
-                    // 4. 为DO通道分配批次和测试PLC的DI通道(DO-DI)
-                    AllocateChannelsWithConfig(doNoneChannels, diMappings, diMappings.Count);
-                });
-                    
-                // 返回合并后的结果
-                return aiChannels.Concat(aoChannels).Concat(diChannels).Concat(doChannels);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"通道分配失败: {ex.Message}");
-                return allChannels; // 出错时返回原始通道列表
-            }
-        }
+        //public async Task<IEnumerable<ChannelMapping>> AllocateChannelsTestAsync(
+        //    IEnumerable<ChannelMapping> allChannels)
+        //{
+        //    // *** 已废弃：请改用 ObservableCollection 版本 ***
+        //    var collection = allChannels as ObservableCollection<ChannelMapping> ?? new ObservableCollection<ChannelMapping>(allChannels ?? new List<ChannelMapping>());
+        //    await AllocateChannelsTestAsync(collection);
+        //    return collection;
+        //}
 
         /// <summary>
         /// 同步更新测试结果中通道分配的信息
@@ -693,14 +602,20 @@ namespace FatFullVersion.Services
             if (string.IsNullOrEmpty(moduleType) || allChannels == null)
                 return Enumerable.Empty<ChannelMapping>();
 
-            // 转换为小写后比较，提高匹配准确性    
             var lowerModuleType = moduleType.ToLowerInvariant();
             if (lowerModuleType.Contains("none"))
             {
                 lowerModuleType = lowerModuleType.Replace("none", "");
             }
-            // 使用ToList()提前执行查询，避免重复计算
-            return allChannels.Where(c => (c.ModuleType?.ToLowerInvariant() == lowerModuleType) && (c.PowerSupplyType.Contains(powerType))).ToList();
+
+            var query = allChannels.Where(c => c.ModuleType?.ToLowerInvariant() == lowerModuleType);
+
+            if (!string.IsNullOrWhiteSpace(powerType))
+            {
+                query = query.Where(c => !string.IsNullOrWhiteSpace(c.PowerSupplyType) && c.PowerSupplyType.Contains(powerType));
+            }
+
+            return query.ToList();
         }
 
         /// <summary>
@@ -710,7 +625,7 @@ namespace FatFullVersion.Services
         /// <returns>AI类型的通道列表</returns>
         public IEnumerable<ChannelMapping> GetAIChannels(IEnumerable<ChannelMapping> allChannels)
         {
-            return GetChannelsByType(TestPlcChannelType.AI.ToString(),"有源", allChannels);
+            return GetChannelsByType(TestPlcChannelType.AI.ToString(), null, allChannels);
         }
 
         /// <summary>
@@ -720,7 +635,7 @@ namespace FatFullVersion.Services
         /// <returns>AO类型的通道列表</returns>
         public IEnumerable<ChannelMapping> GetAOChannels(IEnumerable<ChannelMapping> allChannels)
         {
-            return GetChannelsByType(TestPlcChannelType.AO.ToString(),"有源", allChannels);
+            return GetChannelsByType(TestPlcChannelType.AO.ToString(), null, allChannels);
         }
 
         /// <summary>
@@ -730,7 +645,7 @@ namespace FatFullVersion.Services
         /// <returns>DI类型的通道列表</returns>
         public IEnumerable<ChannelMapping> GetDIChannels(IEnumerable<ChannelMapping> allChannels)
         {
-            return GetChannelsByType(TestPlcChannelType.DI.ToString(), "有源", allChannels);
+            return GetChannelsByType(TestPlcChannelType.DI.ToString(), null, allChannels);
         }
 
         /// <summary>
@@ -740,7 +655,7 @@ namespace FatFullVersion.Services
         /// <returns>DO类型的通道列表</returns>
         public IEnumerable<ChannelMapping> GetDOChannels(IEnumerable<ChannelMapping> allChannels)
         {
-            return GetChannelsByType(TestPlcChannelType.DO.ToString(), "有源", allChannels);
+            return GetChannelsByType(TestPlcChannelType.DO.ToString(), null, allChannels);
         }
 
         /// <summary>
@@ -750,7 +665,7 @@ namespace FatFullVersion.Services
         /// <returns>AI类型的通道列表</returns>
         public IEnumerable<ChannelMapping> GetAINoneChannels(IEnumerable<ChannelMapping> allChannels)
         {
-            return GetChannelsByType(TestPlcChannelType.AINone.ToString(), "无源", allChannels);
+            return GetChannelsByType(TestPlcChannelType.AINone.ToString(), null, allChannels);
         }
 
         /// <summary>
@@ -760,7 +675,7 @@ namespace FatFullVersion.Services
         /// <returns>AO类型的通道列表</returns>
         public IEnumerable<ChannelMapping> GetAONoneChannels(IEnumerable<ChannelMapping> allChannels)
         {
-            return GetChannelsByType(TestPlcChannelType.AONone.ToString(),"无源", allChannels);
+            return GetChannelsByType(TestPlcChannelType.AONone.ToString(), null, allChannels);
         }
 
         /// <summary>
@@ -770,7 +685,7 @@ namespace FatFullVersion.Services
         /// <returns>DI类型的通道列表</returns>
         public IEnumerable<ChannelMapping> GetDINoneChannels(IEnumerable<ChannelMapping> allChannels)
         {
-            return GetChannelsByType(TestPlcChannelType.DINone.ToString(), "无源", allChannels);
+            return GetChannelsByType(TestPlcChannelType.DINone.ToString(), null, allChannels);
         }
 
         /// <summary>
@@ -780,7 +695,7 @@ namespace FatFullVersion.Services
         /// <returns>DO类型的通道列表</returns>
         public IEnumerable<ChannelMapping> GetDONoneChannels(IEnumerable<ChannelMapping> allChannels)
         {
-            return GetChannelsByType(TestPlcChannelType.DONone.ToString(), "无源", allChannels);
+            return GetChannelsByType(TestPlcChannelType.DONone.ToString(), null, allChannels);
         }
 
         /// <summary>
@@ -1243,7 +1158,7 @@ namespace FatFullVersion.Services
             // 在实际应用中，可以直接从数据库中按批次名称查询以提高效率
             
             // 使用AllocateChannelsTestAsync作为获取所有通道的方法
-            var allChannels = await AllocateChannelsTestAsync(new List<ChannelMapping>());
+            var allChannels = await AllocateChannelsTestAsync(new ObservableCollection<ChannelMapping>());
             
             // 过滤出属于指定批次的通道映射
             return allChannels.Where(c => c.TestBatch == batchName).ToList();
@@ -1521,37 +1436,82 @@ namespace FatFullVersion.Services
         /// </summary>
         public async Task<ObservableCollection<ChannelMapping>> AllocateChannelsTestAsync(ObservableCollection<ChannelMapping> channels)
         {
-            if (channels == null || !channels.Any() || _testPlcConfig == null || _testPlcConfig.CommentsTables == null || !_testPlcConfig.CommentsTables.Any())
+            if (channels == null || !channels.Any())
             {
-                System.Diagnostics.Debug.WriteLine("AllocateChannelsTestAsync: 输入参数无效或测试PLC配置为空。");
-                return channels; // 返回原始集合或进行错误处理
+                System.Diagnostics.Debug.WriteLine("AllocateChannelsTestAsync: 输入集合为空，跳过分配。");
+                return channels; // 无数据可处理
             }
 
-            // 获取配置的通道信息
-            var configChannels = GetChannelCountsFromConfig();
+            // 若尚未加载测试 PLC 映射表，则从仓储层获取一次，避免因空表导致分配异常
+            if (_testPlcConfig.CommentsTables == null || !_testPlcConfig.CommentsTables.Any())
+            {
+                try
+                {
+                    var tables = await _repository.GetComparisonTablesAsync();
+                    _testPlcConfig.CommentsTables = tables?.ToList() ?? new List<ComparisonTable>();
+                    System.Diagnostics.Debug.WriteLine($"AllocateChannelsTestAsync: 已从仓储层加载 {_testPlcConfig.CommentsTables.Count} 条通道映射。");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"AllocateChannelsTestAsync: 加载测试PLC通道映射失败 - {ex.Message}");
+                }
+            }
 
-            var aiChannelsToAllocate = channels.Where(c => c.ModuleType == "AI" || c.ModuleType == "AINone").ToList();
-            var aoChannelsToAllocate = channels.Where(c => c.ModuleType == "AO" || c.ModuleType == "AONone").ToList();
-            var diChannelsToAllocate = channels.Where(c => c.ModuleType == "DI" || c.ModuleType == "DINone").ToList();
-            var doChannelsToAllocate = channels.Where(c => c.ModuleType == "DO" || c.ModuleType == "DONone").ToList();
-            
-            System.Diagnostics.Debug.WriteLine($"准备分配: AI={aiChannelsToAllocate.Count}, AO={aoChannelsToAllocate.Count}, DI={diChannelsToAllocate.Count}, DO={doChannelsToAllocate.Count}");
+            // ===== 1. 按 ModuleType 将被测通道拆分为有源/无源两大类 =====
+            bool IsPowered(ChannelMapping ch) => !string.IsNullOrWhiteSpace(ch.PowerSupplyType) && ch.PowerSupplyType.Contains("有源");
 
+            var aiPowered    = channels.Where(c => c.ModuleType.StartsWith("AI", StringComparison.OrdinalIgnoreCase) && IsPowered(c)).ToList();
+            var aiUnpowered  = channels.Where(c => c.ModuleType.StartsWith("AI", StringComparison.OrdinalIgnoreCase) && !IsPowered(c)).ToList();
 
-            // AI 被测 -> AO 测试 (AI-AO)
-            AllocateChannelsWithConfigAndApplyState(aiChannelsToAllocate, configChannels.aoChannels.ToList(), configChannels.totalAoChannels);
-            // AO 被测 -> AI 测试 (AO-AI)
-            AllocateChannelsWithConfigAndApplyState(aoChannelsToAllocate, configChannels.aiChannels.ToList(), configChannels.totalAiChannels);
-            // DI 被测 -> DO 测试 (DI-DO)
-            AllocateChannelsWithConfigAndApplyState(diChannelsToAllocate, configChannels.doChannels.ToList(), configChannels.totalDoChannels);
-            // DO 被测 -> DI 测试 (DO-DI)
-            AllocateChannelsWithConfigAndApplyState(doChannelsToAllocate, configChannels.diChannels.ToList(), configChannels.totalDiChannels);
-            
-            // 可选: 如果需要持久化分配信息，可以在这里调用仓储更新
-            // await _repository.UpdateChannelMappingsAsync(channels);
+            var aoPowered    = channels.Where(c => c.ModuleType.StartsWith("AO", StringComparison.OrdinalIgnoreCase) && IsPowered(c)).ToList();
+            var aoUnpowered  = channels.Where(c => c.ModuleType.StartsWith("AO", StringComparison.OrdinalIgnoreCase) && !IsPowered(c)).ToList();
+
+            var diPowered    = channels.Where(c => c.ModuleType.StartsWith("DI", StringComparison.OrdinalIgnoreCase) && IsPowered(c)).ToList();
+            var diUnpowered  = channels.Where(c => c.ModuleType.StartsWith("DI", StringComparison.OrdinalIgnoreCase) && !IsPowered(c)).ToList();
+
+            var doPowered    = channels.Where(c => c.ModuleType.StartsWith("DO", StringComparison.OrdinalIgnoreCase) && IsPowered(c)).ToList();
+            var doUnpowered  = channels.Where(c => c.ModuleType.StartsWith("DO", StringComparison.OrdinalIgnoreCase) && !IsPowered(c)).ToList();
+
+            // ===== 2. 获取测试 PLC 侧的对应通道映射 =====
+            var plcMaps = _testPlcConfig?.CommentsTables ?? new List<ComparisonTable>();
+
+            var aoPoweredMap   = plcMaps.Where(t => t.ChannelType == TestPlcChannelType.AO).ToList();
+            var aoUnpoweredMap = plcMaps.Where(t => t.ChannelType == TestPlcChannelType.AONone).ToList();
+
+            var aiPoweredMap   = plcMaps.Where(t => t.ChannelType == TestPlcChannelType.AI).ToList();
+            var aiUnpoweredMap = plcMaps.Where(t => t.ChannelType == TestPlcChannelType.AINone).ToList();
+
+            var doPoweredMap   = plcMaps.Where(t => t.ChannelType == TestPlcChannelType.DO).ToList();
+            var doUnpoweredMap = plcMaps.Where(t => t.ChannelType == TestPlcChannelType.DONone).ToList();
+
+            var diPoweredMap   = plcMaps.Where(t => t.ChannelType == TestPlcChannelType.DI).ToList();
+            var diUnpoweredMap = plcMaps.Where(t => t.ChannelType == TestPlcChannelType.DINone).ToList();
+
+            System.Diagnostics.Debug.WriteLine($"准备分配 => AIP:{aiPowered.Count}, AIU:{aiUnpowered.Count}, AOP:{aoPowered.Count}, AOU:{aoUnpowered.Count}, DIP:{diPowered.Count}, DIU:{diUnpowered.Count}, DOP:{doPowered.Count}, DOU:{doUnpowered.Count}");
+
+            // ===== 3. 执行映射 (被测 -> 测试) =====
+            // AI 有源 -> AO 有源
+            AllocateChannelsWithConfigAndApplyState(aiPowered,   aoPoweredMap,   aoPoweredMap.Count);
+            // AI 无源 -> AO 无源
+            AllocateChannelsWithConfigAndApplyState(aiUnpowered, aoUnpoweredMap, aoUnpoweredMap.Count);
+
+            // AO 有源 -> AI 有源(只在代码上做区分，实际全部是一种)
+            AllocateChannelsWithConfigAndApplyState(aoUnpowered,   aiPoweredMap,   aiPoweredMap.Count);
+            // AO 无源 -> AI 无源(只在代码上做区分，实际全部是一种)
+            //AllocateChannelsWithConfigAndApplyState(aoUnpowered, aiUnpoweredMap, aiUnpoweredMap.Count);
+
+            // DI 有源 -> DO 有源
+            AllocateChannelsWithConfigAndApplyState(diPowered,   doPoweredMap,   doPoweredMap.Count);
+            // DI 无源 -> DO 无源
+            AllocateChannelsWithConfigAndApplyState(diUnpowered, doUnpoweredMap, doUnpoweredMap.Count);
+
+            // DO 有源 -> DI 有源
+            AllocateChannelsWithConfigAndApplyState(doPowered,   diPoweredMap,   diPoweredMap.Count);
+            // DO 无源 -> DI 无源
+            AllocateChannelsWithConfigAndApplyState(doUnpowered, diUnpoweredMap, diUnpoweredMap.Count);
 
             System.Diagnostics.Debug.WriteLine("AllocateChannelsTestAsync: 通道分配完成。");
-            return channels; // 返回修改后的集合
+            return channels; // 引用类型修改后直接返回
         }
 
         /// <summary>
@@ -1562,9 +1522,17 @@ namespace FatFullVersion.Services
             List<ComparisonTable> testChannelMappings, 
             int totalTestChannelsForType)
         {
-            if (channelsToAllocate == null || !channelsToAllocate.Any() || testChannelMappings == null || !testChannelMappings.Any() || totalTestChannelsForType <= 0)
+            if (channelsToAllocate == null || !channelsToAllocate.Any())
             {
                 return;
+            }
+
+            // 当测试通道映射列表为空时，依旧需要为通道分配"批次"信息，
+            // 以免界面上出现批次列为空的问题。
+            bool hasChannelMappings = testChannelMappings != null && testChannelMappings.Any();
+            if (!hasChannelMappings)
+            {
+                totalTestChannelsForType = totalTestChannelsForType <= 0 ? channelsToAllocate.Count : totalTestChannelsForType;
             }
 
             try
@@ -1579,39 +1547,30 @@ namespace FatFullVersion.Services
                     int batchNumber = i / totalTestChannelsForType + 1;
                     int indexInBatch = i % totalTestChannelsForType;
 
-                    if (indexInBatch >= testChannelMappings.Count)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"警告：通道 {channel.VariableName} ({channel.ChannelTag}) 无法分配测试PLC通道，索引 {indexInBatch} 超出可用测试通道范围 {testChannelMappings.Count}。");
-                        // 对于无法分配的通道，可以考虑清除其分配信息或标记为错误
-                        _channelStateManager.ClearAllocationInfo(channel); // 清除可能存在的旧分配并重置状态
-                        continue;
-                    }
-                    
-                    var testChannelMapping = testChannelMappings[indexInBatch];
-                    if (testChannelMapping == null)
-                    {
-                         System.Diagnostics.Debug.WriteLine($"警告：通道 {channel.VariableName} ({channel.ChannelTag}) 的目标测试PLC映射在索引 {indexInBatch} 处为空。");
-                        _channelStateManager.ClearAllocationInfo(channel);
-                        continue;
-                    }
-                    
                     string testBatchName = $"批次{batchNumber}";
-                    string testPlcChannelTag = testChannelMapping.ChannelAddress; // 通常是 TagName
-                    string testPlcCommAddress = testChannelMapping.CommunicationAddress;
+                    string testPlcChannelTag = string.Empty;
+                    string testPlcCommAddress = string.Empty;
 
-                    // 调用 IChannelStateManager 来应用分配信息并更新状态
+                    if (hasChannelMappings && indexInBatch < testChannelMappings.Count)
+                    {
+                        var testChannelMapping = testChannelMappings[indexInBatch];
+                        if (testChannelMapping != null)
+                        {
+                            testPlcChannelTag = testChannelMapping.ChannelAddress;
+                            testPlcCommAddress = testChannelMapping.CommunicationAddress;
+                        }
+                    }
+
+                    // 统一通过 ChannelStateManager 应用（即使 PLC 信息为空，也至少设置批次并重置状态）
                     _channelStateManager.ApplyAllocationInfo(channel, testBatchName, testPlcChannelTag, testPlcCommAddress);
-                    
-                    // Debug.WriteLine($"通道 {channel.VariableName} ({channel.ChannelTag}) 分配到 {testBatchName}, 测试PLC: {testPlcChannelTag} ({testPlcCommAddress})");
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"AllocateChannelsWithConfigAndApplyState 发生错误: {ex.Message}");
-                // 考虑对列表中的通道进行回滚或错误标记
                 foreach(var ch in channelsToAllocate)
                 {
-                    if(ch != null) _channelStateManager.ClearAllocationInfo(ch); // 出错时清除所有本次尝试分配的通道
+                    if(ch != null) _channelStateManager.ClearAllocationInfo(ch);
                 }
             }
         }

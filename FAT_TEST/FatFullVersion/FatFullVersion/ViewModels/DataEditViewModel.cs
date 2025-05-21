@@ -1233,7 +1233,11 @@ namespace FatFullVersion.ViewModels
                 if (initializedChannels != null)
                 {
                     AllChannels = new ObservableCollection<ChannelMapping>(initializedChannels.OrderBy(c => c.TestId)); 
-                    OriginalAllChannels = new ObservableCollection<ChannelMapping>(AllChannels); 
+
+                    // 导入完成后立即进行通道自动分配，保证 TestBatch 在首次显示时就已填充
+                    AllChannels = await _channelMappingService.AllocateChannelsTestAsync(AllChannels);
+
+                    OriginalAllChannels = new ObservableCollection<ChannelMapping>(AllChannels); // 更新原始备份
 
                     // UI 更新
                     UpdateCurrentChannels(); 
@@ -2719,7 +2723,7 @@ namespace FatFullVersion.ViewModels
 
                 if (allocatedChannels != null)
                 {
-                    AllChannels = new ObservableCollection<ChannelMapping>(allocatedChannels);
+                    AllChannels = allocatedChannels;
                     OriginalAllChannels = new ObservableCollection<ChannelMapping>(AllChannels); // 更新原始备份
 
                     UpdateCurrentChannels();
