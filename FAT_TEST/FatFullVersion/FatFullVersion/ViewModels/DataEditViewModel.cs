@@ -1244,9 +1244,15 @@ namespace FatFullVersion.ViewModels
                     RaisePropertyChanged(nameof(AllChannels));
                     UpdatePointStatistics();
                     await RefreshBatchesFromChannelsAsync(); 
-                    SelectedBatch = null; 
+                    if (Batches != null && Batches.Any())
+                    {
+                        SelectedBatch = Batches.FirstOrDefault();
+                    }
+                    else
+                    {
+                        SelectedBatch = null;
+                    }
                     IsWiringCompleteBtnEnabled = true; 
-                    IsStartTestButtonEnabled = false; 
 
                     await _messageService.ShowAsync("成功", $"已成功处理和初始化 {AllChannels.Count} 个通道。", MessageBoxButton.OK);
                 }
@@ -3023,15 +3029,11 @@ namespace FatFullVersion.ViewModels
                     return;
                 }
 
-                // 应用选择的批次，筛选通道列表
-                var channelsInSelectedBatch = OriginalAllChannels
-                    .Where(c => c.TestBatch == SelectedBatch.BatchName)
-                    .OrderBy(c => c.TestId) // 保持排序
-                    .ToList();
-
-                AllChannels = new ObservableCollection<ChannelMapping>(channelsInSelectedBatch);
-                UpdateCurrentChannels(); // 根据当前选择的通道类型（如AI, DI）进一步筛选
-                RaisePropertyChanged(nameof(AllChannels)); // 通知 AllChannels 可能已更改
+                // 根据 SelectedBatch 调整视图集合和测试队列
+                UpdateCurrentChannels();
+                TestQueue = new ObservableCollection<ChannelMapping>(CurrentChannels);
+                TestQueuePosition = 0;
+                TestQueueStatus = TestQueue.Any() ? "已加载批次队列" : "队列为空";
 
                 // 更新点位统计和批次状态
                 UpdatePointStatistics(); // 基于新的 AllChannels 更新统计
@@ -3054,6 +3056,11 @@ namespace FatFullVersion.ViewModels
 
                 IsBatchSelectionOpen = false; // 关闭批次选择弹窗
                 StatusMessage = $"已选择批次: {SelectedBatch.BatchName}";
+
+                // 更新测试队列只显示当前批次
+                TestQueue = new ObservableCollection<ChannelMapping>(CurrentChannels);
+                TestQueuePosition = 0;
+                TestQueueStatus = TestQueue.Any()?"已加载批次队列":"队列为空";
             }
             catch (Exception ex)
             {
@@ -3071,44 +3078,83 @@ namespace FatFullVersion.ViewModels
 
         private void UpdateCurrentChannels()
         {
-            // Placeholder: Logic to update CurrentChannels based on SelectedChannelType and AllChannels
-            // Example: CurrentChannels = new ObservableCollection<ChannelMapping>(AllChannels.Where(c => c.ModuleType == _selectedChannelType));
-            // This needs to be implemented based on actual filtering logic.
-            if (AllChannels == null) return;
+            if (AllChannels == null)
+            {
+                CurrentChannels = new ObservableCollection<ChannelMapping>();
+                TestQueue = new ObservableCollection<ChannelMapping>(CurrentChannels);
+                TestQueuePosition = 0;
+                TestQueueStatus = "队列为空";
+                return;
+            }
 
-            IEnumerable<ChannelMapping> filteredChannels = new List<ChannelMapping>();
+            // 1) 按批次过滤
+            IEnumerable<ChannelMapping> batchFilteredChannels = SelectedBatch == null
+                ? AllChannels
+                : AllChannels.Where(c => c.TestBatch == SelectedBatch.BatchName);
+
+            // 2) 按通道类型过滤
+            IEnumerable<ChannelMapping> typeFilteredChannels;
             switch (SelectedChannelType)
             {
                 case "AI通道":
-                    filteredChannels = GetAIChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    typeFilteredChannels = batchFilteredChannels.Where(c => c.ModuleType?.ToUpper() == "AI");
                     break;
                 case "AO通道":
-                    filteredChannels = GetAOChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    typeFilteredChannels = batchFilteredChannels.Where(c => c.ModuleType?.ToUpper() == "AO");
                     break;
                 case "DI通道":
-                    filteredChannels = GetDIChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    typeFilteredChannels = batchFilteredChannels.Where(c => c.ModuleType?.ToUpper() == "DI");
                     break;
                 case "DO通道":
-                    filteredChannels = GetDOChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    typeFilteredChannels = batchFilteredChannels.Where(c => c.ModuleType?.ToUpper() == "DO");
                     break;
                 case "AINone通道":
-                    filteredChannels = GetAINoneChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    typeFilteredChannels = batchFilteredChannels.Where(c => c.ModuleType?.ToUpper() == "AINONE");
                     break;
                 case "AONone通道":
-                    filteredChannels = GetAONoneChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    typeFilteredChannels = batchFilteredChannels.Where(c => c.ModuleType?.ToUpper() == "AONONE");
                     break;
                 case "DINone通道":
-                    filteredChannels = GetDINoneChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    typeFilteredChannels = batchFilteredChannels.Where(c => c.ModuleType?.ToUpper() == "DINONE");
                     break;
                 case "DONone通道":
-                    filteredChannels = GetDONoneChannels() ?? Enumerable.Empty<ChannelMapping>();
+                    typeFilteredChannels = batchFilteredChannels.Where(c => c.ModuleType?.ToUpper() == "DONONE");
                     break;
-                default:
-                    filteredChannels = AllChannels ?? Enumerable.Empty<ChannelMapping>();
+                default: // "所有类型" 或其他未指定情况
+                    typeFilteredChannels = batchFilteredChannels;
                     break;
             }
-            CurrentChannels = new ObservableCollection<ChannelMapping>(filteredChannels.OrderBy(c => c.TestId));
-            ApplyResultFilter(); // Ensure filtering by result is also applied
+
+            // 3) 按测试结果过滤
+            IEnumerable<ChannelMapping> resultFilteredChannels;
+            switch (SelectedResultFilter)
+            {
+                case "通过":
+                    resultFilteredChannels = typeFilteredChannels.Where(c => c.TestResultStatus == 1);
+                    break;
+                case "失败":
+                    resultFilteredChannels = typeFilteredChannels.Where(c => c.TestResultStatus == 2);
+                    break;
+                case "未测试":
+                    resultFilteredChannels = typeFilteredChannels.Where(c => c.TestResultStatus == 0 || c.HardPointTestResult == "等待测试");
+                    break;
+                case "跳过":
+                    resultFilteredChannels = typeFilteredChannels.Where(c => c.TestResultStatus == 3);
+                    break;
+                default: // "所有结果" 或其他未指定情况
+                    resultFilteredChannels = typeFilteredChannels;
+                    break;
+            }
+
+            CurrentChannels = new ObservableCollection<ChannelMapping>(resultFilteredChannels.OrderBy(c => c.TestId));
+
+            // 同步更新测试队列
+            // TestQueue 的更新也应该在 ConfirmBatchSelection 方法中，确保 TestQueue 和 CurrentChannels 一致。
+            // 在 UpdateCurrentChannels 内部直接更新 TestQueue 是可以的，
+            // 因为 ConfirmBatchSelection, OnBatchSelected, ApplyResultFilter 都会调用此方法。
+            TestQueue = new ObservableCollection<ChannelMapping>(CurrentChannels);
+            TestQueuePosition = 0;
+            TestQueueStatus = TestQueue.Any() ? "已加载批次队列" : "队列为空";
         }
 
         private void UpdatePointStatistics()
@@ -3146,59 +3192,15 @@ namespace FatFullVersion.ViewModels
             // and filtering channels based on the new SelectedBatch.
             if (SelectedBatch == null) return;
 
-            var channelsInSelectedBatch = OriginalAllChannels? // Use OriginalAllChannels for complete list before filtering
-                .Where(c => c.TestBatch == SelectedBatch.BatchName)
-                .OrderBy(c => c.TestId)
-                .ToList();
-
-            if (channelsInSelectedBatch != null)
-            {
-                AllChannels = new ObservableCollection<ChannelMapping>(channelsInSelectedBatch);
-            }
-            else
-            {
-                AllChannels = new ObservableCollection<ChannelMapping>();
-            }
-            
+            // 当批次选择变化时，直接调用UpdateCurrentChannels，它会处理所有过滤条件
             UpdateCurrentChannels(); 
-            RaisePropertyChanged(nameof(AllChannels)); 
-            UpdatePointStatistics(); 
-            // RefreshBatchStatus(); // This will be called as part of UpdateBatchInfoAsync if needed, or directly
-
-            IsWiringCompleteBtnEnabled = (SelectedBatch.Status == "未开始" || SelectedBatch.Status == "测试中" || SelectedBatch.Status == "接线已确认");
-            IsStartTestButtonEnabled = SelectedBatch.Status == "接线已确认" &&
-                                       (AllChannels?.Any(c => c.TestBatch == SelectedBatch.BatchName && c.HardPointTestResult == "等待测试") ?? false);
         }
 
         private void ApplyResultFilter()
         {
-            if (AllChannels == null) return;
-
-            // 1. 先根据结果过滤
-            IEnumerable<ChannelMapping> resultFiltered = SelectedResultFilter switch
-            {
-                "通过"   => AllChannels.Where(c => c.TestResultStatus == 1),
-                "失败"   => AllChannels.Where(c => c.TestResultStatus == 2),
-                "未测试" => AllChannels.Where(c => c.TestResultStatus == 0 || c.HardPointTestResult == "等待测试"),
-                "跳过"   => AllChannels.Where(c => c.TestResultStatus == 3),
-                _       => AllChannels
-            };
-
-            // 2. 再根据通道类型过滤（不改变 SelectedChannelType 属性，避免递归）
-            IEnumerable<ChannelMapping> finalList = SelectedChannelType switch
-            {
-                "AI通道"       => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "AI"),
-                "AO通道"       => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "AO"),
-                "DI通道"       => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "DI"),
-                "DO通道"       => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "DO"),
-                "AINone通道"   => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "AINONE"),
-                "AONone通道"   => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "AONONE"),
-                "DINone通道"   => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "DINONE"),
-                "DONone通道"   => resultFiltered.Where(c => c.ModuleType?.ToUpper() == "DONONE"),
-                _               => resultFiltered
-            };
-
-            CurrentChannels = new ObservableCollection<ChannelMapping>(finalList.OrderBy(c => c.TestId));
+            // 此方法现在由 UpdateCurrentChannels() 统一处理。
+            // 所有对 CurrentChannels 的更新都应通过 UpdateCurrentChannels()。
+            UpdateCurrentChannels();
         }
 
         private void FinishWiring() // Placeholder for DelegateCommand

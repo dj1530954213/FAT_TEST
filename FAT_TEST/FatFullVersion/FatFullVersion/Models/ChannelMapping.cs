@@ -721,11 +721,11 @@ namespace FatFullVersion.Models
 
         #region 测试相关字段
 
-        private string _testId;
+        private int _testId;
         /// <summary>
-        /// 测试序号 (现在是字符串类型)
+        /// 测试序号
         /// </summary>
-        public string TestId
+        public int TestId
         {
             get { return _testId; }
             set { SetProperty(ref _testId, value); }

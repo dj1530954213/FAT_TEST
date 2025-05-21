@@ -1407,7 +1407,7 @@ namespace FatFullVersion.Services
                 {
                     // 基础属性映射
                     Id = Guid.NewGuid(),
-                    TestId = $"TempID_{currentId++}",
+                    TestId = pointData.SerialNumber, // 直接使用 int 类型的 SerialNumber
                     TestTag = $"Import_{importTime:yyyyMMddHHmmss}",
                     ChannelTag = pointData.ChannelTag,
                     VariableName = pointData.VariableName,
