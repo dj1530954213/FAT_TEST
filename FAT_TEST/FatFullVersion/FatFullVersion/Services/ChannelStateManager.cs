@@ -51,6 +51,12 @@ namespace FatFullVersion.Services
             channel.SHSetValueNumber = TryParseFloatNullable(pointData.SHSetValue);
             channel.SHHSetValueNumber = TryParseFloatNullable(pointData.SHHSetValue);
 
+            // 2.1 报警设定点通讯地址映射
+            channel.SLLSetPointCommAddress = pointData.SLLSetPointCommAddress;
+            channel.SLSetPointCommAddress  = pointData.SLSetPointCommAddress;
+            channel.SHSetPointCommAddress  = pointData.SHSetPointCommAddress;
+            channel.SHHSetPointCommAddress = pointData.SHHSetPointCommAddress;
+
             // 量程处理：如果Excel中无效或为空，则默认为 0.0-100.0
             // 假设 pointData.RangeLowerLimitValue 和 pointData.RangeUpperLimitValue 是 double 类型
             // 并且 ExcelPointData 模型中对空值已有处理（比如空字符串解析为0，或者有专门的标记）

@@ -140,29 +140,25 @@ namespace FatFullVersion
                 
                 // 注册视图用于导航
                 containerRegistry.RegisterForNavigation<DataEditView>();
+                container.Register<DataEditView>(made: Parameters.Of
+                    .Type<IPointDataService>()
+                    .Type<IChannelMappingService>()
+                    .Type<ITestTaskManager>()
+                    .Type<IEventAggregator>()
+                    .Type<IServiceLocator>()
+                    .Type<IMessageService>()
+                    .Type<ITestResultExportService>()
+                    .Type<ITestRecordService>());
                 containerRegistry.RegisterForNavigation<ConfigEditView>();
                 
-                try
-                {
-                    // 直接在容器中注册 DataEditView 的自定义构造函数
-                    container.Register<DataEditView>(made: Parameters.Of
-                        .Type<IPointDataService>()
-                        .Type<IChannelMappingService>()
-                        .Type<IEventAggregator>()
-                        .Type<ITestTaskManager>()
-                        .Type<IPlcCommunication>(serviceKey: "TestPlc")
-                        .Type<IPlcCommunication>(serviceKey: "TargetPlc")
-                        .Type<IMessageService>()
-                        .Type<IChannelStateManager>());
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"注册DataEditView失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                    // 继续运行程序，但后续可能出现DataEditView相关错误
-                }
-
                 // 注册测试结果导出服务
                 containerRegistry.RegisterSingleton<ITestResultExportService, TestResultExportService>();
+
+                // 注册手动测试 I/O 服务，显式注入被测PLC通信实例
+                container.RegisterDelegate<IManualTestIoService>(
+                    r => new ManualTestIoService(r.Resolve<IPlcCommunication>(serviceKey: "TargetPlcCommunication")),
+                    Reuse.Singleton,
+                    serviceKey: "");
             }
             catch (Exception ex)
             {

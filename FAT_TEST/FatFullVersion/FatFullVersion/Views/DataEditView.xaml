@@ -28,6 +28,8 @@
         <converter:BooleanToIconConverter x:Key="BooleanToIconConverter" />
         <converter:BooleanToStatusConverter x:Key="BooleanToStatusConverter" />
         <converter:StringNullOrEmptyToVisibilityConverter x:Key="StringNullOrEmptyToVisibilityConverter" />
+        <converter:AlarmPairStatusToColorConverter x:Key="AlarmPairStatusToColorConverter" />
+        <converter:NotApplicableToEnabledConverter x:Key="NotApplicableToEnabledConverter" />
 
         <!--  公共DataGrid样式  -->
         <Style x:Key="DataGridCellStyle" TargetType="{x:Type DataGridCell}">
@@ -1302,7 +1304,8 @@
                                     Command="{Binding SendAITestValueCommand}"
                                     CommandParameter="{Binding CurrentChannel}"
                                     Content="测试值下发"
-                                    Foreground="White" />
+                                    Foreground="White"
+                                    IsEnabled="{Binding CurrentChannel.ShowValueStatus, Converter={StaticResource NotApplicableToEnabledConverter}}" />
 
                                 <Button
                                     Grid.Row="1"
@@ -1333,7 +1336,8 @@
                                         Command="{Binding SendAIHighAlarmCommand}"
                                         CommandParameter="{Binding CurrentChannel}"
                                         Content="下发高报测试命令"
-                                        Foreground="White" />
+                                        Foreground="White"
+                                        IsEnabled="{Binding CurrentChannel.HighAlarmStatus, Converter={StaticResource NotApplicableToEnabledConverter}}" />
                                     <Button
                                         Margin="0,0,8,0"
                                         Padding="12,8"
@@ -1341,7 +1345,8 @@
                                         Command="{Binding SendAIHighHighAlarmCommand}"
                                         CommandParameter="{Binding CurrentChannel}"
                                         Content="下发高高报测试命令"
-                                        Foreground="White" />
+                                        Foreground="White"
+                                        IsEnabled="{Binding CurrentChannel.HighHighAlarmStatus, Converter={StaticResource NotApplicableToEnabledConverter}}" />
                                     <Button
                                         Width="100"
                                         Padding="12,8"
@@ -1353,14 +1358,14 @@
                                         Foreground="#333333" />
                                 </DockPanel>
 
-                                <Button
-                                    Grid.Row="1"
-                                    Padding="16,8"
-                                    Background="{Binding CurrentChannel.HighAlarmStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
-                                    Command="{Binding ConfirmAIHighAlarmCommand}"
-                                    CommandParameter="{Binding CurrentChannel}"
-                                    Content="确认通过"
-                                    Foreground="White" />
+                                <Button Grid.Row="1" Padding="16,8" Command="{Binding ConfirmAIHighAlarmCommand}" CommandParameter="{Binding CurrentChannel}" Content="确认通过" Foreground="White">
+                                    <Button.Background>
+                                        <MultiBinding Converter="{StaticResource AlarmPairStatusToColorConverter}">
+                                            <Binding Path="CurrentChannel.HighAlarmStatus" />
+                                            <Binding Path="CurrentChannel.HighHighAlarmStatus" />
+                                        </MultiBinding>
+                                    </Button.Background>
+                                </Button>
                             </Grid>
                         </GroupBox>
 
@@ -1380,7 +1385,8 @@
                                         Command="{Binding SendAILowAlarmCommand}"
                                         CommandParameter="{Binding CurrentChannel}"
                                         Content="下发低报测试命令"
-                                        Foreground="White" />
+                                        Foreground="White"
+                                        IsEnabled="{Binding CurrentChannel.LowAlarmStatus, Converter={StaticResource NotApplicableToEnabledConverter}}" />
 
                                     <Button
                                         Margin="0,0,8,0"
@@ -1389,7 +1395,8 @@
                                         Command="{Binding SendAILowLowAlarmCommand}"
                                         CommandParameter="{Binding CurrentChannel}"
                                         Content="下发低低报测试命令"
-                                        Foreground="White" />
+                                        Foreground="White"
+                                        IsEnabled="{Binding CurrentChannel.LowLowAlarmStatus, Converter={StaticResource NotApplicableToEnabledConverter}}" />
                                     <Button
                                         Width="100"
                                         Padding="12,8"
@@ -1401,14 +1408,14 @@
                                         Foreground="#333333" />
                                 </DockPanel>
 
-                                <Button
-                                    Grid.Row="1"
-                                    Padding="16,8"
-                                    Background="{Binding CurrentChannel.LowAlarmStatus, Converter={StaticResource AlarmStatusToColorConverter}}"
-                                    Command="{Binding ConfirmAILowAlarmCommand}"
-                                    CommandParameter="{Binding CurrentChannel}"
-                                    Content="确认通过"
-                                    Foreground="White" />
+                                <Button Grid.Row="1" Padding="16,8" Command="{Binding ConfirmAILowAlarmCommand}" CommandParameter="{Binding CurrentChannel}" Content="确认通过" Foreground="White">
+                                    <Button.Background>
+                                        <MultiBinding Converter="{StaticResource AlarmPairStatusToColorConverter}">
+                                            <Binding Path="CurrentChannel.LowAlarmStatus" />
+                                            <Binding Path="CurrentChannel.LowLowAlarmStatus" />
+                                        </MultiBinding>
+                                    </Button.Background>
+                                </Button>
                             </Grid>
                         </GroupBox>
 
@@ -1488,7 +1495,8 @@
                                         Command="{Binding SendAIMaintenanceCommand}"
                                         CommandParameter="{Binding CurrentChannel}"
                                         Content="下发测试命令"
-                                        Foreground="White" />
+                                        Foreground="White"
+                                        IsEnabled="{Binding CurrentChannel.MaintenanceFunction, Converter={StaticResource NotApplicableToEnabledConverter}}" />
 
                                     <Button
                                         Width="100"

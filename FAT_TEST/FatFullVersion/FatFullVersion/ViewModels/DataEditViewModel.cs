@@ -36,6 +36,7 @@ namespace FatFullVersion.ViewModels
         private readonly ITestResultExportService _testResultExportService;
         private readonly ITestRecordService _testRecordService;
         private readonly IChannelStateManager _channelStateManager;
+        private readonly IManualTestIoService _manualTestIoService;
 
         private string _message;
 
@@ -939,7 +940,8 @@ namespace FatFullVersion.ViewModels
             IMessageService messageService,
             ITestResultExportService testResultExportService,
             ITestRecordService testRecordService,
-            IChannelStateManager channelStateManager
+            IChannelStateManager channelStateManager,
+            IManualTestIoService manualTestIoService
         )
         {
             _pointDataService = pointDataService;
@@ -952,6 +954,7 @@ namespace FatFullVersion.ViewModels
             _testRecordService = testRecordService ?? throw new ArgumentNullException(nameof(testRecordService));
             _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
             _channelStateManager = channelStateManager;
+            _manualTestIoService = manualTestIoService;
 
             // 初始化数据结构
             Initialize();
@@ -1864,29 +1867,17 @@ namespace FatFullVersion.ViewModels
                     // channel.HighAlarmStatus = "未测试"; 等等，这些已由 BeginManualTest 处理。
                     // 也移除原先在此处直接修改 channel.ResultText 的逻辑。
 
-                    // 报警值监控循环 (如果还需要，可以保留，因为它读取PLC值更新UI绑定属性，不修改ChannelMapping状态)
-                    while (IsAIManualTestOpen && CurrentChannel != null && CurrentChannel.Id == channel.Id) // 确保 CurrentChannel 仍是这个 channel
+                    // 启动报警设定值监控服务，每 0.5 秒读取一次并更新绑定值
+                    _manualTestIoService.StartAlarmValueMonitoring(CurrentChannel, (sl, sll, sh, shh) =>
                     {
-                        try
+                        Application.Current.Dispatcher.Invoke(() =>
                         {
-                            if (!string.IsNullOrEmpty(CurrentChannel.SLSetPointCommAddress))
-                                AILowSetValue = (await _targetPlc.ReadAnalogValueAsync(CurrentChannel.SLSetPointCommAddress.Substring(1))).Data.ToString();
-                            if (!string.IsNullOrEmpty(CurrentChannel.SLLSetPointCommAddress))
-                                AILowLowSetValue = (await _targetPlc.ReadAnalogValueAsync(CurrentChannel.SLLSetPointCommAddress.Substring(1))).Data.ToString();
-                            if (!string.IsNullOrEmpty(CurrentChannel.SHSetPointCommAddress))
-                                AIHighSetValue = (await _targetPlc.ReadAnalogValueAsync(CurrentChannel.SHSetPointCommAddress.Substring(1))).Data.ToString();
-                            if (!string.IsNullOrEmpty(CurrentChannel.SHHSetPointCommAddress))
-                                AIHighHighSetValue = (await _targetPlc.ReadAnalogValueAsync(CurrentChannel.SHHSetPointCommAddress.Substring(1))).Data.ToString();
-                            await Task.Delay(500);
-                        }
-                        catch (Exception e)
-                        {
-                            // 不再使用 MessageBox.Show，而是通过服务或记录日志
-                            System.Diagnostics.Debug.WriteLine($"AI手动测试报警值监控失败: {e.Message}");
-                            // _messageService.ShowAsync("错误", "报警值监控失败", MessageBoxButton.OK); // 如果需要通知用户
-                            break; // 退出循环以避免连续错误
-                        }
-                    }
+                            AILowSetValue      = sl  .HasValue ? sl.Value .ToString("F3") : "N/A";
+                            AILowLowSetValue   = sll .HasValue ? sll.Value.ToString("F3") : "N/A";
+                            AIHighSetValue     = sh  .HasValue ? sh.Value .ToString("F3") : "N/A";
+                            AIHighHighSetValue = shh .HasValue ? shh.Value.ToString("F3") : "N/A";
+                        });
+                    });
                 }
             }
             catch (Exception ex)
@@ -1920,6 +1911,9 @@ namespace FatFullVersion.ViewModels
 
                 // 更新点位统计
                 UpdatePointStatistics();
+
+                // 停止报警设定值监控
+                _manualTestIoService.StopAll();
             }
             catch (Exception ex)
             {
@@ -3262,41 +3256,69 @@ namespace FatFullVersion.ViewModels
             // Potentially reset selected batch or other UI states if needed.
         }
 
-        private async void ExportTestResults() // Placeholder. Made async to align with potential service calls.
+        /// <summary>
+        /// 导出测试结果到 Excel
+        /// </summary>
+        private async void ExportTestResults()
         {
-            /*
-            // Logic to export test results
-            if (AllChannels == null || !AllChannels.Any())
+            try
             {
-                await _messageService.ShowAsync("导出失败", "没有可导出的测试结果数据", MessageBoxButton.OK);
-                return;
-            }
+                // 1) 确认有通道数据
+                if (AllChannels == null || !AllChannels.Any())
+                {
+                    await _messageService.ShowAsync("导出失败", "没有可导出的测试结果数据。", MessageBoxButton.OK);
+                    return;
+                }
 
-            var completedChannels = AllChannels.Where(c => c.TestResultStatus == 1 || c.TestResultStatus == 2 || c.TestResultStatus == 3).ToList();
-            if (!completedChannels.Any())
-            {
-                 await _messageService.ShowAsync("导出提示", "没有已完成（通过、失败或跳过）的测试结果可导出。", MessageBoxButton.OK);
-                return;
-            }
+                // 2) 根据当前批次过滤（如果已选择批次）
+                IEnumerable<ChannelMapping> channelsToExport = SelectedBatch == null
+                    ? AllChannels
+                    : AllChannels.Where(c => c.TestBatch == SelectedBatch.BatchName);
 
-            // Example of calling the service
-            bool success = await _testResultExportService.ExportTestResultsToExcelAsync(completedChannels, $"TestResults_{SelectedBatch?.BatchName ?? ""All""}_{DateTime.Now:yyyyMMddHHmmss}.xlsx");
-            if (success)
-            {
-                await _messageService.ShowAsync("成功", "测试结果导出成功。", MessageBoxButton.OK);
+                // 3) 仅导出已完成（通过 / 失败 / 跳过）的通道
+                var completedChannels = channelsToExport.Where(c =>
+                    c.OverallStatus == OverallResultStatus.Passed ||
+                    c.OverallStatus == OverallResultStatus.Failed ||
+                    c.OverallStatus == OverallResultStatus.Skipped).ToList();
+
+                if (!completedChannels.Any())
+                {
+                    await _messageService.ShowAsync("导出提示", "当前筛选范围内没有已完成的测试点位可导出。", MessageBoxButton.OK);
+                    return;
+                }
+
+                // 4) 调用导出服务。若 filePath 传 null，则服务内部会弹出保存对话框。
+                bool success = await _testResultExportService.ExportToExcelAsync(completedChannels, null);
+
+                if (success)
+                {
+                    await _messageService.ShowAsync("成功", "测试结果导出成功！", MessageBoxButton.OK);
+                }
+                else
+                {
+                    await _messageService.ShowAsync("失败", "测试结果导出失败，请检查日志或重试。", MessageBoxButton.OK);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                await _messageService.ShowAsync("失败", "测试结果导出失败。", MessageBoxButton.OK);
+                await _messageService.ShowAsync("异常", $"导出过程中发生错误: {ex.Message}", MessageBoxButton.OK);
             }
-            */
         }
 
+        /// <summary>
+        /// 判断当前是否可以导出测试结果
+        /// </summary>
         private bool CanExportTestResults()
         {
-            // Placeholder: Logic to determine if test results can be exported
-            // Example: return AllChannels != null && AllChannels.Any(c => c.TestResultStatus == 1 || c.TestResultStatus == 2);
-            return AllChannels != null && AllChannels.Any(c => c.OverallStatus != OverallResultStatus.NotTested && c.OverallStatus != OverallResultStatus.InProgress);
+            if (AllChannels == null || !AllChannels.Any()) return false;
+
+            IEnumerable<ChannelMapping> channels = SelectedBatch == null
+                ? AllChannels
+                : AllChannels.Where(c => c.TestBatch == SelectedBatch.BatchName);
+
+            return channels.Any(c => c.OverallStatus == OverallResultStatus.Passed ||
+                                      c.OverallStatus == OverallResultStatus.Failed ||
+                                      c.OverallStatus == OverallResultStatus.Skipped);
         }
 
         // Placeholders for Manual Test command targets

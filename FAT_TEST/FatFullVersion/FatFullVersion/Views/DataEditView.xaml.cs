@@ -29,6 +29,7 @@ namespace FatFullVersion.Views
         private readonly ITestResultExportService _testResultExportService;
         private readonly ITestRecordService _testRecordService;
         private readonly IChannelStateManager _channelStateManager;
+        private readonly IManualTestIoService _manualTestIoService;
 
         /// <summary>
         /// 构造函数
@@ -63,10 +64,10 @@ namespace FatFullVersion.Views
             _testResultExportService = testResultExportService;
             _testRecordService = testRecordService ?? throw new ArgumentNullException(nameof(testRecordService));
             _channelStateManager = serviceLocator.ResolveNamed<IChannelStateManager>("ChannelStateManager") ?? serviceLocator.ResolveNamed<IChannelStateManager>(string.Empty);
+            _manualTestIoService = serviceLocator.ResolveNamed<IManualTestIoService>(string.Empty);
 
             try
             {
-                // 初始化组件（由XAML设计器生成的方法）
                 InitializeComponent();
                 
                 // 确保ViewModel已正确初始化
@@ -82,7 +83,8 @@ namespace FatFullVersion.Views
                         _messageService,
                         _testResultExportService,
                         _testRecordService,
-                        _channelStateManager
+                        _channelStateManager,
+                        _manualTestIoService
                         );
                 }
                 
@@ -209,13 +211,5 @@ namespace FatFullVersion.Views
                 }
             }
         }
-
-        //#pragma warning disable CS0162 // 检测到无法访问的代码
-        //private void InitializeComponent()
-        //{
-        //    // 这是一个临时的空实现，以解决编译错误
-        //    // 在正确配置的WPF项目中，这个方法应该由XAML编译器自动生成
-        //}
-        //#pragma warning restore CS0162 // 检测到无法访问的代码
     }
 } 
