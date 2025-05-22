@@ -1527,9 +1527,9 @@ namespace FatFullVersion.Services
 
             // ===== 3. 执行映射 (被测 -> 测试) =====
             // AI 有源 -> AO 有源
-            AllocateChannelsWithConfigAndApplyState(aiPowered,   aoPoweredMap,   aoPoweredMap.Count);
+            AllocateChannelsWithConfigAndApplyState(aiPowered, aoUnpoweredMap, aoUnpoweredMap.Count); 
             // AI 无源 -> AO 无源
-            AllocateChannelsWithConfigAndApplyState(aiUnpowered, aoUnpoweredMap, aoUnpoweredMap.Count);
+            AllocateChannelsWithConfigAndApplyState(aiUnpowered, aoPoweredMap, aoPoweredMap.Count);
 
             // AO 有源 -> AI 有源(只在代码上做区分，实际全部是一种)
             AllocateChannelsWithConfigAndApplyState(aoUnpowered,   aiPoweredMap,   aiPoweredMap.Count);
@@ -1537,14 +1537,14 @@ namespace FatFullVersion.Services
             //AllocateChannelsWithConfigAndApplyState(aoUnpowered, aiUnpoweredMap, aiUnpoweredMap.Count);
 
             // DI 有源 -> DO 有源
-            AllocateChannelsWithConfigAndApplyState(diPowered,   doPoweredMap,   doPoweredMap.Count);
+            AllocateChannelsWithConfigAndApplyState(diPowered, doUnpoweredMap, doUnpoweredMap.Count);
             // DI 无源 -> DO 无源
-            AllocateChannelsWithConfigAndApplyState(diUnpowered, doUnpoweredMap, doUnpoweredMap.Count);
+            AllocateChannelsWithConfigAndApplyState(diUnpowered, doPoweredMap, doPoweredMap.Count);
 
             // DO 有源 -> DI 有源
-            AllocateChannelsWithConfigAndApplyState(doPowered,   diPoweredMap,   diPoweredMap.Count);
+            AllocateChannelsWithConfigAndApplyState(doPowered, diUnpoweredMap, diUnpoweredMap.Count);
             // DO 无源 -> DI 无源
-            AllocateChannelsWithConfigAndApplyState(doUnpowered, diUnpoweredMap, diUnpoweredMap.Count);
+            AllocateChannelsWithConfigAndApplyState(doUnpowered, diPoweredMap, diPoweredMap.Count);
 
             System.Diagnostics.Debug.WriteLine("AllocateChannelsTestAsync: 通道分配完成。");
             return channels; // 引用类型修改后直接返回

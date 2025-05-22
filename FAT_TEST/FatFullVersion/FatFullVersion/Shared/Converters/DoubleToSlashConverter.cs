@@ -19,25 +19,28 @@ namespace FatFullVersion.Shared.Converters
         /// <returns>显示值</returns>
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
+            if (value == null)
+            {
+                return "N/A";
+            }
+
             if (value is double doubleValue)
             {
                 if (double.IsNaN(doubleValue))
                 {
-                    return "/";
+                    return "N/A";
                 }
-                // 格式化浮点数，保留三位小数
                 return Math.Round(doubleValue, 3).ToString("F3", culture);
             }
             else if (value is float floatValue)
             {
                 if (float.IsNaN(floatValue))
                 {
-                    return "/";
+                    return "N/A";
                 }
-                // 格式化浮点数，保留三位小数
                 return Math.Round(floatValue, 3).ToString("F3", culture);
             }
-            return value;
+            return value?.ToString() ?? "N/A";
         }
 
         /// <summary>

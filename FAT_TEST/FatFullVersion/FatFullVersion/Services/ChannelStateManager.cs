@@ -156,7 +156,9 @@ namespace FatFullVersion.Services
                     break;
 
                 case "DI":
+                case "DINone":
                 case "DO":
+                case "DONone":
                     channel.LowLowAlarmStatus = StatusNotApplicable;
                     channel.LowAlarmStatus = StatusNotApplicable;
                     channel.HighAlarmStatus = StatusNotApplicable;
@@ -177,6 +179,10 @@ namespace FatFullVersion.Services
                     channel.Value50Percent = null;
                     channel.Value75Percent = null;
                     channel.Value100Percent = null;
+                    channel.RangeLowerLimitValue = null;
+                    channel.RangeUpperLimitValue = null;
+                    channel.RangeLowerLimit = "N/A";
+                    channel.RangeUpperLimit = "N/A";
                     break;
                 
                 // TODO: 根据需要为 AINone, AONone, DINone, DONone 等添加特定初始化逻辑

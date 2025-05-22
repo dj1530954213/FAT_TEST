@@ -81,17 +81,17 @@ namespace FatFullVersion.Services.ChannelTask
                     cancellationToken.ThrowIfCancellationRequested();
                     await CheckAndWaitForResumeAsync(cancellationToken);
 
-                    float testValue = minValue + (range * percentage / 100f);
+                    float percentValue = percentage; // 写入百分比
+                    float expectedValue = minValue + (range * percentage / 100f);
                     detailedTestLog.AppendLine($"步骤 {i + 1}/5: 测试 {percentage}% 点.");
-
-                    var writeResult = await TargetPlcCommunication.WriteAnalogValueAsync(ChannelMapping.PlcCommunicationAddress.Substring(1), testValue);
+                    var writeResult = await TargetPlcCommunication.WriteAnalogValueAsync(ChannelMapping.PlcCommunicationAddress.Substring(1), percentValue);
                     if (!writeResult.IsSuccess)
                     {
-                        detailedTestLog.AppendLine($"  向被测PLC写入测试值 ({testValue}) 失败：{writeResult.ErrorMessage}");
+                        detailedTestLog.AppendLine($"  向被测PLC写入测试值 ({percentValue}) 失败：{writeResult.ErrorMessage}");
                         overallSuccess = false;
                         break;
                     }
-                    detailedTestLog.AppendLine($"  被测PLC已输出: {testValue} (对应 {percentage}%).");
+                    detailedTestLog.AppendLine($"  被测PLC已写入百分比值: {percentValue}% -> 预计工程值 {expectedValue}.");
 
                     await Task.Delay(3000, cancellationToken);
 
@@ -116,15 +116,15 @@ namespace FatFullVersion.Services.ChannelTask
                         case 100f: ChannelMapping.Value100Percent = actualValue; break;
                     }
 
-                    float deviation = Math.Abs(actualValue - testValue);
+                    float deviation = Math.Abs(actualValue - expectedValue);
                     float deviationPercent = 0f;
                     if (Math.Abs(range) > 1E-6) 
                     {
                         deviationPercent = (deviation / range) * 100f;
                     }
-                    else if (Math.Abs(testValue) > 1E-6)
+                    else if (Math.Abs(expectedValue) > 1E-6)
                     {
-                        deviationPercent = (deviation / Math.Abs(testValue)) * 100f;
+                        deviationPercent = (deviation / Math.Abs(expectedValue)) * 100f;
                     }
                     else if (Math.Abs(actualValue) > 1E-6)
                     {
@@ -135,11 +135,11 @@ namespace FatFullVersion.Services.ChannelTask
 
                     if (deviationPercent <= allowedRangeDeviationPercent)
                     {
-                        detailedTestLog.AppendLine($"  {percentage}% 点测试通过。期望: {testValue}, 实际: {actualValue}, 偏差: {deviation:F3} ({deviationPercent:F2}% of range).");
+                        detailedTestLog.AppendLine($"  {percentage}% 点测试通过。期望: {expectedValue}, 实际: {actualValue}, 偏差: {deviation:F3} ({deviationPercent:F2}% of range).");
                     }
                     else
                     {
-                        detailedTestLog.AppendLine($"  {percentage}% 点测试失败! 期望: {testValue}, 实际: {actualValue}, 偏差: {deviation:F3} ({deviationPercent:F2}% of range). 允许偏差: {allowedRangeDeviationPercent}% of range.");
+                        detailedTestLog.AppendLine($"  {percentage}% 点测试失败! 期望: {expectedValue}, 实际: {actualValue}, 偏差: {deviation:F3} ({deviationPercent:F2}% of range). 允许偏差: {allowedRangeDeviationPercent}% of range.");
                         overallSuccess = false;
                     }
 

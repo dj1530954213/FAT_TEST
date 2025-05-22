@@ -81,72 +81,142 @@ namespace FatFullVersion.Services.ChannelTask
 
                 for (int i = 0; i < percentages.Length; i++)
                 {
-                    var percentage = percentages[i];
-                    cancellationToken.ThrowIfCancellationRequested();
-                    await CheckAndWaitForResumeAsync(cancellationToken); 
+                    if (ChannelMapping.VariableName.Contains("PT_2101"))
+                    {
+                        var percentage = percentages[i];
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await CheckAndWaitForResumeAsync(cancellationToken); 
 
-                    float testValue = minValue + (range * percentage / 100f);
-                    detailedTestLog.AppendLine($"步骤 {i + 1}/5: 测试 {percentage}% 点.");
+                        float percentValue = percentage;
+                        float expectedValue = minValue + (range * percentage / 100f);
+                        detailedTestLog.AppendLine($"步骤 {i + 1}/5: 测试 {percentage}% 点.");
+                        var writeResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress.Substring(1), percentValue);
+                        if (!writeResult.IsSuccess)
+                        {
+                            detailedTestLog.AppendLine($"  写入测试值 ({percentValue}) 到测试PLC失败：{writeResult.ErrorMessage}");
+                            overallSuccess = false;
+                            break; 
+                        }
+                        detailedTestLog.AppendLine($"  测试PLC已写入百分比值: {percentValue}% -> 预计工程值 {expectedValue}.");
+                    
+                        await Task.Delay(3000, cancellationToken); 
+                    
+                        var readResult = await TargetPlcCommunication.ReadAnalogValueAsync(ChannelMapping.PlcCommunicationAddress.Substring(1));
+                        if (!readResult.IsSuccess)
+                        {
+                            detailedTestLog.AppendLine($"  读取被测PLC值失败：{readResult.ErrorMessage}");
+                            overallSuccess = false;
+                            break; 
+                        }
+                    
+                        float actualValue = readResult.Data;
+                        detailedTestLog.AppendLine($"  被测PLC读取到值: {actualValue}.");
 
-                    var writeResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress.Substring(1), testValue);
-                    if (!writeResult.IsSuccess)
-                    {
-                        detailedTestLog.AppendLine($"  写入测试值 ({testValue}) 到测试PLC失败：{writeResult.ErrorMessage}");
-                        overallSuccess = false;
-                        break; 
-                    }
-                    detailedTestLog.AppendLine($"  测试PLC已输出: {testValue} (对应 {percentage}%).");
+                        switch (percentage)
+                        {
+                            case 0f: ChannelMapping.Value0Percent = actualValue; break;
+                            case 25f: ChannelMapping.Value25Percent = actualValue; break;
+                            case 50f: ChannelMapping.Value50Percent = actualValue; break;
+                            case 75f: ChannelMapping.Value75Percent = actualValue; break;
+                            case 100f: ChannelMapping.Value100Percent = actualValue; break;
+                        }
                     
-                    await Task.Delay(3000, cancellationToken); 
-                    
-                    var readResult = await TargetPlcCommunication.ReadAnalogValueAsync(ChannelMapping.PlcCommunicationAddress.Substring(1));
-                    if (!readResult.IsSuccess)
-                    {
-                        detailedTestLog.AppendLine($"  读取被测PLC值失败：{readResult.ErrorMessage}");
-                        overallSuccess = false;
-                        break; 
-                    }
-                    
-                    float actualValue = readResult.Data;
-                    detailedTestLog.AppendLine($"  被测PLC读取到值: {actualValue}.");
-
-                    switch (percentage)
-                    {
-                        case 0f: ChannelMapping.Value0Percent = actualValue; break;
-                        case 25f: ChannelMapping.Value25Percent = actualValue; break;
-                        case 50f: ChannelMapping.Value50Percent = actualValue; break;
-                        case 75f: ChannelMapping.Value75Percent = actualValue; break;
-                        case 100f: ChannelMapping.Value100Percent = actualValue; break;
-                    }
-                    
-                    float deviation = Math.Abs(actualValue - testValue);
-                    float deviationPercent = 0f;
-                    if (Math.Abs(range) > 1E-6) 
-                    {
-                         deviationPercent = (deviation / range) * 100f;
-                    }
-                    else if (Math.Abs(testValue) > 1E-6) 
-                    {
-                        deviationPercent = (deviation / Math.Abs(testValue)) * 100f;
-                    }
-                    else if (Math.Abs(actualValue) > 1E-6) 
-                    {
-                        deviationPercent = 100.0f; 
-                    }
+                        float deviation = Math.Abs(actualValue - expectedValue);
+                        float deviationPercent = 0f;
+                        if (Math.Abs(range) > 1E-6) 
+                        {
+                            deviationPercent = (deviation / range) * 100f;
+                        }
+                        else if (Math.Abs(expectedValue) > 1E-6) 
+                        {
+                            deviationPercent = (deviation / Math.Abs(expectedValue)) * 100f;
+                        }
+                        else if (Math.Abs(actualValue) > 1E-6) 
+                        {
+                            deviationPercent = 100.0f; 
+                        }
                                         
-                    const float allowedRangeDeviationPercent = 1.0f; 
+                        const float allowedRangeDeviationPercent = 1.0f; 
 
-                    if (deviationPercent <= allowedRangeDeviationPercent)
-                    {
-                        detailedTestLog.AppendLine($"  {percentage}% 点测试通过。期望: {testValue}, 实际: {actualValue}, 偏差: {deviation:F3} ({deviationPercent:F2}% of range).");
+                        if (deviationPercent <= allowedRangeDeviationPercent)
+                        {
+                            detailedTestLog.AppendLine($"  {percentage}% 点测试通过。期望: {expectedValue}, 实际: {actualValue}, 偏差: {deviation:F3} ({deviationPercent:F2}% of range).");
+                        }
+                        else
+                        {
+                            detailedTestLog.AppendLine($"  {percentage}% 点测试失败! 期望: {expectedValue}, 实际: {actualValue}, 偏差: {deviation:F3} ({deviationPercent:F2}% of range). 允许偏差: {allowedRangeDeviationPercent}% of range.");
+                            overallSuccess = false;
+                        }
+                        await Task.Delay(1000, cancellationToken); 
                     }
                     else
                     {
-                        detailedTestLog.AppendLine($"  {percentage}% 点测试失败! 期望: {testValue}, 实际: {actualValue}, 偏差: {deviation:F3} ({deviationPercent:F2}% of range). 允许偏差: {allowedRangeDeviationPercent}% of range.");
-                        overallSuccess = false;
+                        var percentage = percentages[i];
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await CheckAndWaitForResumeAsync(cancellationToken);
+
+                        float percentValue = percentage;
+                        float expectedValue = minValue + (range * percentage / 100f);
+                        detailedTestLog.AppendLine($"步骤 {i + 1}/5: 测试 {percentage}% 点.");
+                        var writeResult = await TestPlcCommunication.WriteAnalogValueAsync(ChannelMapping.TestPLCCommunicationAddress.Substring(1), percentValue);
+                        if (!writeResult.IsSuccess)
+                        {
+                            detailedTestLog.AppendLine($"  写入测试值 ({percentValue}) 到测试PLC失败：{writeResult.ErrorMessage}");
+                            overallSuccess = false;
+                            break;
+                        }
+                        detailedTestLog.AppendLine($"  测试PLC已写入百分比值: {percentValue}% -> 预计工程值 {expectedValue}.");
+
+                        await Task.Delay(3000, cancellationToken);
+
+                        var readResult = await TargetPlcCommunication.ReadAnalogValueAsync(ChannelMapping.PlcCommunicationAddress.Substring(1));
+                        if (!readResult.IsSuccess)
+                        {
+                            detailedTestLog.AppendLine($"  读取被测PLC值失败：{readResult.ErrorMessage}");
+                            overallSuccess = false;
+                            break;
+                        }
+
+                        float actualValue = readResult.Data;
+                        detailedTestLog.AppendLine($"  被测PLC读取到值: {actualValue}.");
+
+                        switch (percentage)
+                        {
+                            case 0f: ChannelMapping.Value0Percent = actualValue; break;
+                            case 25f: ChannelMapping.Value25Percent = actualValue; break;
+                            case 50f: ChannelMapping.Value50Percent = actualValue; break;
+                            case 75f: ChannelMapping.Value75Percent = actualValue; break;
+                            case 100f: ChannelMapping.Value100Percent = actualValue; break;
+                        }
+
+                        float deviation = Math.Abs(actualValue - expectedValue);
+                        float deviationPercent = 0f;
+                        if (Math.Abs(range) > 1E-6)
+                        {
+                            deviationPercent = (deviation / range) * 100f;
+                        }
+                        else if (Math.Abs(expectedValue) > 1E-6)
+                        {
+                            deviationPercent = (deviation / Math.Abs(expectedValue)) * 100f;
+                        }
+                        else if (Math.Abs(actualValue) > 1E-6)
+                        {
+                            deviationPercent = 100.0f;
+                        }
+
+                        const float allowedRangeDeviationPercent = 1.0f;
+
+                        if (deviationPercent <= allowedRangeDeviationPercent)
+                        {
+                            detailedTestLog.AppendLine($"  {percentage}% 点测试通过。期望: {expectedValue}, 实际: {actualValue}, 偏差: {deviation:F3} ({deviationPercent:F2}% of range).");
+                        }
+                        else
+                        {
+                            detailedTestLog.AppendLine($"  {percentage}% 点测试失败! 期望: {expectedValue}, 实际: {actualValue}, 偏差: {deviation:F3} ({deviationPercent:F2}% of range). 允许偏差: {allowedRangeDeviationPercent}% of range.");
+                            overallSuccess = false;
+                        }
+                        await Task.Delay(1000, cancellationToken);
                     }
-                    
-                    await Task.Delay(1000, cancellationToken); 
                 }
             }
             catch (OperationCanceledException)
