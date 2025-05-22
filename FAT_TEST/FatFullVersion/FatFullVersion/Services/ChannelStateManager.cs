@@ -174,13 +174,13 @@ namespace FatFullVersion.Services
                     // channel.RangeLowerLimitValue = float.NaN;
                     // channel.RangeUpperLimitValue = float.NaN;
                     // 同时 ValueXPercent 系列也应为N/A或null (已为float?)
-                    channel.Value0Percent = null;
-                    channel.Value25Percent = null;
-                    channel.Value50Percent = null;
-                    channel.Value75Percent = null;
-                    channel.Value100Percent = null;
-                    channel.RangeLowerLimitValue = null;
-                    channel.RangeUpperLimitValue = null;
+                    channel.Value0Percent = float.NaN;
+                    channel.Value25Percent = float.NaN;
+                    channel.Value50Percent = float.NaN;
+                    channel.Value75Percent = float.NaN;
+                    channel.Value100Percent = float.NaN;
+                    channel.RangeLowerLimitValue = float.NaN;
+                    channel.RangeUpperLimitValue = float.NaN;
                     channel.RangeLowerLimit = "N/A";
                     channel.RangeUpperLimit = "N/A";
                     break;

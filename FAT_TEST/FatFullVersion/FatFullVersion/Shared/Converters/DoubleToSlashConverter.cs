@@ -21,7 +21,7 @@ namespace FatFullVersion.Shared.Converters
         {
             if (value == null)
             {
-                return "N/A";
+                return string.Empty; // 模拟量通道未测试时显示空
             }
 
             if (value is double doubleValue)
