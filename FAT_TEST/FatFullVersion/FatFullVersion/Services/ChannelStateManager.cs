@@ -104,32 +104,32 @@ namespace FatFullVersion.Services
                     // AI 报警状态的特殊初始化逻辑
                     if (channel.SLLSetValueNumber == null && channel.SLSetValueNumber == null)
                     {
-                        channel.LowLowAlarmStatus = StatusNotApplicable;
-                        channel.LowAlarmStatus = StatusNotApplicable;
+                        channel.LowLowAlarmStatusEnum = Shared.TestStatus.NotApplicable;
+                        channel.LowAlarmStatusEnum = Shared.TestStatus.NotApplicable;
                     }
                     else
                     {
-                        channel.LowLowAlarmStatus = (channel.SLLSetValueNumber == null) ? StatusNotApplicable : StatusNotTested;
-                        channel.LowAlarmStatus = (channel.SLSetValueNumber == null) ? StatusNotApplicable : StatusNotTested;
+                        channel.LowLowAlarmStatusEnum = (channel.SLLSetValueNumber == null) ? Shared.TestStatus.NotApplicable : Shared.TestStatus.NotTested;
+                        channel.LowAlarmStatusEnum = (channel.SLSetValueNumber == null) ? Shared.TestStatus.NotApplicable : Shared.TestStatus.NotTested;
                     }
 
                     if (channel.SHSetValueNumber == null && channel.SHHSetValueNumber == null)
                     {
-                        channel.HighAlarmStatus = StatusNotApplicable;
-                        channel.HighHighAlarmStatus = StatusNotApplicable;
+                        channel.HighAlarmStatusEnum = Shared.TestStatus.NotApplicable;
+                        channel.HighHighAlarmStatusEnum = Shared.TestStatus.NotApplicable;
                     }
                     else
                     {
-                        channel.HighAlarmStatus = (channel.SHSetValueNumber == null) ? StatusNotApplicable : StatusNotTested;
-                        channel.HighHighAlarmStatus = (channel.SHHSetValueNumber == null) ? StatusNotApplicable : StatusNotTested;
+                        channel.HighAlarmStatusEnum = (channel.SHSetValueNumber == null) ? Shared.TestStatus.NotApplicable : Shared.TestStatus.NotTested;
+                        channel.HighHighAlarmStatusEnum = (channel.SHHSetValueNumber == null) ? Shared.TestStatus.NotApplicable : Shared.TestStatus.NotTested;
                     }
 
                     // AlarmValueSetStatus 判定
                     bool allAlarmsConfiguredAndPassedOrNAForAI =
-                        (channel.LowLowAlarmStatus == StatusPassed || channel.LowLowAlarmStatus == StatusNotApplicable) &&
-                        (channel.LowAlarmStatus == StatusPassed || channel.LowAlarmStatus == StatusNotApplicable) &&
-                        (channel.HighAlarmStatus == StatusPassed || channel.HighAlarmStatus == StatusNotApplicable) &&
-                        (channel.HighHighAlarmStatus == StatusPassed || channel.HighHighAlarmStatus == StatusNotApplicable);
+                        (channel.LowLowAlarmStatusEnum == Shared.TestStatus.Passed || channel.LowLowAlarmStatusEnum == Shared.TestStatus.NotApplicable) &&
+                        (channel.LowAlarmStatusEnum == Shared.TestStatus.Passed || channel.LowAlarmStatusEnum == Shared.TestStatus.NotApplicable) &&
+                        (channel.HighAlarmStatusEnum == Shared.TestStatus.Passed || channel.HighAlarmStatusEnum == Shared.TestStatus.NotApplicable) &&
+                        (channel.HighHighAlarmStatusEnum == Shared.TestStatus.Passed || channel.HighHighAlarmStatusEnum == Shared.TestStatus.NotApplicable);
                     
                     // 仅当所有相关报警项都明确配置（即其数值不为null导致状态为Passed/NA）时，才认为报警值设定需要测试
                     // 或者更简单的规则：如果 Excel 中所有报警设定值文本都为空，则 AlarmValueSetStatus 通过
@@ -189,7 +189,7 @@ namespace FatFullVersion.Services
             }
 
             // 4. 初始化核心测试状态
-            channel.HardPointTestResult = StatusNotTested;
+            channel.HardPointStatus = Shared.TestStatus.NotTested;
             channel.ResultText = StatusNotTested; 
             channel.TestResultStatus = 0; // 0:未测试
             if (channel.Status != StatusSkipped) // 如果之前由于某种原因被跳过，则不覆盖已有的Status
@@ -205,6 +205,21 @@ namespace FatFullVersion.Services
             // 6. 调用EvaluateOverallStatus
             // 在初始化阶段，这通常只是确认状态为"未测试"，但调用它以保持流程一致性
             EvaluateOverallStatus(channel); 
+
+            // --- 预留点位（变量名含 YLDW）特殊处理 -----------------------------------------
+            if (!string.IsNullOrEmpty(channel.VariableName) && channel.VariableName.IndexOf("YLDW", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                // 仅保留 0%~100% 硬点测试，其他手动测试全部设为 N/A
+                channel.ShowValueStatus = StatusNotApplicable;
+                channel.LowLowAlarmStatus = StatusNotApplicable;
+                channel.LowAlarmStatus = StatusNotApplicable;
+                channel.HighAlarmStatus = StatusNotApplicable;
+                channel.HighHighAlarmStatus = StatusNotApplicable;
+                channel.AlarmValueSetStatus = StatusNotApplicable;
+                channel.MaintenanceFunction = StatusNotApplicable;
+                channel.TrendCheck = StatusNotApplicable;
+                channel.ReportCheck = StatusNotApplicable;
+            }
         }
 
         /// <summary>
@@ -218,7 +233,7 @@ namespace FatFullVersion.Services
             // 但清除那些在测试过程中会被改变的状态或结果。
 
             // 核心测试状态
-            channel.HardPointTestResult = StatusNotTested;
+            channel.HardPointStatus = Shared.TestStatus.NotTested;
             channel.ResultText = StatusNotTested;
             channel.TestResultStatus = 0; // 0:未测试
             if (channel.Status != StatusSkipped) // 不覆盖已明确跳过的状态
@@ -332,7 +347,7 @@ namespace FatFullVersion.Services
             if (channel == null) return;
 
             channel.TestResultStatus = 3; // 3 代表"跳过"
-            channel.HardPointTestResult = StatusSkipped;
+            channel.HardPointStatus = Shared.TestStatus.Skipped;
             channel.ResultText = string.IsNullOrWhiteSpace(reason) ? "已跳过测试" : $"已跳过测试，原因: {reason}";
             channel.FinalTestTime = skipTime;
             if (channel.Status != StatusSkipped) // 如果 Status 属性保留并使用
@@ -373,17 +388,17 @@ namespace FatFullVersion.Services
 
             // 只有当通道当前是"未测试"状态时，才将其更新为"等待测试"
             // 如果已经是其他状态（如"测试中"、"失败"、"跳过"等），则不应更改
-            if (channel.HardPointTestResult == StatusNotTested || string.IsNullOrEmpty(channel.HardPointTestResult))
+            if (channel.HardPointStatus == Shared.TestStatus.NotTested || string.IsNullOrEmpty(channel.ResultText))
             {
-                channel.HardPointTestResult = StatusWaiting;
+                channel.HardPointStatus = Shared.TestStatus.Waiting;
                 channel.ResultText = StatusWaiting; // 或者更具体的如 "接线已确认，等待测试开始"
                 // TestResultStatus 保持为 0 (未测试)
             }
             // 如果通道已分配但未进行任何测试（例如 TestResultStatus 为 0 且 HardPointTestResult 为空或NotTested）
             // 也应该更新为等待测试
-            else if (channel.TestResultStatus == 0 && (channel.HardPointTestResult == StatusNotTested || string.IsNullOrEmpty(channel.HardPointTestResult)))
+            else if (channel.TestResultStatus == 0 && (channel.HardPointStatus == Shared.TestStatus.NotTested || string.IsNullOrEmpty(channel.ResultText)))
             {
-                channel.HardPointTestResult = StatusWaiting;
+                channel.HardPointStatus = Shared.TestStatus.Waiting;
                 channel.ResultText = StatusWaiting; 
             }
 
@@ -409,7 +424,7 @@ namespace FatFullVersion.Services
             }
             channel.FinalTestTime = null; 
 
-            channel.HardPointTestResult = StatusTesting;
+            channel.HardPointStatus = Shared.TestStatus.Testing;
             
             // 更新ResultText，如果已经是某种"测试中"的状态，避免重复或不当覆盖
             if (channel.ResultText == StatusWaiting || channel.ResultText == StatusNotTested || string.IsNullOrEmpty(channel.ResultText))
@@ -441,13 +456,13 @@ namespace FatFullVersion.Services
 
             if (rawOutcome.IsSuccess)
             {
-                channel.HardPointTestResult = StatusPassed;
-                channel.HardPointErrorDetail = null; // 清空之前的错误详情
+                channel.HardPointStatus = Shared.TestStatus.Passed;
+                channel.HardPointErrorDetail = null;
             }
             else
             {
-                channel.HardPointTestResult = StatusFailed;
-                channel.HardPointErrorDetail = rawOutcome.Detail; // 保存详细错误信息
+                channel.HardPointStatus = Shared.TestStatus.Failed;
+                channel.HardPointErrorDetail = rawOutcome.Detail;
             }
 
             channel.TestTime = outcomeTime; // 记录硬点测试结果的确切时间
@@ -508,16 +523,16 @@ namespace FatFullVersion.Services
             // DI/DO 只有 ShowValueStatus，已处理
 
             // 2. 更新 ResultText
-            if (channel.HardPointTestResult == StatusPassed || channel.HardPointTestResult == StatusNotApplicable || string.IsNullOrEmpty(channel.HardPointTestResult))
+            if (channel.HardPointStatus == Shared.TestStatus.Passed || channel.HardPointStatus == Shared.TestStatus.NotApplicable || string.IsNullOrEmpty(channel.ResultText))
             {
                 // 如果硬点OK或不适用，则主要显示手动测试中
                 channel.ResultText = StatusManualTesting;
             }
-            else if (channel.HardPointTestResult == StatusTesting || channel.HardPointTestResult == StatusWaiting)
+            else if (channel.HardPointStatus == Shared.TestStatus.Testing || channel.HardPointStatus == Shared.TestStatus.Waiting)
             {
                 // 如果硬点仍在进行，ResultText可能已是HardPointTesting，暂时不覆盖或附加
                 // 或者根据优先级决定是否要显示 "硬点测试中，准备手动测试"
-                 channel.ResultText = $"{channel.HardPointTestResult}, {StatusManualTesting}";
+                 channel.ResultText = $"{channel.HardPointStatus}, {StatusManualTesting}";
             }
             // 如果硬点失败，则 ResultText 应已反映失败，不应被"手动测试中"覆盖。
             // 此情况已在方法开头通过检查 TestResultStatus == 2 避免。
@@ -606,6 +621,12 @@ namespace FatFullVersion.Services
             // 核心：重新评估整体状态
             // EvaluateOverallStatus 会根据所有子项（包括刚更新的这个）和硬点状态来设定 TestResultStatus, ResultText, FinalTestTime
             EvaluateOverallStatus(channel, outcomeTime);
+
+            // 如果更新了 ShowValueStatus，则同步枚举字段
+            if(itemType == ManualTestItem.ShowValue)
+            {
+                channel.ShowValueStatusEnum = isSuccess ? Shared.TestStatus.Passed : Shared.TestStatus.Failed;
+            }
         }
 
         /// <summary>
@@ -634,6 +655,8 @@ namespace FatFullVersion.Services
         {
             if (channel == null) return;
 
+            bool IsNA(string status) => string.IsNullOrWhiteSpace(status) || status == StatusNotApplicable;
+
             // 规则 0: 如果已被标记为跳过 (TestResultStatus = 3)
             // 跳过状态由 MarkAsSkipped 方法直接设定，通常包含最终时间和结果文本。
             // EvaluateOverallStatus 在此情况下主要用于确保不会覆盖已明确的跳过状态。
@@ -648,9 +671,8 @@ namespace FatFullVersion.Services
             // 保留当前状态，让后续逻辑决定是否覆盖。
             // bool currentOverallStatusIsTerminal = channel.TestResultStatus == 1 || channel.TestResultStatus == 2 || channel.TestResultStatus == 3;
 
-            bool allRequiredManualSubTestsPassed = true; 
-            bool anyManualSubTestFailed = false;       
-            bool allManualSubTestsCompletedOrNA = true;
+            bool anyManualSubTestFailed = false;
+            bool anyManualSubTestNotTested = false;
 
             string moduleTypeUpper = channel.ModuleType?.ToUpper();
 
@@ -660,36 +682,32 @@ namespace FatFullVersion.Services
             {
                 case "AI":
                     // 示例：检查 ShowValueStatus
-                    if (channel.ShowValueStatus == StatusFailed) { anyManualSubTestFailed = true; allRequiredManualSubTestsPassed = false; }
-                    else if (channel.ShowValueStatus == StatusNotTested) { allManualSubTestsCompletedOrNA = false; allRequiredManualSubTestsPassed = false; }
-                    else if (channel.ShowValueStatus != StatusPassed && channel.ShowValueStatus != StatusNotApplicable) { allRequiredManualSubTestsPassed = false; } // 如果不是通过也不是N/A，则不算通过
+                    if (channel.ShowValueStatus == StatusFailed) { anyManualSubTestFailed = true; }
+                    else if (channel.ShowValueStatus == StatusNotTested) { anyManualSubTestNotTested = true; }
                     
                     // 对 AI 的所有相关子测试项 (LowLowAlarmStatus, LowAlarmStatus, ..., ReportCheck) 进行类似检查:
-                    // 1. 如果子项状态是 StatusFailed -> anyManualSubTestFailed = true; allRequiredManualSubTestsPassed = false;
-                    // 2. 如果子项状态是 StatusNotTested -> allManualSubTestsCompletedOrNA = false; allRequiredManualSubTestsPassed = false;
+                    // 1. 如果子项状态是 StatusFailed -> anyManualSubTestFailed = true;
+                    // 2. 如果子项状态是 StatusNotTested -> anyManualSubTestNotTested = true;
                     // 3. 如果子项状态既不是 StatusPassed 也不是 StatusNotApplicable (并且也不是Failed或NotTested) -> allRequiredManualSubTestsPassed = false;
                     // (简化逻辑，具体实现时需要遍历所有相关子项)
                     // 此处仅示意，完整实现需要列出AI所有子项
                     string[] aiSubTests = { channel.LowLowAlarmStatus, channel.LowAlarmStatus, channel.HighAlarmStatus, channel.HighHighAlarmStatus, channel.AlarmValueSetStatus, channel.MaintenanceFunction, channel.TrendCheck, channel.ReportCheck };
                     foreach (var subTestStatus in aiSubTests)
                     {
-                        if (subTestStatus == StatusFailed) { anyManualSubTestFailed = true; allRequiredManualSubTestsPassed = false; }
-                        else if (subTestStatus == StatusNotTested) { allManualSubTestsCompletedOrNA = false; allRequiredManualSubTestsPassed = false; }
-                        else if (subTestStatus != StatusPassed && subTestStatus != StatusNotApplicable) { allRequiredManualSubTestsPassed = false; }
+                        if (subTestStatus == StatusFailed) { anyManualSubTestFailed = true; }
+                        else if (subTestStatus == StatusNotTested) { anyManualSubTestNotTested = true; }
                     }
                     break;
 
                 case "AO":
-                    if (channel.ShowValueStatus == StatusFailed) { anyManualSubTestFailed = true; allRequiredManualSubTestsPassed = false; }
-                    else if (channel.ShowValueStatus == StatusNotTested) { allManualSubTestsCompletedOrNA = false; allRequiredManualSubTestsPassed = false; }
-                    else if (channel.ShowValueStatus != StatusPassed && channel.ShowValueStatus != StatusNotApplicable) { allRequiredManualSubTestsPassed = false; }
-
+                    if (channel.ShowValueStatus == StatusFailed) { anyManualSubTestFailed = true; }
+                    else if (channel.ShowValueStatus == StatusNotTested) { anyManualSubTestNotTested = true; }
+                    
                     string[] aoSubTests = { channel.MaintenanceFunction, channel.TrendCheck, channel.ReportCheck }; // AO特定子项
                     foreach (var subTestStatus in aoSubTests)
                     {
-                        if (subTestStatus == StatusFailed) { anyManualSubTestFailed = true; allRequiredManualSubTestsPassed = false; }
-                        else if (subTestStatus == StatusNotTested) { allManualSubTestsCompletedOrNA = false; allRequiredManualSubTestsPassed = false; }
-                        else if (subTestStatus != StatusPassed && subTestStatus != StatusNotApplicable) { allRequiredManualSubTestsPassed = false; }
+                        if (subTestStatus == StatusFailed) { anyManualSubTestFailed = true; }
+                        else if (subTestStatus == StatusNotTested) { anyManualSubTestNotTested = true; }
                     }
                     break;
 
@@ -697,15 +715,13 @@ namespace FatFullVersion.Services
                 case "DINone":
                 case "DO":
                 case "DONone":
-                    if (channel.ShowValueStatus == StatusFailed) { anyManualSubTestFailed = true; allRequiredManualSubTestsPassed = false; }
-                    else if (channel.ShowValueStatus == StatusNotTested) { allManualSubTestsCompletedOrNA = false; allRequiredManualSubTestsPassed = false; }
-                    else if (channel.ShowValueStatus != StatusPassed && channel.ShowValueStatus != StatusNotApplicable) { allRequiredManualSubTestsPassed = false; }
+                    if (channel.ShowValueStatus == StatusFailed) { anyManualSubTestFailed = true; }
+                    else if (channel.ShowValueStatus == StatusNotTested) { anyManualSubTestNotTested = true; }
                     break;
                 
                 default: // 其他未知或无特定子测试逻辑的模块类型
-                    // allRequiredManualSubTestsPassed 保持 true (因为没有必须的子项失败或未完成)
                     // anyManualSubTestFailed 保持 false
-                    // allManualSubTestsCompletedOrNA 保持 true
+                    // anyManualSubTestNotTested 保持 true
                     break;
             }
 
@@ -723,28 +739,28 @@ namespace FatFullVersion.Services
 
             // 规则 2: 硬点测试失败，则整体测试失败。
             // (HardPointTestResult 的失败状态由 SetHardPointTestOutcome 方法设置)
-            if (channel.HardPointTestResult == StatusFailed || (channel.HardPointTestResult != null && channel.HardPointTestResult.StartsWith(StatusFailed))) // 更稳健的失败检查
+            if (channel.HardPointStatus == Shared.TestStatus.Failed || (channel.HardPointStatus != null && channel.ResultText.StartsWith(StatusFailed))) // 更稳健的失败检查
             {
                 channel.TestResultStatus = 2; // 失败
-                channel.ResultText = channel.HardPointTestResult;
+                channel.ResultText = channel.ResultText;
                 channel.FinalTestTime = eventTimeForFinalTest ?? DateTime.Now;
                 return;
             }
 
             // 规则 3: 所有测试环节均已完成且无失败。
             bool hardPointIsOkOrNotApplicable = 
-                channel.HardPointTestResult == StatusPassed || 
-                channel.HardPointTestResult == StatusSkipped || // 跳过的硬点也视为OK，因为跳过是种完成状态
-                channel.HardPointTestResult == StatusNotApplicable || 
-                string.IsNullOrEmpty(channel.HardPointTestResult) || // 对于没有硬点测试环节的类型
-                channel.HardPointTestResult == StatusNotTested; // 如果硬点未测，但所有手动项都通过了 (这个逻辑需审慎，通常硬点是前提)
+                channel.HardPointStatus == Shared.TestStatus.Passed || 
+                channel.HardPointStatus == Shared.TestStatus.Skipped || // 跳过的硬点也视为OK，因为跳过是种完成状态
+                channel.HardPointStatus == Shared.TestStatus.NotApplicable || 
+                string.IsNullOrEmpty(channel.ResultText) || // 对于没有硬点测试环节的类型
+                channel.HardPointStatus == Shared.TestStatus.NotTested; // 如果硬点未测，但所有手动项都通过了 (这个逻辑需审慎，通常硬点是前提)
                                                               // 更安全的做法是：如果一个类型有硬点测试要求，则 HardPointTestResult 必须是 StatusPassed 或 StatusNotApplicable
             
             // 修正 hardPointIsOkOrNotApplicable 的逻辑：
             // 如果模块类型通常需要硬点测试 (AI, AO, 或特定配置的 DI/DO)，则 HardPointTestResult 必须明确为 StatusPassed。
             // 如果模块类型明确无硬点测试环节 (或者该环节被标记为 N/A)，则也视为 OK。
-            bool strictHardPointPassed = channel.HardPointTestResult == StatusPassed;
-            bool hardPointNotRequiredOrNA = channel.HardPointTestResult == StatusNotApplicable || string.IsNullOrEmpty(channel.HardPointTestResult);
+            bool strictHardPointPassed = channel.HardPointStatus == Shared.TestStatus.Passed;
+            bool hardPointNotRequiredOrNA = channel.HardPointStatus == Shared.TestStatus.NotApplicable || string.IsNullOrEmpty(channel.ResultText);
             
             // 针对特定类型简化硬点检查：DI/DO可能没有硬点测试或直接通过
             if (moduleTypeUpper == "DI" || moduleTypeUpper == "DO") {
@@ -756,7 +772,7 @@ namespace FatFullVersion.Services
             }
 
 
-            if ((strictHardPointPassed || hardPointNotRequiredOrNA) && allRequiredManualSubTestsPassed && allManualSubTestsCompletedOrNA)
+            if ((strictHardPointPassed || hardPointNotRequiredOrNA) && !anyManualSubTestNotTested)
             {
                 channel.TestResultStatus = 1; // 通过
                 channel.ResultText = StatusPassed;
@@ -766,7 +782,7 @@ namespace FatFullVersion.Services
             
             // 规则 4: 测试仍在进行中。
             // 如果硬点测试是"测试中"或"等待测试"
-            if (channel.HardPointTestResult == StatusTesting || channel.HardPointTestResult == StatusWaiting)
+            if (channel.HardPointStatus == Shared.TestStatus.Testing || channel.HardPointStatus == Shared.TestStatus.Waiting)
             {
                 channel.TestResultStatus = 0; // 未完成/测试中
                 // ResultText 已由 BeginHardPointTest 或 PrepareForWiringConfirmation 设置
@@ -774,7 +790,7 @@ namespace FatFullVersion.Services
                 return;
             }
             // 如果手动测试项有未完成的 (不是Pass/Fail/NA，即还是NotTested)
-            if (!allManualSubTestsCompletedOrNA && !anyManualSubTestFailed && channel.HardPointTestResult != StatusNotTested) 
+            if (anyManualSubTestNotTested && !anyManualSubTestFailed && channel.HardPointStatus != Shared.TestStatus.NotTested) 
             {
                 channel.TestResultStatus = 0; // 未完成/测试中
                 channel.ResultText = StatusManualTesting; 
@@ -784,7 +800,7 @@ namespace FatFullVersion.Services
             }
 
             // 规则 4.1: 硬点未测试且尚无失败时保持"未测试"/初始状态
-            if (channel.HardPointTestResult == StatusNotTested && !anyManualSubTestFailed)
+            if (channel.HardPointStatus == Shared.TestStatus.NotTested && !anyManualSubTestFailed)
             {
                 channel.TestResultStatus = 0;
                 channel.ResultText = StatusNotTested;
@@ -796,19 +812,19 @@ namespace FatFullVersion.Services
             // 此时 TestResultStatus 保持或设为 0。
             // ResultText 应反映当前所处的阶段。
             channel.TestResultStatus = 0; // 明确是未完成状态
-            if ((strictHardPointPassed || hardPointNotRequiredOrNA) && !allManualSubTestsCompletedOrNA)
+            if ((strictHardPointPassed || hardPointNotRequiredOrNA) && anyManualSubTestNotTested)
             {
                 channel.ResultText = $"{StatusHardPointPassed}, 等待{StatusManualTesting}";
             }
-            else if (channel.HardPointTestResult == StatusNotTested && !allManualSubTestsCompletedOrNA)
+            else if (channel.HardPointStatus == Shared.TestStatus.NotTested && anyManualSubTestNotTested)
             {
                 channel.ResultText = StatusManualTesting; // 假设可以直接开始手动测试
             }
-            else if (channel.HardPointTestResult == StatusNotTested && allManualSubTestsCompletedOrNA && !allRequiredManualSubTestsPassed)
+            else if (channel.HardPointStatus == Shared.TestStatus.NotTested && !anyManualSubTestFailed && anyManualSubTestNotTested)
             {
                 // 硬点未测，手动项已完成但并非全部通过（也非全部失败，否则前面已返回）
-                // 这种情况理论上不应发生，因为 allRequiredManualSubTestsPassed 为 false 意味着有非通过非NA项
-                // 或者是 allManualSubTestsCompletedOrNA 为false (有未测试项）
+                // 这种情况理论上不应发生，因为 anyManualSubTestNotTested 为 false 意味着有未测试项
+                // 或者是 anyManualSubTestNotTested 为true (有未测试项）
                 // 这里更像是状态不一致，应倾向于标记为测试中或根据未通过项标记失败。
                 // 为安全起见，标记为测试中。
                 channel.ResultText = StatusTesting; 

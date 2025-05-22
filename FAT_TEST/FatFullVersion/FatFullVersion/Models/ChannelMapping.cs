@@ -1,5 +1,6 @@
 using Prism.Mvvm;
 using System;
+using FatFullVersion.Shared;
 
 namespace FatFullVersion.Models
 {
@@ -761,6 +762,16 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _hardPointTestResult, value); }
         }
 
+        /// <summary>
+        /// 使用枚举表示的硬点测试状态（过渡期保留旧字符串属性）。
+        /// </summary>
+        private Shared.TestStatus _hardPointStatus = Shared.TestStatus.NotTested;
+        public Shared.TestStatus HardPointStatus
+        {
+            get => _hardPointStatus;
+            set { SetProperty(ref _hardPointStatus, value); _hardPointTestResult = value.ToText(); }
+        }
+
         private DateTime? _testTime;
         /// <summary>
         /// 测试时间
@@ -952,44 +963,115 @@ namespace FatFullVersion.Models
             set { SetProperty(ref _value100Percent, value); }
         }
 
-        private string _lowLowAlarmStatus;
-        /// <summary>
-        /// 低低报状态
-        /// </summary>
+        private string _lowLowAlarmStatus = "未测试"; // 保留原字符串字段
+        private TestStatus _lowLowAlarmStatusEnum = TestStatus.NotTested;
         public string LowLowAlarmStatus
         {
-            get { return _lowLowAlarmStatus; }
-            set { SetProperty(ref _lowLowAlarmStatus, value); }
+            get => _lowLowAlarmStatus;
+            set
+            {
+                if (SetProperty(ref _lowLowAlarmStatus, value))
+                {
+                    _lowLowAlarmStatusEnum = TestStatusExtensions.Parse(value);
+                    RaisePropertyChanged(nameof(LowLowAlarmStatusEnum));
+                }
+            }
+        }
+        public TestStatus LowLowAlarmStatusEnum
+        {
+            get => _lowLowAlarmStatusEnum;
+            set
+            {
+                if (SetProperty(ref _lowLowAlarmStatusEnum, value))
+                {
+                    _lowLowAlarmStatus = value.ToText();
+                    RaisePropertyChanged(nameof(LowLowAlarmStatus));
+                }
+            }
         }
 
-        private string _lowAlarmStatus;
-        /// <summary>
-        /// 低报状态
-        /// </summary>
+        // LowAlarm
+        private string _lowAlarmStatus = "未测试";
+        private TestStatus _lowAlarmStatusEnum = TestStatus.NotTested;
         public string LowAlarmStatus
         {
-            get { return _lowAlarmStatus; }
-            set { SetProperty(ref _lowAlarmStatus, value); }
+            get => _lowAlarmStatus;
+            set
+            {
+                if (SetProperty(ref _lowAlarmStatus, value))
+                {
+                    _lowAlarmStatusEnum = TestStatusExtensions.Parse(value);
+                    RaisePropertyChanged(nameof(LowAlarmStatusEnum));
+                }
+            }
+        }
+        public TestStatus LowAlarmStatusEnum
+        {
+            get => _lowAlarmStatusEnum;
+            set
+            {
+                if (SetProperty(ref _lowAlarmStatusEnum, value))
+                {
+                    _lowAlarmStatus = value.ToText();
+                    RaisePropertyChanged(nameof(LowAlarmStatus));
+                }
+            }
         }
 
-        private string _highAlarmStatus;
-        /// <summary>
-        /// 高报状态
-        /// </summary>
+        // HighAlarm
+        private string _highAlarmStatus = "未测试";
+        private TestStatus _highAlarmStatusEnum = TestStatus.NotTested;
         public string HighAlarmStatus
         {
-            get { return _highAlarmStatus; }
-            set { SetProperty(ref _highAlarmStatus, value); }
+            get => _highAlarmStatus;
+            set
+            {
+                if (SetProperty(ref _highAlarmStatus, value))
+                {
+                    _highAlarmStatusEnum = TestStatusExtensions.Parse(value);
+                    RaisePropertyChanged(nameof(HighAlarmStatusEnum));
+                }
+            }
+        }
+        public TestStatus HighAlarmStatusEnum
+        {
+            get => _highAlarmStatusEnum;
+            set
+            {
+                if (SetProperty(ref _highAlarmStatusEnum, value))
+                {
+                    _highAlarmStatus = value.ToText();
+                    RaisePropertyChanged(nameof(HighAlarmStatus));
+                }
+            }
         }
 
-        private string _highHighAlarmStatus;
-        /// <summary>
-        /// 高高报状态
-        /// </summary>
+        // HighHighAlarm
+        private string _highHighAlarmStatus = "未测试";
+        private TestStatus _highHighAlarmStatusEnum = TestStatus.NotTested;
         public string HighHighAlarmStatus
         {
-            get { return _highHighAlarmStatus; }
-            set { SetProperty(ref _highHighAlarmStatus, value); }
+            get => _highHighAlarmStatus;
+            set
+            {
+                if (SetProperty(ref _highHighAlarmStatus, value))
+                {
+                    _highHighAlarmStatusEnum = TestStatusExtensions.Parse(value);
+                    RaisePropertyChanged(nameof(HighHighAlarmStatusEnum));
+                }
+            }
+        }
+        public TestStatus HighHighAlarmStatusEnum
+        {
+            get => _highHighAlarmStatusEnum;
+            set
+            {
+                if (SetProperty(ref _highHighAlarmStatusEnum, value))
+                {
+                    _highHighAlarmStatus = value.ToText();
+                    RaisePropertyChanged(nameof(HighHighAlarmStatus));
+                }
+            }
         }
 
         private string _maintenanceFunction;
@@ -1016,14 +1098,48 @@ namespace FatFullVersion.Models
 
         public string CurrentValue { get; set; } = "--";
 
-        private string _showValueStatus = "未测试";
+        private string _showValueStatus = "未测试"; // 旧字符串字段，保持序列化兼容
+        private TestStatus _showValueStatusEnum = TestStatus.NotTested; // 新枚举字段
+
         /// <summary>
-        /// 显示值核对状态
+        /// 显示值核对状态 (字符串，兼容旧绑定)
         /// </summary>
         public string ShowValueStatus
         {
             get { return _showValueStatus; }
-            set { SetProperty(ref _showValueStatus, value); }
+            set
+            {
+                if (SetProperty(ref _showValueStatus, value))
+                {
+                    _showValueStatusEnum = value switch
+                    {
+                        "通过" => TestStatus.Passed,
+                        "失败" => TestStatus.Failed,
+                        "跳过" => TestStatus.Skipped,
+                        "等待测试" => TestStatus.Waiting,
+                        "测试中" => TestStatus.Testing,
+                        "N/A" => TestStatus.NotApplicable,
+                        _ => TestStatus.NotTested
+                    };
+                    RaisePropertyChanged(nameof(ShowValueStatusEnum));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 显示值核对状态 (枚举，新逻辑使用)
+        /// </summary>
+        public TestStatus ShowValueStatusEnum
+        {
+            get => _showValueStatusEnum;
+            set
+            {
+                if (SetProperty(ref _showValueStatusEnum, value))
+                {
+                    _showValueStatus = value.ToText();
+                    RaisePropertyChanged(nameof(ShowValueStatus));
+                }
+            }
         }
 
         private string _alarmValueSetStatus = "未测试";
