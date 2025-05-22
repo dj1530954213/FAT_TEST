@@ -910,6 +910,8 @@ namespace FatFullVersion.ViewModels
             }
         }
 
+        public DelegateCommand<ChannelMapping> ShowErrorDetailCommand { get; private set; }
+
         #endregion
 
         #region 构造函数和初始化
@@ -952,6 +954,8 @@ namespace FatFullVersion.ViewModels
 
             // 初始化数据结构
             Initialize();
+
+            ShowErrorDetailCommand = new DelegateCommand<ChannelMapping>(ExecuteShowErrorDetail);
         }
 
         /// <summary>
@@ -1102,43 +1106,37 @@ namespace FatFullVersion.ViewModels
 
                 if (currentChannelsPotentiallyAffected)
                 {
-                    // 当 ChannelMapping 对象的内部属性被 ChannelStateManager 修改后，
-                    // 如果 ChannelMapping 实现了 INotifyPropertyChanged，并且属性的 setter 调用了 RaisePropertyChanged，
-                    // 那么绑定到这些特定属性的UI元素（如DataGrid单元格模板中的TextBlock）会自动更新。
-                    // 但是，如果DataGrid的ItemsSource绑定的是ObservableCollection<ChannelMapping>，
-                    // 并且列的绑定不是直接到可通知的属性，或者需要重新应用排序/筛选，
-                    // 则刷新整个 CurrentChannels 可能是必要的。
-                    // UpdateCurrentChannels() 通常会基于 AllChannels 和当前筛选条件重新构建 CurrentChannels。
                     UpdateCurrentChannels();
                     System.Diagnostics.Debug.WriteLine($"UI事件：OnChannelStatesModified - CurrentChannels 已通过 UpdateCurrentChannels() 刷新，因为受影响的通道在其中。");
-
-                    // 或者，如果 ChannelMapping 是 BindableBase 并且希望强制刷新特定项的显示（如果上述方法不够用）：
-                    // foreach(var id in modifiedChannelIds)
-                    // {
-                    //    var itemInCurrent = CurrentChannels.FirstOrDefault(c => c.Id == id);
-                    //    itemInCurrent?.RaisePropertyChanged(string.Empty); // 通知所有属性已更改
-                    //    var itemInAll = AllChannels.FirstOrDefault(c => c.Id == id);
-                    //    itemInAll?.RaisePropertyChanged(string.Empty);
-                    // }
                 }
                 else
                 {
-                    // 即使当前显示的通道列表未直接包含修改项（例如，由于筛选），
-                    // AllChannels 中的对象状态也已更新。如果UI中有其他地方绑定到AllChannels
-                    // 或依赖于其中对象的特定状态，也可能需要通知。
-                    // 但通常，主要关注的是 CurrentChannels。
                     System.Diagnostics.Debug.WriteLine($"UI事件：OnChannelStatesModified - 受影响的通道不在CurrentChannels中，未主动刷新CurrentChannels。");
                 }
 
                 // 更新依赖于通道状态的ViewModel聚合属性和命令状态
-                UpdatePointStatistics(); // 统计数据依赖于AllChannels中对象的状态
-                RefreshBatchStatus();    // 批次状态也依赖于AllChannels中对象的状态
-                ExportTestResultsCommand.RaiseCanExecuteChanged(); // 导出命令的可用性可能改变
-                // 根据需要，其他命令的CanExecute状态也可能需要刷新
-                // 例如，RetestCommand, StartTestCommand 等如果它们的CanExecute逻辑依赖于特定通道状态
-                RetestCommand.RaiseCanExecuteChanged();
-                StartTestCommand.RaiseCanExecuteChanged(); 
-                // ...等其他可能受影响的命令...
+                UpdatePointStatistics(); 
+                RefreshBatchStatus();    
+                
+                // 重新评估 StartTestButton 的可用性
+                if (SelectedBatch != null)
+                {
+                    IsStartTestButtonEnabled = SelectedBatch.Status == "接线已确认" &&
+                                               AllChannels.Any(c => c.TestBatch == SelectedBatch.BatchName && c.HardPointTestResult == "等待测试");
+                    System.Diagnostics.Debug.WriteLine($"OnChannelStatesModified: IsStartTestButtonEnabled 更新为 {IsStartTestButtonEnabled}。批次状态: {SelectedBatch.Status}, 等待测试通道数: {AllChannels.Count(c => c.TestBatch == SelectedBatch.BatchName && c.HardPointTestResult == "等待测试")}");
+                }
+                else
+                {
+                    IsStartTestButtonEnabled = false;
+                    System.Diagnostics.Debug.WriteLine($"OnChannelStatesModified: IsStartTestButtonEnabled 更新为 false (无选中批次)。");
+                }
+                // 确保命令的CanExecute状态得到通知，以便UI上的按钮能够正确更新其可用性
+                // 假设 StartTestCommand 是 DelegateCommand 类型
+                (StartTestCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+
+
+                ExportTestResultsCommand.RaiseCanExecuteChanged(); 
+                RetestCommand.RaiseCanExecuteChanged(); 
             });
         }
         #endregion
@@ -1446,6 +1444,19 @@ namespace FatFullVersion.ViewModels
 
                 // 更新点位统计数据
                 UpdatePointStatistics();
+
+                // 新增：根据批次状态和通道状态刷新"开始测试"按钮可用性
+                if (SelectedBatch != null)
+                {
+                    IsStartTestButtonEnabled = SelectedBatch.Status == "接线已确认" &&
+                                               AllChannels.Any(c => c.TestBatch == SelectedBatch.BatchName && c.HardPointTestResult == "等待测试");
+                    (StartTestCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+                }
+                else
+                {
+                    IsStartTestButtonEnabled = false;
+                    (StartTestCommand as DelegateCommand)?.RaiseCanExecuteChanged();
+                }
 
                 // 通知UI更新
                 RaisePropertyChanged(nameof(AllChannels));
@@ -3203,26 +3214,33 @@ namespace FatFullVersion.ViewModels
             UpdateCurrentChannels();
         }
 
-        private void FinishWiring() // Placeholder for DelegateCommand
+        private async void FinishWiring() 
         {
-            // Logic for FinishWiring. According to doc, this should call TestTaskManager
-            // which in turn calls IChannelStateManager.PrepareForWiringConfirmation
+            System.Diagnostics.Debug.WriteLine("DataEditViewModel.FinishWiring() 方法开始执行。");
             if (SelectedBatch == null) 
             {
-                _messageService.ShowAsync("提示", "请先选择一个批次进行接线确认。", MessageBoxButton.OK);
+                await _messageService.ShowAsync("提示", "请先选择一个批次进行接线确认。", MessageBoxButton.OK);
+                System.Diagnostics.Debug.WriteLine("DataEditViewModel.FinishWiring(): 未选择批次，操作中止。");
                 return;
             }
-            // _testTaskManager.ConfirmWiringCompleteAsync(SelectedBatch.BatchName, DateTime.Now); // Old call
-            // Corrected call based on CS7036, assuming testMap is AllChannels filtered by SelectedBatch
             var channelsInBatch = AllChannels?.Where(c => c.TestBatch == SelectedBatch.BatchName).ToList() ?? new List<ChannelMapping>();
-            _testTaskManager.ConfirmWiringCompleteAsync(SelectedBatch, true, channelsInBatch);
+            System.Diagnostics.Debug.WriteLine($"DataEditViewModel.FinishWiring(): 选定批次 {SelectedBatch.BatchName}，包含 {channelsInBatch.Count} 个通道。");
 
-            // UI updates (button states, batch status) should occur after state changes, potentially via events or direct calls in TestTaskManager response.
-            // For now, assuming TestTaskManager will trigger necessary events or DataEditViewModel will poll/refresh.
-            IsWiringCompleteBtnEnabled = false; // Disable after click, enable based on batch status
-            IsStartTestButtonEnabled = true; // Assuming wiring confirmed means test can start
-                                        // This should ideally be set based on actual batch/channel states after CSM updates.
-            RefreshBatchStatus(); // To update batch status in UI
+            // 调用 TestTaskManager 准备通道状态
+            // TestTaskManager 内部会调用 ChannelStateManager，并最终通过事件更新UI和ViewModel状态
+            // isConfirmed 参数设为 false，因为测试不应由此调用自动开始
+            await _testTaskManager.ConfirmWiringCompleteAsync(SelectedBatch, false, channelsInBatch); 
+            System.Diagnostics.Debug.WriteLine("DataEditViewModel.FinishWiring(): _testTaskManager.ConfirmWiringCompleteAsync 调用完成。");
+
+            // 接线完成按钮在点击后通常应禁用，直到状态允许再次操作
+            IsWiringCompleteBtnEnabled = false; 
+            // (ConfirmWiringCompleteCommand as DelegateCommand)?.RaiseCanExecuteChanged(); // 假设 ConfirmWiringCompleteCommand 是 DelegateCommand
+            ConfirmWiringCompleteCommand.RaiseCanExecuteChanged();
+
+
+            // IsStartTestButtonEnabled 的状态将由 OnChannelStatesModified 根据实际通道状态来更新
+            // RefreshBatchStatus() 也将由事件触发，无需在此处显式调用
+            System.Diagnostics.Debug.WriteLine("DataEditViewModel.FinishWiring() 方法执行完毕。");
         }
 
         private bool CanExecuteConfirmWiringComplete()
@@ -3447,6 +3465,25 @@ namespace FatFullVersion.ViewModels
         }
 
         #endregion
+
+        /// <summary>
+        /// 查看硬点测试错误详情
+        /// </summary>
+        /// <param name="channel">相关通道</param>
+        private async void ExecuteShowErrorDetail(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null && !string.IsNullOrWhiteSpace(channel.HardPointErrorDetail))
+                {
+                    await _messageService.ShowAsync("错误详情", channel.HardPointErrorDetail, System.Windows.MessageBoxButton.OK);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"显示错误详情失败: {ex.Message}");
+            }
+        }
     }
 
     public class ModuleInfo : Prism.Mvvm.BindableBase // Added BindableBase for IsSelected if UI bound

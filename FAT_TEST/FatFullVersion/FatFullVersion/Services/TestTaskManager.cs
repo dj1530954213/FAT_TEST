@@ -106,17 +106,29 @@ namespace FatFullVersion.Services
         public async Task<IEnumerable<string>> CreateTestTasksAsync(IEnumerable<ChannelMapping> channelMappings)
         {
             if (channelMappings == null || !channelMappings.Any())
+            {
+                System.Diagnostics.Debug.WriteLine("CreateTestTasksAsync: 输入的 channelMappings 为空或null。");
                 return Enumerable.Empty<string>();
+            }
 
             List<string> taskIds = new List<string>();
             var tasksToCreate = new List<TestTask>();
+            int MappingsCount = channelMappings.Count();
+            int TasksCreatedCount = 0;
 
             foreach (var cm in channelMappings)
             {
-                if (cm == null) continue;
+                if (cm == null) 
+                {
+                    System.Diagnostics.Debug.WriteLine("CreateTestTasksAsync: 检测到 null ChannelMapping 对象，已跳过。");
+                    continue;
+                }
                 string taskId = cm.Id.ToString(); 
                 TestTask task = null;
-                switch (cm.ModuleType?.ToUpper())
+                // 确保 ModuleType 不是 null 或空白，以避免 switch 判断 null 时可能出现的问题
+                string moduleTypeUpper = cm.ModuleType?.ToUpper();
+
+                switch (moduleTypeUpper) 
                 {
                     case "AI":
                         task = new AITestTask(taskId, cm, _testPlcCommunication, _targetPlcCommunication);
@@ -131,22 +143,28 @@ namespace FatFullVersion.Services
                         task = new DOTestTask(taskId, cm, _testPlcCommunication, _targetPlcCommunication);
                         break;
                     default:
-                        System.Diagnostics.Debug.WriteLine($"警告：不支持的模块类型 '{cm.ModuleType}'，无法为通道 '{cm.VariableName}' 创建测试任务。");
+                        System.Diagnostics.Debug.WriteLine($"警告：不支持的模块类型 '{cm.ModuleType}' (处理后为 '{moduleTypeUpper}')，无法为通道 '{cm.VariableName}' (ID: {cm.Id}) 创建测试任务。");
                         break;
                 }
                 if (task != null)
                 {
                     tasksToCreate.Add(task);
+                    TasksCreatedCount++;
                 }
             }
-            
+            System.Diagnostics.Debug.WriteLine($"CreateTestTasksAsync: 尝试从 {MappingsCount} 个通道映射创建任务，实际创建了 {TasksCreatedCount} 个 TestTask 对象准备添加。");
+
+            int TasksAddedSuccessfullyCount = 0;
             foreach(var tsk in tasksToCreate)
             {
                 if (AddTask(tsk))
                 {
                     taskIds.Add(tsk.Id);
+                    TasksAddedSuccessfullyCount++;
                 }
+                // AddTask 内部已有日志记录添加失败的情况
             }
+            System.Diagnostics.Debug.WriteLine($"CreateTestTasksAsync: 成功将 {TasksAddedSuccessfullyCount} 个 TestTask 对象添加到 _activeTasks。");
             return taskIds;
         }
 
@@ -184,7 +202,7 @@ namespace FatFullVersion.Services
             List<Guid> preparedChannelIds = new List<Guid>();
             foreach (var channel in channelMappingsInBatch)
             {
-                if (channel.TestResultStatus != 3) 
+                if (channel.TestResultStatus != 3) // 仅为未跳过的通道准备
                 {
                     _channelStateManager.PrepareForWiringConfirmation(channel, DateTime.Now);
                     preparedChannelIds.Add(channel.Id);
@@ -202,7 +220,24 @@ namespace FatFullVersion.Services
             }
 
             await ClearAllTasksAsyncInternal(); 
-            await CreateTestTasksAsync(channelMappingsInBatch.Where(c => c.TestResultStatus != 3)); 
+            var channelsToCreateTasksFor = channelMappingsInBatch.Where(c => c.TestResultStatus != 3).ToList();
+            if (channelsToCreateTasksFor.Any())
+            {
+                System.Diagnostics.Debug.WriteLine($"ConfirmWiringCompleteAsync: 准备为 {channelsToCreateTasksFor.Count} 个未跳过的通道创建测试任务。");
+                await CreateTestTasksAsync(channelsToCreateTasksFor); 
+                if (!_activeTasks.Any() && channelsToCreateTasksFor.Any())
+                {
+                    System.Diagnostics.Debug.WriteLine("警告：ConfirmWiringCompleteAsync 完成后，_activeTasks 为空，但仍有通道需要创建任务。请检查 CreateTestTasksAsync 和 AddTask 的逻辑及日志。");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"ConfirmWiringCompleteAsync: CreateTestTasksAsync 调用后，_activeTasks 中包含 {_activeTasks.Count} 个任务。");
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("ConfirmWiringCompleteAsync: 没有需要创建测试任务的通道（可能全部已跳过）。");
+            }
 
             return true;
         }
@@ -300,29 +335,56 @@ namespace FatFullVersion.Services
             if (_isRunning) 
             {
                 await _messageService.ShowAsync("提示", "测试已在运行中。", MessageBoxButton.OK);
+                System.Diagnostics.Debug.WriteLine("StartAllTasksAsync: 测试已在运行中，已阻止重复启动。");
                 return false;
             }
             if (!_isWiringCompleted)
             {
                 await _messageService.ShowAsync("警告", "请先确认接线完成，然后才能开始测试。", MessageBoxButton.OK);
+                System.Diagnostics.Debug.WriteLine("StartAllTasksAsync: 接线未确认，测试未启动。");
                 return false;
             }
 
             _masterCancellationTokenSource?.Dispose();
             _masterCancellationTokenSource = new CancellationTokenSource();
             _isRunning = true;
+            System.Diagnostics.Debug.WriteLine("StartAllTasksAsync: 开始执行测试流程。");
 
             var tasksToRun = new List<TestTask>();
-            if (channelsToTest != null)
+            if (channelsToTest != null && channelsToTest.Any())
             {
-                foreach (var cm in channelsToTest)
+                System.Diagnostics.Debug.WriteLine($"StartAllTasksAsync: ViewModel 传入 {channelsToTest.Count()} 个待测试通道。");
+                foreach (var cmViewModel in channelsToTest) // cmViewModel 是从 ViewModel 传来的 ChannelMapping
                 {
-                    if (_activeTasks.TryGetValue(cm.Id.ToString(), out var task) && task.ChannelMapping.TestResultStatus != 3)
+                    bool taskFoundInActive = _activeTasks.TryGetValue(cmViewModel.Id.ToString(), out var taskFromActive);
+                    if (taskFoundInActive)
                     {
-                        tasksToRun.Add(task);
+                        // 找到了对应的活动任务
+                        System.Diagnostics.Debug.WriteLine($"StartAllTasksAsync: 对于ViewModel通道 {cmViewModel.VariableName} (ID: {cmViewModel.Id}), 在_activeTasks中找到任务。ViewModel状态: HardPoint='{cmViewModel.HardPointTestResult}', TestStatus={cmViewModel.TestResultStatus}. 活动任务中通道状态: HardPoint='{taskFromActive.ChannelMapping.HardPointTestResult}', TestStatus={taskFromActive.ChannelMapping.TestResultStatus}");
+                        if (taskFromActive.ChannelMapping.TestResultStatus != 3) // 检查活动任务中的通道是否已跳过
+                        {
+                            tasksToRun.Add(taskFromActive);
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"StartAllTasksAsync: 活动任务中的通道 {taskFromActive.ChannelMapping.VariableName} (ID: {taskFromActive.ChannelMapping.Id}) TestResultStatus 为 3 (已跳过)，不加入执行队列。");
+                        }
+                    }
+                    else
+                    {
+                        // 没有在 _activeTasks 中找到与 ViewModel 通道匹配的任务
+                        System.Diagnostics.Debug.WriteLine($"StartAllTasksAsync: 未能为ViewModel通道 {cmViewModel.VariableName} (ID: {cmViewModel.Id}, ViewModel HardPoint='{cmViewModel.HardPointTestResult}', ViewModel TestStatus={cmViewModel.TestResultStatus}) 找到匹配的活动任务。_activeTasks 数量: {_activeTasks.Count}");
                     }
                 }
-                tasksToRun = tasksToRun.OrderBy(t => t.ChannelMapping.TestId).ToList();
+                if (tasksToRun.Any())
+                {
+                    tasksToRun = tasksToRun.OrderBy(t => t.ChannelMapping.TestId).ToList();
+                    System.Diagnostics.Debug.WriteLine($"StartAllTasksAsync: 筛选后，实际将执行 {tasksToRun.Count} 个任务。");
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("StartAllTasksAsync: ViewModel 传入的 channelsToTest 为 null 或空。");
             }
 
             if (!tasksToRun.Any())

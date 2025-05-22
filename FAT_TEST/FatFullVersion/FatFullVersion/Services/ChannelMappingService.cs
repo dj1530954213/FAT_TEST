@@ -1069,19 +1069,21 @@ namespace FatFullVersion.Services
                         if (resultsByBatch.TryGetValue(batch.BatchName, out var batchResults))
                         {
                             // 计算该批次的测试状态
-                            int totalPoints = batchResults.Count;
-                            int testedPoints = batchResults.Count(r => r.TestResultStatus > 0);
-                            int successPoints = batchResults.Count(r => r.TestResultStatus == 1);
-                            int failurePoints = batchResults.Count(r => r.TestResultStatus == 2);
-
-                            // 更新批次状态
-                            UpdateBatchStatus(batch, totalPoints, testedPoints, failurePoints);
+                            UpdateBatchStatus(batch, batchResults);
 
                             // 更新批次的测试时间信息
                             UpdateBatchTestTimes(batch, batchResults);
 
                             // 更新批次项目数量
-                            batch.ItemCount = totalPoints;
+                            batch.ItemCount = batchResults.Count;
+                        }
+                        else // 如果在 resultsByBatch 中找不到该批次 (例如，一个空的批次定义)
+                        {
+                            // 默认设置为未开始，通道数量为0
+                            batch.Status = "未开始";
+                            batch.ItemCount = 0;
+                            batch.FirstTestTime = null;
+                            batch.LastTestTime = null;
                         }
                     }
 
@@ -1099,26 +1101,60 @@ namespace FatFullVersion.Services
         /// 更新批次的测试状态
         /// </summary>
         /// <param name="batch">批次信息</param>
-        /// <param name="totalPoints">总点数</param>
-        /// <param name="testedPoints">已测试点数</param>
-        /// <param name="failurePoints">失败点数</param>
-        private void UpdateBatchStatus(ViewModels.BatchInfo batch, int totalPoints, int testedPoints, int failurePoints)
+        /// <param name="batchChannels">该批次下的所有通道列表</param>
+        private void UpdateBatchStatus(ViewModels.BatchInfo batch, List<ChannelMapping> batchChannels)
         {
-            if (testedPoints == 0)
+            if (batchChannels == null || !batchChannels.Any())
             {
-                batch.Status = "未开始";
+                batch.Status = "未开始"; // 或者 "空批次"
+                return;
             }
-            else if (testedPoints < totalPoints)
+
+            var relevantChannels = batchChannels.Where(c => c.TestResultStatus != 3).ToList(); // 排除已跳过的通道
+
+            if (!relevantChannels.Any()) // 如果所有通道都被跳过了
+            {
+                batch.Status = "已跳过"; // 或者根据业务定义一个特定状态
+                return;
+            }
+
+            int totalRelevantPoints = relevantChannels.Count;
+            int testedPoints = relevantChannels.Count(r => r.TestResultStatus == 1 || r.TestResultStatus == 2); // 仅统计通过或失败的
+            int failurePoints = relevantChannels.Count(r => r.TestResultStatus == 2);
+            int waitingForTestPoints = relevantChannels.Count(r => r.HardPointTestResult == "等待测试");
+            int testingPoints = relevantChannels.Count(r => r.HardPointTestResult == "测试中");
+
+
+            if (testingPoints > 0)
             {
                 batch.Status = "测试中";
             }
-            else if (failurePoints > 0)
+            else if (waitingForTestPoints == totalRelevantPoints) // 所有相关通道都在等待测试
             {
-                batch.Status = "测试完成(有失败)";
+                batch.Status = "接线已确认";
             }
-            else
+            else if (testedPoints == totalRelevantPoints) // 所有相关通道都已测试完毕 (通过或失败)
             {
-                batch.Status = "测试完成(全部通过)";
+                if (failurePoints > 0)
+                {
+                    batch.Status = "测试完成(有失败)";
+                }
+                else
+                {
+                    batch.Status = "测试完成(全部通过)";
+                }
+            }
+            else if (testedPoints > 0 && testedPoints < totalRelevantPoints) // 部分测试，部分未测或等待
+            {
+                // 如果有等待测试的点，且没有正在测试的点，可以认为是"接线已确认"（如果业务允许混合状态）
+                // 或者，更保守地，如果还有未开始的（非等待，非测试中），则可能是"测试中"（因为部分已开始）
+                // 这里简化处理：如果部分已测，则认为是"测试中"
+                batch.Status = "测试中";
+            }
+            else // (testedPoints == 0 && waitingForTestPoints < totalRelevantPoints) 或者其他未覆盖的情况
+            {
+                // 意味着有些点是 "未测试" 状态，但不是 "等待测试"
+                batch.Status = "未开始";
             }
         }
 

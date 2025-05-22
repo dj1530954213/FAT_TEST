@@ -27,6 +27,7 @@
         <converter:BooleanToColorConverter x:Key="BooleanToColorConverter" />
         <converter:BooleanToIconConverter x:Key="BooleanToIconConverter" />
         <converter:BooleanToStatusConverter x:Key="BooleanToStatusConverter" />
+        <converter:StringNullOrEmptyToVisibilityConverter x:Key="StringNullOrEmptyToVisibilityConverter" />
 
         <!--  公共DataGrid样式  -->
         <Style x:Key="DataGridCellStyle" TargetType="{x:Type DataGridCell}">
@@ -582,6 +583,17 @@
                             Width="*"
                             Binding="{Binding HardPointTestResult}"
                             Header="通道硬点测试结果" />
+                        <DataGridTemplateColumn Width="Auto" MinWidth="120" Header="错误详情">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Margin="4" Padding="10,4" Background="#E53935" Foreground="White"
+                                            Content="查看错误"
+                                            Command="{Binding DataContext.ShowErrorDetailCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                            CommandParameter="{Binding}"
+                                            Visibility="{Binding HardPointErrorDetail, Converter={StaticResource StringNullOrEmptyToVisibilityConverter}}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTemplateColumn Width="*" Header="通道复测">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
@@ -1527,7 +1539,7 @@
                                     Grid.Row="0"
                                     Padding="16,8"
                                     Background="{Binding CurrentChannel.ReportCheck, Converter={StaticResource AlarmStatusToColorConverter}}"
-                                    Command="{Binding ConfirmAIReportCheckCommand}"
+                                    Command="{Binding ConfirmAOReportCheckCommand}"
                                     CommandParameter="{Binding CurrentChannel}"
                                     Content="确认通过"
                                     Foreground="White" />

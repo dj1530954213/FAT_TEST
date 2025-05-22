@@ -480,6 +480,8 @@ namespace FatFullVersion.Services
                         
                         // 上位机通讯地址
                         excelPoint.CommunicationAddress = GetStringCellValue(row.GetCell(52));
+                        // 同步赋值被测PLC通讯地址，若Excel无单独列则沿用该列
+                        excelPoint.PlcCommunicationAddress = excelPoint.CommunicationAddress;
                         
                         // 设置创建时间
                         excelPoint.CreatedTime = DateTime.Now;

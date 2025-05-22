@@ -1035,5 +1035,15 @@ namespace FatFullVersion.Models
             get { return _alarmValueSetStatus; }
             set { SetProperty(ref _alarmValueSetStatus, value); }
         }
+
+        private string _hardPointErrorDetail;
+        /// <summary>
+        /// 硬点测试详细错误信息
+        /// </summary>
+        public string HardPointErrorDetail
+        {
+            get { return _hardPointErrorDetail; }
+            set { SetProperty(ref _hardPointErrorDetail, value); }
+        }
     }
 }

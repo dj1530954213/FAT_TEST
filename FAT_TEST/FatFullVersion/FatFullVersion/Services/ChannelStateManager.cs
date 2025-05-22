@@ -436,14 +436,12 @@ namespace FatFullVersion.Services
             if (rawOutcome.IsSuccess)
             {
                 channel.HardPointTestResult = StatusPassed;
-                // ResultText 将由 EvaluateOverallStatus 设置，可能会是 "测试已通过" 或 "硬点测试通过，等待手动测试"
+                channel.HardPointErrorDetail = null; // 清空之前的错误详情
             }
             else
             {
-                channel.HardPointTestResult = string.IsNullOrWhiteSpace(rawOutcome.Detail)
-                    ? StatusFailed // 一般性的失败
-                    : $"{StatusFailed}: {rawOutcome.Detail}"; //带具体原因的失败
-                // ResultText 将由 EvaluateOverallStatus 设置，可能会是具体的失败原因
+                channel.HardPointTestResult = StatusFailed;
+                channel.HardPointErrorDetail = rawOutcome.Detail; // 保存详细错误信息
             }
 
             channel.TestTime = outcomeTime; // 记录硬点测试结果的确切时间
@@ -711,7 +709,8 @@ namespace FatFullVersion.Services
             if (anyManualSubTestFailed)
             {
                 channel.TestResultStatus = 2; // 失败
-                channel.ResultText = ConstructFailedResultText(channel, "手动测试不通过"); 
+                channel.HardPointErrorDetail = ConstructFailedResultText(channel, "手动测试不通过");
+                channel.ResultText = StatusFailed;
                 channel.FinalTestTime = eventTimeForFinalTest ?? DateTime.Now; 
                 return;
             }
