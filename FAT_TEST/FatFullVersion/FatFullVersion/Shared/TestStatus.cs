@@ -59,4 +59,45 @@ namespace FatFullVersion.Shared
             };
         }
     }
+
+    /// <summary>
+    /// 整体测试结果状态（替代 ChannelMapping.TestResultStatus int 字段）。
+    /// </summary>
+    public enum OverallResultStatus
+    {
+        NotTested = 0,
+        Passed = 1,
+        Failed = 2,
+        Skipped = 3,
+        InProgress = 4 // "测试中 / 进行中"
+    }
+
+    public static class OverallResultStatusExtensions
+    {
+        public static string ToText(this OverallResultStatus status)
+        {
+            return status switch
+            {
+                OverallResultStatus.Passed => "通过",
+                OverallResultStatus.Failed => "失败",
+                OverallResultStatus.Skipped => "跳过",
+                OverallResultStatus.InProgress => "测试中",
+                _ => "未测试"
+            };
+        }
+
+        public static OverallResultStatus Parse(int code)
+        {
+            return code switch
+            {
+                1 => OverallResultStatus.Passed,
+                2 => OverallResultStatus.Failed,
+                3 => OverallResultStatus.Skipped,
+                4 => OverallResultStatus.InProgress,
+                _ => OverallResultStatus.NotTested
+            };
+        }
+
+        public static int ToCode(this OverallResultStatus status) => (int)status == 4 ? 0 : (int)status;
+    }
 } 

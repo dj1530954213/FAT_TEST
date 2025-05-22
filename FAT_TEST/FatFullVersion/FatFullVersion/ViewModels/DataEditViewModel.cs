@@ -18,6 +18,7 @@ using FatFullVersion.Views;
 using FatFullVersion.Services.Interfaces;
 using Prism.Events;
 using FatFullVersion.Events; // <-- 添加 using
+using FatFullVersion.Shared;
 
 namespace FatFullVersion.ViewModels
 {
@@ -3141,16 +3142,16 @@ namespace FatFullVersion.ViewModels
             switch (SelectedResultFilter)
             {
                 case "通过":
-                    resultFilteredChannels = typeFilteredChannels.Where(c => c.TestResultStatus == 1);
+                    resultFilteredChannels = typeFilteredChannels.Where(c => c.OverallStatus == OverallResultStatus.Passed);
                     break;
                 case "失败":
-                    resultFilteredChannels = typeFilteredChannels.Where(c => c.TestResultStatus == 2);
+                    resultFilteredChannels = typeFilteredChannels.Where(c => c.OverallStatus == OverallResultStatus.Failed);
                     break;
                 case "未测试":
-                    resultFilteredChannels = typeFilteredChannels.Where(c => c.TestResultStatus == 0 || c.HardPointTestResult == "等待测试");
+                    resultFilteredChannels = typeFilteredChannels.Where(c => c.OverallStatus == OverallResultStatus.NotTested || c.OverallStatus == OverallResultStatus.InProgress || c.HardPointTestResult == "等待测试");
                     break;
                 case "跳过":
-                    resultFilteredChannels = typeFilteredChannels.Where(c => c.TestResultStatus == 3);
+                    resultFilteredChannels = typeFilteredChannels.Where(c => c.OverallStatus == OverallResultStatus.Skipped);
                     break;
                 default: // "所有结果" 或其他未指定情况
                     resultFilteredChannels = typeFilteredChannels;
@@ -3182,10 +3183,10 @@ namespace FatFullVersion.ViewModels
             }
 
             int total    = AllChannels.Count;
-            int tested   = AllChannels.Count(c => c.TestResultStatus == 1 || c.TestResultStatus == 2 || c.TestResultStatus == 3);
-            int waiting  = AllChannels.Count(c => c.HardPointTestResult == "等待测试" || (c.TestResultStatus == 0 && c.HardPointTestResult == "未测试"));
-            int success  = AllChannels.Count(c => c.TestResultStatus == 1);
-            int failure  = AllChannels.Count(c => c.TestResultStatus == 2);
+            int tested   = AllChannels.Count(c => c.OverallStatus == OverallResultStatus.Passed || c.OverallStatus == OverallResultStatus.Failed || c.OverallStatus == OverallResultStatus.Skipped);
+            int waiting  = AllChannels.Count(c => c.HardPointTestResult == "等待测试" || c.OverallStatus == OverallResultStatus.NotTested || c.OverallStatus == OverallResultStatus.InProgress);
+            int success  = AllChannels.Count(c => c.OverallStatus == OverallResultStatus.Passed);
+            int failure  = AllChannels.Count(c => c.OverallStatus == OverallResultStatus.Failed);
 
             TotalPointCount   = $"总点位: {total}";
             TestedPointCount  = $"已测试点位: {tested}";
@@ -3295,7 +3296,7 @@ namespace FatFullVersion.ViewModels
         {
             // Placeholder: Logic to determine if test results can be exported
             // Example: return AllChannels != null && AllChannels.Any(c => c.TestResultStatus == 1 || c.TestResultStatus == 2);
-            return AllChannels != null && AllChannels.Any(c => c.TestResultStatus != 0);
+            return AllChannels != null && AllChannels.Any(c => c.OverallStatus != OverallResultStatus.NotTested && c.OverallStatus != OverallResultStatus.InProgress);
         }
 
         // Placeholders for Manual Test command targets

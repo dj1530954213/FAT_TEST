@@ -696,24 +696,58 @@ namespace FatFullVersion.Models
 
         //TODO:添加上位机检查项相关属性
 
-        private string _trendCheck;
-        /// <summary>
-        /// 趋势检查
-        /// </summary>
+        private string _trendCheck = "未测试";
+        private TestStatus _trendCheckEnum = TestStatus.NotTested;
         public string TrendCheck
         {
-            get { return _trendCheck; }
-            set { SetProperty(ref _trendCheck, value); }
+            get => _trendCheck;
+            set
+            {
+                if (SetProperty(ref _trendCheck, value))
+                {
+                    _trendCheckEnum = TestStatusExtensions.Parse(value);
+                    RaisePropertyChanged(nameof(TrendCheckEnum));
+                }
+            }
+        }
+        public TestStatus TrendCheckEnum
+        {
+            get => _trendCheckEnum;
+            set
+            {
+                if (SetProperty(ref _trendCheckEnum, value))
+                {
+                    _trendCheck = value.ToText();
+                    RaisePropertyChanged(nameof(TrendCheck));
+                }
+            }
         }
 
-        private string _reportCheck;
-        /// <summary>
-        /// 报表检查
-        /// </summary>
+        private string _reportCheck = "未测试";
+        private TestStatus _reportCheckEnum = TestStatus.NotTested;
         public string ReportCheck
         {
-            get { return _reportCheck; }
-            set { SetProperty(ref _reportCheck, value); }
+            get => _reportCheck;
+            set
+            {
+                if (SetProperty(ref _reportCheck, value))
+                {
+                    _reportCheckEnum = TestStatusExtensions.Parse(value);
+                    RaisePropertyChanged(nameof(ReportCheckEnum));
+                }
+            }
+        }
+        public TestStatus ReportCheckEnum
+        {
+            get => _reportCheckEnum;
+            set
+            {
+                if (SetProperty(ref _reportCheckEnum, value))
+                {
+                    _reportCheck = value.ToText();
+                    RaisePropertyChanged(nameof(ReportCheck));
+                }
+            }
         }
 
         #endregion
@@ -733,13 +767,37 @@ namespace FatFullVersion.Models
         }
 
         private int _testResultStatus;
+        private OverallResultStatus _overallStatus = OverallResultStatus.NotTested;
         /// <summary>
-        /// 测试状态(0:未测试, 1:通过, 2:失败)
+        /// 原始整型测试状态，数据库兼容字段。
         /// </summary>
         public int TestResultStatus
         {
             get { return _testResultStatus; }
-            set { SetProperty(ref _testResultStatus, value); }
+            set
+            {
+                if (SetProperty(ref _testResultStatus, value))
+                {
+                    _overallStatus = OverallResultStatusExtensions.Parse(value);
+                    RaisePropertyChanged(nameof(OverallStatus));
+                }
+            }
+        }
+
+        /// <summary>
+        /// 新枚举化的整体测试状态。
+        /// </summary>
+        public OverallResultStatus OverallStatus
+        {
+            get => _overallStatus;
+            set
+            {
+                if (SetProperty(ref _overallStatus, value))
+                {
+                    _testResultStatus = value.ToCode();
+                    RaisePropertyChanged(nameof(TestResultStatus));
+                }
+            }
         }
 
         private string _resultText;
@@ -1074,14 +1132,31 @@ namespace FatFullVersion.Models
             }
         }
 
-        private string _maintenanceFunction;
-        /// <summary>
-        /// 维护功能结果
-        /// </summary>
+        private string _maintenanceFunction = "未测试";
+        private TestStatus _maintenanceFunctionEnum = TestStatus.NotTested;
         public string MaintenanceFunction
         {
-            get { return _maintenanceFunction; }
-            set { SetProperty(ref _maintenanceFunction, value); }
+            get => _maintenanceFunction;
+            set
+            {
+                if (SetProperty(ref _maintenanceFunction, value))
+                {
+                    _maintenanceFunctionEnum = TestStatusExtensions.Parse(value);
+                    RaisePropertyChanged(nameof(MaintenanceFunctionEnum));
+                }
+            }
+        }
+        public TestStatus MaintenanceFunctionEnum
+        {
+            get => _maintenanceFunctionEnum;
+            set
+            {
+                if (SetProperty(ref _maintenanceFunctionEnum, value))
+                {
+                    _maintenanceFunction = value.ToText();
+                    RaisePropertyChanged(nameof(MaintenanceFunction));
+                }
+            }
         }
 
         private string _errorMessage;
@@ -1143,13 +1218,30 @@ namespace FatFullVersion.Models
         }
 
         private string _alarmValueSetStatus = "未测试";
-        /// <summary>
-        /// 报警值设定核对状态
-        /// </summary>
+        private TestStatus _alarmValueSetStatusEnum = TestStatus.NotTested;
         public string AlarmValueSetStatus
         {
-            get { return _alarmValueSetStatus; }
-            set { SetProperty(ref _alarmValueSetStatus, value); }
+            get => _alarmValueSetStatus;
+            set
+            {
+                if (SetProperty(ref _alarmValueSetStatus, value))
+                {
+                    _alarmValueSetStatusEnum = TestStatusExtensions.Parse(value);
+                    RaisePropertyChanged(nameof(AlarmValueSetStatusEnum));
+                }
+            }
+        }
+        public TestStatus AlarmValueSetStatusEnum
+        {
+            get => _alarmValueSetStatusEnum;
+            set
+            {
+                if (SetProperty(ref _alarmValueSetStatusEnum, value))
+                {
+                    _alarmValueSetStatus = value.ToText();
+                    RaisePropertyChanged(nameof(AlarmValueSetStatus));
+                }
+            }
         }
 
         private string _hardPointErrorDetail;

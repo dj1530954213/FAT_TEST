@@ -13,7 +13,7 @@
     mc:Ignorable="d">
 
     <UserControl.Resources>
-        <converter:TestResultStatusToColorConverter x:Key="StatusToColorConverter" />
+        <converter:OverallStatusToColorConverter x:Key="StatusToColorConverter" />
         <converter:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converter:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
         <converter:BatchStatusToColorConverter x:Key="BatchStatusToColorConverter" />
@@ -525,7 +525,7 @@
                     <DataGrid.RowStyle>
                         <Style TargetType="{x:Type DataGridRow}">
                             <Setter Property="BorderThickness" Value="0" />
-                            <Setter Property="Background" Value="{Binding TestResultStatus, Converter={StaticResource StatusToColorConverter}}" />
+                            <Setter Property="Background" Value="{Binding OverallStatus, Converter={StaticResource StatusToColorConverter}}" />
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="{x:Type DataGridRow}">
@@ -716,13 +716,13 @@
                     </DataGrid.Resources>
                     <DataGrid.RowStyle>
                         <Style TargetType="{x:Type DataGridRow}">
-                            <Setter Property="Background" Value="{Binding TestResultStatus, Converter={StaticResource StatusToColorConverter}}" />
+                            <Setter Property="Background" Value="{Binding OverallStatus, Converter={StaticResource StatusToColorConverter}}" />
                             <Setter Property="BorderThickness" Value="0" />
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="{x:Type DataGridRow}">
                                         <Border
-                                            Background="{Binding TestResultStatus, Converter={StaticResource StatusToColorConverter}}"
+                                            Background="{Binding OverallStatus, Converter={StaticResource StatusToColorConverter}}"
                                             BorderThickness="0"
                                             SnapsToDevicePixels="True">
                                             <SelectiveScrollingGrid>

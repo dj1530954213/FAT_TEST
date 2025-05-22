@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using FatFullVersion.IServices;
 using FatFullVersion.Models;
+using FatFullVersion.Shared;
 
 namespace FatFullVersion.Services
 {
@@ -156,9 +157,9 @@ namespace FatFullVersion.Services
                         CreatedTime = records.Min(r => r.CreatedTime),
                         LastUpdatedTime = records.Max(r => r.UpdatedTime),
                         TotalCount = records.Count,
-                        TestedCount = records.Count(r => r.TestResultStatus > 0),
-                        PassedCount = records.Count(r => r.TestResultStatus == 1),
-                        FailedCount = records.Count(r => r.TestResultStatus == 2)
+                        TestedCount = records.Count(r => r.OverallStatus != OverallResultStatus.NotTested && r.OverallStatus != OverallResultStatus.InProgress),
+                        PassedCount = records.Count(r => r.OverallStatus == OverallResultStatus.Passed),
+                        FailedCount = records.Count(r => r.OverallStatus == OverallResultStatus.Failed)
                     };
 
                     result.Add(batchInfo);

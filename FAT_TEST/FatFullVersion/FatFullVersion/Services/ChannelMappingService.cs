@@ -12,6 +12,7 @@ using FatFullVersion.Entities.ValueObject;
 using System.Windows;
 using FatFullVersion.ViewModels;
 using System.Collections.ObjectModel;
+using FatFullVersion.Shared;
 
 namespace FatFullVersion.Services
 {
@@ -382,23 +383,44 @@ namespace FatFullVersion.Services
                         var batchChannels = batch.Channels;
                         
                         // 统计测试状态
-                        int notTestedCount = batchChannels.Count(c => c.TestResultStatus == 0);
-                        int testedCount = batchChannels.Count(c => c.TestResultStatus > 0);
-                        int successCount = batchChannels.Count(c => c.TestResultStatus == 1);
-                        int failureCount = batchChannels.Count(c => c.TestResultStatus == 2);
+                        int notTestedCount = batchChannels.Count(c => c.OverallStatus == OverallResultStatus.NotTested || c.OverallStatus == OverallResultStatus.InProgress);
+                        int successCount = batchChannels.Count(c => c.OverallStatus == OverallResultStatus.Passed);
+                        int failureCount = batchChannels.Count(c => c.OverallStatus == OverallResultStatus.Failed);
+                        int waitingForTestPoints = batchChannels.Count(c => c.HardPointTestResult == "等待测试");
+                        int testingPoints = batchChannels.Count(c => c.HardPointTestResult == "测试中");
                         
                         // 确定批次的测试状态
                         string status = "未开始";
-                        if (testedCount > 0)
+                        if (testingPoints > 0)
                         {
-                            if (notTestedCount == 0)
+                            status = "测试中";
+                        }
+                        else if (waitingForTestPoints == batchChannels.Count) // 所有相关通道都在等待测试
+                        {
+                            status = "接线已确认";
+                        }
+                        else if (successCount + failureCount == batchChannels.Count) // 所有相关通道都已测试完毕 (通过或失败)
+                        {
+                            if (failureCount > 0)
                             {
-                                status = failureCount > 0 ? "完成(有失败)" : "全部通过";
+                                status = "测试完成(有失败)";
                             }
                             else
                             {
-                                status = "测试中";
+                                status = "测试完成(全部通过)";
                             }
+                        }
+                        else if (successCount + failureCount > 0 && successCount + failureCount < batchChannels.Count) // 部分测试，部分未测或等待
+                        {
+                            // 如果有等待测试的点，且没有正在测试的点，可以认为是"接线已确认"（如果业务允许混合状态）
+                            // 或者，更保守地，如果还有未开始的（非等待，非测试中），则可能是"测试中"（因为部分已开始）
+                            // 这里简化处理：如果部分已测，则认为是"测试中"
+                            status = "测试中";
+                        }
+                        else // (successCount + failureCount == 0 && waitingForTestPoints < batchChannels.Count) 或者其他未覆盖的情况
+                        {
+                            // 意味着有些点是 "未测试" 状态，但不是 "等待测试"
+                            status = "未开始";
                         }
                         
                         // 获取测试时间信息
@@ -990,7 +1012,7 @@ namespace FatFullVersion.Services
                             channel.TestPLCCommunicationAddress = string.Empty;
                             channel.TestBatch = string.Empty;
                             // 同时重置测试状态相关字段
-                            channel.TestResultStatus = 0;
+                            channel.OverallStatus = OverallResultStatus.NotTested;
                             channel.ResultText = "未测试";
                             channel.TestTime = null;
                         }
@@ -1110,7 +1132,7 @@ namespace FatFullVersion.Services
                 return;
             }
 
-            var relevantChannels = batchChannels.Where(c => c.TestResultStatus != 3).ToList(); // 排除已跳过的通道
+            var relevantChannels = batchChannels.Where(c => c.OverallStatus != OverallResultStatus.Skipped).ToList(); // 排除已跳过的通道
 
             if (!relevantChannels.Any()) // 如果所有通道都被跳过了
             {
@@ -1119,8 +1141,8 @@ namespace FatFullVersion.Services
             }
 
             int totalRelevantPoints = relevantChannels.Count;
-            int testedPoints = relevantChannels.Count(r => r.TestResultStatus == 1 || r.TestResultStatus == 2); // 仅统计通过或失败的
-            int failurePoints = relevantChannels.Count(r => r.TestResultStatus == 2);
+            int testedPoints = relevantChannels.Count(r => r.OverallStatus == OverallResultStatus.Passed || r.OverallStatus == OverallResultStatus.Failed); // 仅统计通过或失败的
+            int failurePoints = relevantChannels.Count(r => r.OverallStatus == OverallResultStatus.Failed);
             int waitingForTestPoints = relevantChannels.Count(r => r.HardPointTestResult == "等待测试");
             int testingPoints = relevantChannels.Count(r => r.HardPointTestResult == "测试中");
 
