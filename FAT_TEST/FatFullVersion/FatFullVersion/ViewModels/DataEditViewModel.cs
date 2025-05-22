@@ -3173,19 +3173,25 @@ namespace FatFullVersion.ViewModels
             // Placeholder: Logic to update point count statistics
             if (AllChannels == null)
             {
-                TotalPointCount = "0";
-                TestedPointCount = "0";
-                WaitingPointCount = "0";
-                SuccessPointCount = "0";
-                FailurePointCount = "0";
+                TotalPointCount   = "总点位: 0";
+                TestedPointCount  = "已测试点位: 0";
+                WaitingPointCount = "待测试点位: 0";
+                SuccessPointCount = "成功点位: 0";
+                FailurePointCount = "失败点位: 0";
                 return;
             }
 
-            TotalPointCount = AllChannels.Count.ToString();
-            TestedPointCount = AllChannels.Count(c => c.TestResultStatus == 1 || c.TestResultStatus == 2 || c.TestResultStatus == 3).ToString(); // Pass, Fail, Skipped
-            WaitingPointCount = AllChannels.Count(c => c.HardPointTestResult == "等待测试" || (c.TestResultStatus == 0 && c.HardPointTestResult == "未测试")).ToString(); // Actual waiting or initial state
-            SuccessPointCount = AllChannels.Count(c => c.TestResultStatus == 1).ToString();
-            FailurePointCount = AllChannels.Count(c => c.TestResultStatus == 2).ToString();
+            int total    = AllChannels.Count;
+            int tested   = AllChannels.Count(c => c.TestResultStatus == 1 || c.TestResultStatus == 2 || c.TestResultStatus == 3);
+            int waiting  = AllChannels.Count(c => c.HardPointTestResult == "等待测试" || (c.TestResultStatus == 0 && c.HardPointTestResult == "未测试"));
+            int success  = AllChannels.Count(c => c.TestResultStatus == 1);
+            int failure  = AllChannels.Count(c => c.TestResultStatus == 2);
+
+            TotalPointCount   = $"总点位: {total}";
+            TestedPointCount  = $"已测试点位: {tested}";
+            WaitingPointCount = $"待测试点位: {waiting}";
+            SuccessPointCount = $"成功点位: {success}";
+            FailurePointCount = $"失败点位: {failure}";
         }
 
         private async Task RefreshBatchStatus() // Made async Task due to internal async calls
