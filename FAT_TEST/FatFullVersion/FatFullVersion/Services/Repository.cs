@@ -276,15 +276,22 @@ namespace FatFullVersion.Services
                     return true;
 
                 var recordsList = records.ToList();
+                var recordIds = recordsList.Select(r => r.Id).ToList();
                 
-                // 批量更新策略：只更新测试结果相关字段
+                // 一次性批量查询所有需要更新的记录，避免循环中的数据库查询
+                var existingRecords = await _context.ChannelMappings
+                    .Where(c => recordIds.Contains(c.Id))
+                    .ToListAsync();
+                
+                // 使用字典来优化查找性能
+                var existingDict = existingRecords.ToDictionary(r => r.Id);
+                
                 foreach (var record in recordsList)
                 {
                     record.UpdatedTime = DateTime.Now;
                     ProcessNanValuesForStorage(record);
                     
-                    var existing = await _context.ChannelMappings.FindAsync(record.Id);
-                    if (existing != null)
+                    if (existingDict.TryGetValue(record.Id, out var existing))
                     {
                         // 只更新测试结果相关字段，提高性能
                         existing.HardPointTestResult = record.HardPointTestResult;
@@ -303,6 +310,11 @@ namespace FatFullVersion.Services
                         existing.Value50Percent = record.Value50Percent;
                         existing.Value75Percent = record.Value75Percent;
                         existing.Value100Percent = record.Value100Percent;
+                    }
+                    else
+                    {
+                        // 如果记录不存在，添加新记录
+                        _context.ChannelMappings.Add(record);
                     }
                 }
 

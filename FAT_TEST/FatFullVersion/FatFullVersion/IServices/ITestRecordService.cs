@@ -61,46 +61,11 @@ namespace FatFullVersion.IServices
         /// <returns>操作是否成功</returns>
         Task<bool> DeleteTestBatchAsync(string testTag);
 
-    }
-
-    /// <summary>
-    /// 测试批次信息
-    /// </summary>
-    public class TestBatchInfo
-    {
         /// <summary>
-        /// 测试批次标识
+        /// 异步保存单个通道测试记录（用于避免并发锁竞争）
         /// </summary>
-        public string TestTag { get; set; }
-
-        /// <summary>
-        /// 创建时间
-        /// </summary>
-        public DateTime CreatedTime { get; set; }
-
-        /// <summary>
-        /// 最后更新时间
-        /// </summary>
-        public DateTime? LastUpdatedTime { get; set; }
-
-        /// <summary>
-        /// 测试点位总数
-        /// </summary>
-        public int TotalCount { get; set; }
-
-        /// <summary>
-        /// 已测试点位数
-        /// </summary>
-        public int TestedCount { get; set; }
-
-        /// <summary>
-        /// 测试通过点位数
-        /// </summary>
-        public int PassedCount { get; set; }
-
-        /// <summary>
-        /// 测试失败点位数
-        /// </summary>
-        public int FailedCount { get; set; }
+        /// <param name="channelMapping">通道映射数据</param>
+        /// <returns>操作是否成功</returns>
+        Task<bool> SaveTestRecordAsyncQueued(ChannelMapping channelMapping);
     }
 } 

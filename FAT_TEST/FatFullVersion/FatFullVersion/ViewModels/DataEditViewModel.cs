@@ -1816,6 +1816,126 @@ namespace FatFullVersion.ViewModels
                 return false;
             }
         }
+
+        /// <summary>
+        /// 检查通道是否完成所有测试并自动保存记录
+        /// </summary>
+        /// <param name="channel">需要检查的通道对象</param>
+        /// <param name="useAsyncQueue">是否使用异步队列（避免并发锁竞争）</param>
+        /// <returns>检查和保存操作的任务</returns>
+        /// <remarks>
+        /// 【关键节点3】手动测试整体通过时存储单条记录
+        /// 当通道的所有必需测试（硬点+手动）都完成时，自动保存到数据库
+        /// 添加防重复保存逻辑，避免性能问题
+        /// 使用异步队列机制避免并发锁竞争
+        /// </remarks>
+        private async Task CheckAndSaveCompletedChannelAsync(ChannelMapping channel, bool useAsyncQueue = true)
+        {
+            try
+            {
+                if (channel == null) return;
+
+                // 检查通道是否已完成所有测试（通过或失败）
+                bool isCompleted = channel.OverallStatus == OverallResultStatus.Passed || 
+                                   channel.OverallStatus == OverallResultStatus.Failed ||
+                                   channel.OverallStatus == OverallResultStatus.Skipped;
+
+                if (isCompleted)
+                {
+                    // 添加防重复保存检查：如果已经有FinalTestTime且不为今天，说明之前已保存过
+                    bool alreadySaved = channel.FinalTestTime.HasValue && 
+                                       (DateTime.Now - channel.FinalTestTime.Value).TotalMinutes > 5;
+                    
+                    if (alreadySaved)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"通道 {channel.VariableName} 已在 {channel.FinalTestTime} 保存过，跳过重复保存");
+                        return;
+                    }
+
+                    System.Diagnostics.Debug.WriteLine($"检测到通道 {channel.VariableName} 测试完成，开始自动保存");
+
+                    bool saveSuccess = false;
+                    
+                    if (useAsyncQueue)
+                    {
+                        // 使用异步队列避免并发锁竞争
+                        saveSuccess = await _testRecordService.SaveTestRecordAsyncQueued(channel);
+                    }
+                    else
+                    {
+                        // 直接保存（用于手动测试等非并发场景）
+                        saveSuccess = await SaveSingleChannelTestRecordAsync(channel);
+                    }
+                    
+                    if (saveSuccess)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"通道 {channel.VariableName} 测试记录自动保存成功");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"通道 {channel.VariableName} 测试记录自动保存失败");
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"通道 {channel.VariableName} 测试尚未完成，当前状态: {channel.OverallStatus}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"检查和保存通道测试完成状态时出错: {ex.Message}");
+                // 错误不应影响用户的正常操作流程
+            }
+        }
+
+        /// <summary>
+        /// 检查硬点测试完成后是否可以直接完成整体测试
+        /// </summary>
+        /// <param name="channel">刚完成硬点测试的通道</param>
+        /// <returns>异步任务</returns>
+        /// <remarks>
+        /// 某些通道类型（如DI/DO）在硬点测试完成后可能就直接达到整体完成状态
+        /// 此时需要立即保存，但要使用异步队列避免并发锁竞争
+        /// </remarks>
+        public async Task CheckHardPointTestCompletionAsync(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel == null) return;
+
+                // 检查是否是可以直接完成的通道类型
+                bool canCompleteDirectly = false;
+                
+                switch (channel.ModuleType?.ToUpper())
+                {
+                    case "DI":
+                    case "DO":
+                        // DI/DO通道通常只需要硬点测试+显示值确认就完成
+                        canCompleteDirectly = channel.HardPointTestResult == "通过" && 
+                                              channel.ShowValueStatus == "通过";
+                        break;
+                    case "DINONE":
+                    case "DONONE":
+                        // 无源DI/DO可能硬点测试完成就直接完成
+                        canCompleteDirectly = channel.HardPointTestResult == "通过";
+                        break;
+                    // AI/AO通道需要更多手动测试，通常不会直接完成
+                    default:
+                        canCompleteDirectly = false;
+                        break;
+                }
+
+                if (canCompleteDirectly)
+                {
+                    System.Diagnostics.Debug.WriteLine($"通道 {channel.VariableName} 硬点测试完成后可直接完成，使用异步队列保存");
+                    await CheckAndSaveCompletedChannelAsync(channel, useAsyncQueue: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"检查硬点测试完成状态时出错: {ex.Message}");
+            }
+        }
         #endregion
 
         #region 6、手动测试 - AI通道
@@ -1973,13 +2093,16 @@ namespace FatFullVersion.ViewModels
         /// 2. 更新手动测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
-        private void ExecuteConfirmAIValue(ChannelMapping channel)
+        private async void ExecuteConfirmAIValue(ChannelMapping channel)
         {
             try
             {
                 if (channel != null)
                 {
                     _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.ShowValue, true, DateTime.Now);
+
+                    // 检查通道是否完成所有测试，如果是则自动保存
+                    await CheckAndSaveCompletedChannelAsync(channel);
 
                     RaisePropertyChanged(nameof(CurrentChannel)); // CurrentChannel 应该在手动测试UI中被正确设置
                     RaisePropertyChanged(nameof(AllChannels)); // Or CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
@@ -1990,7 +2113,7 @@ namespace FatFullVersion.ViewModels
             }
             catch (Exception ex)
             {
-                _messageService.ShowAsync("错误", $"确认AI显示值失败: {ex.Message}", MessageBoxButton.OK);
+                await _messageService.ShowAsync("错误", $"确认AI显示值失败: {ex.Message}", MessageBoxButton.OK);
                 System.Diagnostics.Debug.WriteLine($"ExecuteConfirmAIValue Error: {ex.Message}");
             }
         }
@@ -2089,7 +2212,7 @@ namespace FatFullVersion.ViewModels
         /// 2. 更新高报测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
-        private void ExecuteConfirmAIHighAlarm(ChannelMapping channel)
+        private async void ExecuteConfirmAIHighAlarm(ChannelMapping channel)
         {
             try
             {
@@ -2101,6 +2224,8 @@ namespace FatFullVersion.ViewModels
                     // 如果高高报是独立控制和确认的，需要独立的ManualTestItem和调用
                     _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.HighHighAlarm, true, DateTime.Now);
 
+                    // 检查通道是否完成所有测试，如果是则自动保存
+                    await CheckAndSaveCompletedChannelAsync(channel);
 
                     RaisePropertyChanged(nameof(CurrentChannel));
                     RaisePropertyChanged(nameof(AllChannels));
@@ -2111,7 +2236,7 @@ namespace FatFullVersion.ViewModels
             }
             catch (Exception ex)
             {
-                _messageService.ShowAsync("错误", $"确认AI高报警失败: {ex.Message}", MessageBoxButton.OK);
+                await _messageService.ShowAsync("错误", $"确认AI高报警失败: {ex.Message}", MessageBoxButton.OK);
                 System.Diagnostics.Debug.WriteLine($"ExecuteConfirmAIHighAlarm Error: {ex.Message}");
             }
         }
@@ -2207,7 +2332,7 @@ namespace FatFullVersion.ViewModels
         /// 2. 更新低报测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
-        private void ExecuteConfirmAILowAlarm(ChannelMapping channel)
+        private async void ExecuteConfirmAILowAlarm(ChannelMapping channel)
         {
             try
             {
@@ -2216,6 +2341,9 @@ namespace FatFullVersion.ViewModels
                     _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.LowAlarm, true, DateTime.Now);
                     // 如果低低报是独立控制和确认的，需要独立的ManualTestItem和调用
                     _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.LowLowAlarm, true, DateTime.Now);
+
+                    // 检查通道是否完成所有测试，如果是则自动保存
+                    await CheckAndSaveCompletedChannelAsync(channel);
 
                     RaisePropertyChanged(nameof(CurrentChannel));
                     RaisePropertyChanged(nameof(AllChannels));
@@ -2226,7 +2354,7 @@ namespace FatFullVersion.ViewModels
             }
             catch (Exception ex)
             {
-                _messageService.ShowAsync("错误", $"确认AI低报警失败: {ex.Message}", MessageBoxButton.OK);
+                await _messageService.ShowAsync("错误", $"确认AI低报警失败: {ex.Message}", MessageBoxButton.OK);
                 System.Diagnostics.Debug.WriteLine($"ExecuteConfirmAILowAlarm Error: {ex.Message}");
             }
         }
@@ -2240,13 +2368,16 @@ namespace FatFullVersion.ViewModels
         /// 2. 更新报警值设定测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
-        private void ExecuteConfirmAIAlarmValueSet(ChannelMapping channel)
+        private async void ExecuteConfirmAIAlarmValueSet(ChannelMapping channel)
         {
             try
             {
                 if (channel != null)
                 {
                     _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.AlarmValueSet, true, DateTime.Now);
+
+                    // 检查通道是否完成所有测试，如果是则自动保存
+                    await CheckAndSaveCompletedChannelAsync(channel);
 
                     RaisePropertyChanged(nameof(CurrentChannel));
                     RaisePropertyChanged(nameof(AllChannels));
@@ -2258,7 +2389,7 @@ namespace FatFullVersion.ViewModels
             catch (Exception ex)
             {
                 // MessageBox.Show($"确认AI低报警失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error); // 原有代码的笔误，应为AI报警值设定
-                _messageService.ShowAsync("错误", $"确认AI报警值设定失败: {ex.Message}", MessageBoxButton.OK);
+                await _messageService.ShowAsync("错误", $"确认AI报警值设定失败: {ex.Message}", MessageBoxButton.OK);
                 System.Diagnostics.Debug.WriteLine($"ExecuteConfirmAIAlarmValueSet Error: {ex.Message}");
             }
         }
@@ -2374,13 +2505,16 @@ namespace FatFullVersion.ViewModels
         /// 2. 更新DI测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
-        private void ExecuteConfirmDI(ChannelMapping channel)
+        private async void ExecuteConfirmDI(ChannelMapping channel)
         {
             try
             {
                 if (channel != null)
                 {
                     _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.ShowValue, true, DateTime.Now);
+
+                    // 检查通道是否完成所有测试，如果是则自动保存
+                    await CheckAndSaveCompletedChannelAsync(channel);
 
                     RaisePropertyChanged(nameof(CurrentChannel));
                     RaisePropertyChanged(nameof(AllChannels));
@@ -2392,7 +2526,7 @@ namespace FatFullVersion.ViewModels
             }
             catch (Exception ex)
             {
-                _messageService.ShowAsync("错误", $"确认DI测试失败: {ex.Message}", MessageBoxButton.OK);
+                await _messageService.ShowAsync("错误", $"确认DI测试失败: {ex.Message}", MessageBoxButton.OK);
                 System.Diagnostics.Debug.WriteLine($"ExecuteConfirmDI Error: {ex.Message}");
             }
         }
@@ -2556,7 +2690,7 @@ namespace FatFullVersion.ViewModels
         /// 2. 更新AO测试状态
         /// 3. 检查并更新通道的总体测试状态
         /// </remarks>
-        private void ExecuteConfirmAO(ChannelMapping channel)
+        private async void ExecuteConfirmAO(ChannelMapping channel)
         {
             try
             {
@@ -2565,6 +2699,9 @@ namespace FatFullVersion.ViewModels
                     _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.ShowValue, true, DateTime.Now);
                     // AO的其他手动子测试项如TrendCheck, ReportCheck有单独的确认命令
 
+                    // 检查通道是否完成所有测试，如果是则自动保存
+                    await CheckAndSaveCompletedChannelAsync(channel);
+
                     RaisePropertyChanged(nameof(CurrentChannel));
                     RaisePropertyChanged(nameof(AllChannels));
                     CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
@@ -2575,58 +2712,7 @@ namespace FatFullVersion.ViewModels
             }
             catch (Exception ex)
             {
-                _messageService.ShowAsync("错误", $"确认AO测试失败: {ex.Message}", MessageBoxButton.OK);
-                System.Diagnostics.Debug.WriteLine($"ExecuteConfirmAO Error: {ex.Message}");
-            }
-        }
-        #endregion
-
-        #region 9、手动测试-DO
-        /// <summary>
-        /// 打开DO通道手动测试窗口
-        /// </summary>
-        /// <param name="channel">需要手动测试的DO通道</param>
-        /// <remarks>
-        /// 该方法打开DO通道的手动测试窗口，执行以下操作：
-        /// 1. 设置当前选中的通道
-        /// 2. 初始化手动测试状态
-        /// 3. 打开DO手动测试窗口
-        /// 4. 启动DO数值监控服务
-        /// </remarks>
-        private async void OpenDOManualTest(ChannelMapping channel)
-        {
-            try
-            {
-                if (channel != null && (channel.ModuleType?.ToLower() == "do" || channel.ModuleType?.ToLower() == "donone"))
-                {
-                    CurrentChannel = channel;
-                    CurrentTestResult = channel;
-
-                    _channelStateManager.BeginManualTest(channel);
-
-                    RaisePropertyChanged(nameof(CurrentChannel));
-                    RaisePropertyChanged(nameof(AllChannels));
-                    CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
-                    UpdatePointStatistics();
-                    RefreshBatchStatus();
-                    ExportTestResultsCommand.RaiseCanExecuteChanged();
-                    
-                    IsDOManualTestOpen = true;
-                    DOCurrentValue = string.Empty; // 清空上次的值
-                    DOMonitorStatus = "停止监测";
-
-                    // 启动DO数值监控服务，每 0.5 秒读取一次并更新绑定值
-                    _manualTestIoService.StartDOValueMonitoring(CurrentChannel, (currentValue) =>
-                    {
-                        Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            DOCurrentValue = currentValue;
-                        });
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
+                await _messageService.ShowAsync("错误", $"确认AO测试失败: {ex.Message}", MessageBoxButton.OK);
                 System.Diagnostics.Debug.WriteLine($"打开DO手动测试窗口失败: {ex.Message}");
                 await _messageService.ShowAsync("错误", $"打开DO手动测试窗口失败: {ex.Message}", MessageBoxButton.OK);
             }
@@ -3503,16 +3589,29 @@ namespace FatFullVersion.ViewModels
                 await _messageService.ShowAsync("错误", $"启动DO监测失败: {ex.Message}", MessageBoxButton.OK);
             }
         }
-        private void ExecuteConfirmDO(ChannelMapping channel) 
+        private async void ExecuteConfirmDO(ChannelMapping channel) 
         { 
-            if (channel != null) 
+            try
             {
-                _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.ShowValue, true, DateTime.Now);
-                RaisePropertyChanged(nameof(CurrentChannel));
-                CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
-                UpdatePointStatistics();
-                RefreshBatchStatus();
-                ExportTestResultsCommand.RaiseCanExecuteChanged();
+                if (channel != null) 
+                {
+                    _channelStateManager.SetManualSubTestOutcome(channel, ManualTestItem.ShowValue, true, DateTime.Now);
+
+                    // 检查通道是否完成所有测试，如果是则自动保存
+                    await CheckAndSaveCompletedChannelAsync(channel);
+
+                    RaisePropertyChanged(nameof(CurrentChannel));
+                    RaisePropertyChanged(nameof(AllChannels));
+                    CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
+                    UpdatePointStatistics();
+                    RefreshBatchStatus();
+                    ExportTestResultsCommand.RaiseCanExecuteChanged();
+                }
+            }
+            catch (Exception ex)
+            {
+                await _messageService.ShowAsync("错误", $"确认DO测试失败: {ex.Message}", MessageBoxButton.OK);
+                System.Diagnostics.Debug.WriteLine($"ExecuteConfirmDO Error: {ex.Message}");
             }
         }
 
@@ -3536,14 +3635,68 @@ namespace FatFullVersion.ViewModels
                 System.Diagnostics.Debug.WriteLine($"显示错误详情失败: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// 打开DO通道手动测试窗口
+        /// </summary>
+        /// <param name="channel">需要手动测试的DO通道</param>
+        /// <remarks>
+        /// 该方法打开DO通道的手动测试窗口，执行以下操作：
+        /// 1. 设置当前选中的通道
+        /// 2. 初始化手动测试状态
+        /// 3. 打开DO手动测试窗口
+        /// 4. 启动DO数值监控服务
+        /// </remarks>
+        private async void OpenDOManualTest(ChannelMapping channel)
+        {
+            try
+            {
+                if (channel != null && (channel.ModuleType?.ToLower() == "do" || channel.ModuleType?.ToLower() == "donone"))
+                {
+                    CurrentChannel = channel;
+                    CurrentTestResult = channel;
+
+                    _channelStateManager.BeginManualTest(channel);
+
+                    RaisePropertyChanged(nameof(CurrentChannel));
+                    RaisePropertyChanged(nameof(AllChannels));
+                    CollectionViewSource.GetDefaultView(AllChannels)?.Refresh();
+                    UpdatePointStatistics();
+                    RefreshBatchStatus();
+                    ExportTestResultsCommand.RaiseCanExecuteChanged();
+
+                    IsDOManualTestOpen = true;
+                    DOCurrentValue = string.Empty; // 清空上次的值
+                    DOMonitorStatus = "停止监测";
+
+                    // 启动DO数值监控服务，每 0.5 秒读取一次并更新绑定值
+                    _manualTestIoService.StartDOValueMonitoring(CurrentChannel, (currentValue) =>
+                    {
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            DOCurrentValue = currentValue;
+                        });
+                    });
+                }
+                else
+                {
+                    await _messageService.ShowAsync("错误", "所选通道不是有效的DO类型通道。", MessageBoxButton.OK);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"打开DO手动测试窗口失败: {ex.Message}");
+                await _messageService.ShowAsync("错误", $"打开DO手动测试窗口失败: {ex.Message}", MessageBoxButton.OK);
+            }
+        }
     }
 
-    public class ModuleInfo : Prism.Mvvm.BindableBase // Added BindableBase for IsSelected if UI bound
+    public class ModuleInfo : Prism.Mvvm.BindableBase 
     {
         private string _moduleName;
         public string ModuleName { get => _moduleName; set => SetProperty(ref _moduleName, value); }
 
-        private string _stationName; // Added StationName
+        private string _stationName; 
         public string StationName { get => _stationName; set => SetProperty(ref _stationName, value); }
 
         private string _moduleType;
@@ -3554,34 +3707,5 @@ namespace FatFullVersion.ViewModels
 
         private bool _isSelected;
         public bool IsSelected { get => _isSelected; set => SetProperty(ref _isSelected, value); }
-    }
-
-    // 批次信息类
-    public class BatchInfo
-    {
-        public string BatchId { get; set; }
-        public string BatchName { get; set; }
-        public DateTime CreationDate { get; set; }
-        public int ItemCount { get; set; }
-        public string Status { get; set; }
-        public DateTime? FirstTestTime { get; set; }
-        public DateTime? LastTestTime { get; set; }
-
-        public BatchInfo(string batchName, int itemCount)
-        {
-            BatchId = Guid.NewGuid().ToString("N");
-            BatchName = batchName;
-            ItemCount = itemCount;
-            CreationDate = DateTime.Now;
-            Status = "未开始";
-        }
-
-        // 添加无参构造函数
-        public BatchInfo()
-        {
-            BatchId = Guid.NewGuid().ToString("N");
-            CreationDate = DateTime.Now;
-            Status = "未开始";
-        }
     }
 }

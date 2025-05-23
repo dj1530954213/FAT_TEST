@@ -35,11 +35,12 @@ namespace FatFullVersion.Services
         private readonly IMessageService _messageService;
         private readonly IChannelStateManager _channelStateManager;
         private readonly IEventAggregator _eventAggregator;
+        private readonly ITestRecordService _testRecordService;
         private readonly ConcurrentDictionary<string, TestTask> _activeTasks;
         private CancellationTokenSource _masterCancellationTokenSource;
-        private readonly SemaphoreSlim _semaphore;
+        private SemaphoreSlim _semaphore;
         private bool _isWiringCompleted;
-        private FatFullVersion.ViewModels.BatchInfo _currentBatch;
+        private BatchInfo _currentBatch;
         private Window _progressDialog;
         private readonly object _dialogLock = new object();
         private bool _isRunning;
@@ -58,40 +59,71 @@ namespace FatFullVersion.Services
         #region 构造函数
 
         /// <summary>
-        /// 创建测试任务管理器实例
+        /// 构造函数，注入必要的依赖服务
         /// </summary>
         /// <param name="channelMappingService">通道映射服务</param>
-        /// <param name="serviceLocator">服务定位器</param>
-        /// <param name="messageService">消息服务</param>
-        /// <param name="channelStateManager">通道状态管理器</param>
+        /// <param name="serviceLocator">服务定位器，用于获取PLC通信实例</param>
+        /// <param name="messageService">消息显示服务</param>
+        /// <param name="channelStateManager">通道状态管理服务</param>
         /// <param name="eventAggregator">事件聚合器</param>
-        /// <param name="maxConcurrentTasks">最大并发任务数量，默认为处理器核心数的2倍</param>
+        /// <param name="testRecordService">测试记录服务</param>
+        /// <param name="maxConcurrentTasks">最大并发任务数，默认为8</param>
         public TestTaskManager(
             IChannelMappingService channelMappingService,
             IServiceLocator serviceLocator,
             IMessageService messageService,
             IChannelStateManager channelStateManager,
             IEventAggregator eventAggregator,
+            ITestRecordService testRecordService,
             int? maxConcurrentTasks = null)
         {
             _channelMappingService = channelMappingService ?? throw new ArgumentNullException(nameof(channelMappingService));
             _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
             _channelStateManager = channelStateManager ?? throw new ArgumentNullException(nameof(channelStateManager));
             _eventAggregator = eventAggregator ?? throw new ArgumentNullException(nameof(eventAggregator));
-            //使用ServiceLocator这个单例服务来完成在APP的注册(使用同一个接口但是通过名称来区分实例)
-            _testPlcCommunication = serviceLocator.ResolveNamed<IPlcCommunication>("TestPlcCommunication");
-            _targetPlcCommunication = serviceLocator.ResolveNamed<IPlcCommunication>("TargetPlcCommunication");
-            
+            _testRecordService = testRecordService ?? throw new ArgumentNullException(nameof(testRecordService));
+
+            // 通过服务定位器获取PLC通信实例
+            _testPlcCommunication = serviceLocator.ResolveNamed<IPlcCommunication>("TestPlc");
+            _targetPlcCommunication = serviceLocator.ResolveNamed<IPlcCommunication>("TargetPlc");
+
+            if (_testPlcCommunication == null || _targetPlcCommunication == null)
+            {
+                throw new InvalidOperationException("无法获取PLC通信实例。请确保它们已正确注册到服务容器中。");
+            }
+
             _activeTasks = new ConcurrentDictionary<string, TestTask>();
             _masterCancellationTokenSource = new CancellationTokenSource();
-            
-            // 设置并行任务的最大并发数量
-            int concurrentTasks = maxConcurrentTasks ?? Environment.ProcessorCount * 2;
-            _semaphore = new SemaphoreSlim(concurrentTasks, concurrentTasks);
-            
+            int maxTasks = maxConcurrentTasks ?? 88; // 默认最大并发数为8，提高并发性能
+            _semaphore = new SemaphoreSlim(maxTasks, maxTasks);
             _isWiringCompleted = false;
-            _currentBatch = null;
             _isRunning = false;
+        }
+
+        /// <summary>
+        /// 动态调整最大并发任务数
+        /// </summary>
+        /// <param name="newMaxConcurrentTasks">新的最大并发任务数</param>
+        public void SetMaxConcurrentTasks(int newMaxConcurrentTasks)
+        {
+            if (newMaxConcurrentTasks <= 0)
+            {
+                throw new ArgumentException("并发任务数必须大于0", nameof(newMaxConcurrentTasks));
+            }
+
+            if (_isRunning)
+            {
+                System.Diagnostics.Debug.WriteLine("警告：在测试运行期间不建议调整并发数。");
+                return;
+            }
+
+            // 释放当前信号量
+            _semaphore?.Dispose();
+            
+            // 创建新的信号量
+            _semaphore = new SemaphoreSlim(newMaxConcurrentTasks, newMaxConcurrentTasks);
+            
+            System.Diagnostics.Debug.WriteLine($"已将最大并发任务数调整为: {newMaxConcurrentTasks}");
         }
 
         #endregion
@@ -171,7 +203,7 @@ namespace FatFullVersion.Services
         /// <summary>
         /// 确认接线完成，准备通道状态，并可选择是否自动开始测试。
         /// </summary>
-        public async Task<bool> ConfirmWiringCompleteAsync(FatFullVersion.ViewModels.BatchInfo batchInfo, bool isConfirmed, IEnumerable<ChannelMapping> testMap)
+        public async Task<bool> ConfirmWiringCompleteAsync(BatchInfo batchInfo, bool isConfirmed, IEnumerable<ChannelMapping> testMap)
         {
             if (batchInfo == null) 
             {
@@ -350,16 +382,18 @@ namespace FatFullVersion.Services
             _isRunning = true;
             System.Diagnostics.Debug.WriteLine("StartAllTasksAsync: 开始执行测试流程。");
 
+            // 保存所有需要参与保存的通道（包括测试和未测试的）
+            var allChannelsForSaving = channelsToTest?.ToList() ?? new List<ChannelMapping>();
+
             var tasksToRun = new List<TestTask>();
             if (channelsToTest != null && channelsToTest.Any())
             {
                 System.Diagnostics.Debug.WriteLine($"StartAllTasksAsync: ViewModel 传入 {channelsToTest.Count()} 个待测试通道。");
-                foreach (var cmViewModel in channelsToTest) // cmViewModel 是从 ViewModel 传来的 ChannelMapping
+                foreach (var cmViewModel in channelsToTest)
                 {
                     bool taskFoundInActive = _activeTasks.TryGetValue(cmViewModel.Id.ToString(), out var taskFromActive);
                     if (taskFoundInActive)
                     {
-                        // 找到了对应的活动任务
                         System.Diagnostics.Debug.WriteLine($"StartAllTasksAsync: 对于ViewModel通道 {cmViewModel.VariableName} (ID: {cmViewModel.Id}), 在_activeTasks中找到任务。ViewModel状态: HardPoint='{cmViewModel.HardPointTestResult}', TestStatus={cmViewModel.TestResultStatus}. 活动任务中通道状态: HardPoint='{taskFromActive.ChannelMapping.HardPointTestResult}', TestStatus={taskFromActive.ChannelMapping.TestResultStatus}");
                         if (taskFromActive.ChannelMapping.TestResultStatus != 3) // 检查活动任务中的通道是否已跳过
                         {
@@ -372,7 +406,6 @@ namespace FatFullVersion.Services
                     }
                     else
                     {
-                        // 没有在 _activeTasks 中找到与 ViewModel 通道匹配的任务
                         System.Diagnostics.Debug.WriteLine($"StartAllTasksAsync: 未能为ViewModel通道 {cmViewModel.VariableName} (ID: {cmViewModel.Id}, ViewModel HardPoint='{cmViewModel.HardPointTestResult}', ViewModel TestStatus={cmViewModel.TestResultStatus}) 找到匹配的活动任务。_activeTasks 数量: {_activeTasks.Count}");
                     }
                 }
@@ -397,6 +430,10 @@ namespace FatFullVersion.Services
 
             await ShowTestProgressDialogAsync(false, null);
             List<Task> executingTasks = new List<Task>();
+            
+            // 创建一个线程安全的集合来收集测试结果
+            var testResults = new ConcurrentDictionary<string, (TestTask task, HardPointTestRawResult result)>();
+            
             System.Diagnostics.Debug.WriteLine($"并发测试启动，任务数量: {tasksToRun.Count}, 批次: '{_currentBatch?.BatchName ?? "未知"}' @ {DateTime.Now}");
 
             foreach (var taskInstance in tasksToRun)
@@ -413,28 +450,27 @@ namespace FatFullVersion.Services
                     try
                     {
                         await UpdateProgressMessageAsync($"并发测试中: {taskInstance.ChannelMapping.VariableName}...");
+                        
+                        // 【优化】仅设置开始状态，不进行UI通知
                         _channelStateManager.BeginHardPointTest(taskInstance.ChannelMapping, DateTime.Now);
-                        NotifyTestResultsUpdated(new[] { taskInstance.ChannelMapping.Id });
 
                         HardPointTestRawResult rawResult = await taskInstance.RunTestAsync(_masterCancellationTokenSource.Token);
-                        System.Diagnostics.Debug.WriteLine($"通道 {taskInstance.ChannelMapping.VariableName} 并发测试完成. 成功: {rawResult.IsSuccess}. Detail: {rawResult.Detail?.Substring(0, Math.Min(rawResult.Detail.Length,100))}");
+                        System.Diagnostics.Debug.WriteLine($"通道 {taskInstance.ChannelMapping.VariableName} 并发测试完成. 成功: {rawResult.IsSuccess}. Detail: {rawResult.Detail?.Substring(0, Math.Min(rawResult.Detail?.Length ?? 0, 100))}");
                         
-                        _channelStateManager.SetHardPointTestOutcome(taskInstance.ChannelMapping, rawResult, DateTime.Now);
-                        NotifyTestResultsUpdated(new[] { taskInstance.ChannelMapping.Id });
+                        // 【优化】收集结果但不立即更新状态和通知UI
+                        testResults.TryAdd(taskInstance.Id, (taskInstance, rawResult));
                     }
                     catch (OperationCanceledException)
                     {
                         System.Diagnostics.Debug.WriteLine($"通道 {taskInstance.ChannelMapping.VariableName} 并发测试被取消.");
                         var cancelResult = new HardPointTestRawResult(false, "任务执行被用户取消。");
-                        _channelStateManager.SetHardPointTestOutcome(taskInstance.ChannelMapping, cancelResult, DateTime.Now);
-                        NotifyTestResultsUpdated(new[] { taskInstance.ChannelMapping.Id });
+                        testResults.TryAdd(taskInstance.Id, (taskInstance, cancelResult));
                     }
                     catch (Exception ex)
                     {
                         System.Diagnostics.Debug.WriteLine($"通道 {taskInstance.ChannelMapping.VariableName} 并发测试发生错误: {ex.Message}");
                         var errorResult = new HardPointTestRawResult(false, $"任务 '{taskInstance.ChannelMapping.VariableName}' 执行时发生异常: {ex.Message}");
-                        _channelStateManager.SetHardPointTestOutcome(taskInstance.ChannelMapping, errorResult, DateTime.Now);
-                        NotifyTestResultsUpdated(new[] { taskInstance.ChannelMapping.Id });
+                        testResults.TryAdd(taskInstance.Id, (taskInstance, errorResult));
                     }
                     finally
                     {
@@ -447,8 +483,57 @@ namespace FatFullVersion.Services
             {
                 _isRunning = false;
                 CloseProgressDialog();
-                await UpdateBatchStatusAsync();
                 System.Diagnostics.Debug.WriteLine($"并发测试全部任务执行尝试完毕. 批次: '{_currentBatch?.BatchName ?? "未知"}' @ {DateTime.Now}");
+                
+                try
+                {
+                    // 【优化】批量处理所有测试结果
+                    foreach (var kvp in testResults)
+                    {
+                        var (task, result) = kvp.Value;
+                        _channelStateManager.SetHardPointTestOutcome(task.ChannelMapping, result, DateTime.Now);
+                    }
+                    
+                    // 【优化】一次性通知UI更新所有通道
+                    var updatedChannelIds = testResults.Values.Select(v => v.task.ChannelMapping.Id).ToList();
+                    if (updatedChannelIds.Any())
+                    {
+                        NotifyTestResultsUpdated(updatedChannelIds);
+                    }
+
+                    // 【关键修复】保存所有通道状态，不仅仅是测试的通道
+                    if (allChannelsForSaving.Any())
+                    {
+                        System.Diagnostics.Debug.WriteLine($"开始批量保存所有通道状态，共 {allChannelsForSaving.Count} 个通道（包括测试和未测试的）");
+                        
+                        // 使用专门的硬点测试结果批量保存方法，传入所有通道
+                        bool saveSuccess = await _testRecordService.SaveHardPointTestResultsAsync(
+                            allChannelsForSaving, 
+                            _currentBatch?.BatchName ?? $"BATCH_{DateTime.Now:yyyyMMdd_HHmmss}"
+                        );
+                        
+                        if (saveSuccess)
+                        {
+                            System.Diagnostics.Debug.WriteLine("所有通道状态批量保存成功");
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("所有通道状态批量保存失败");
+                            await Application.Current.Dispatcher.InvokeAsync(() => 
+                                _messageService.ShowAsync("保存警告", "通道状态保存失败，请检查数据库连接或手动导出结果。", MessageBoxButton.OK)
+                            );
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"批量处理测试结果时出错: {ex.Message}");
+                    await Application.Current.Dispatcher.InvokeAsync(() => 
+                        _messageService.ShowAsync("处理错误", $"批量处理测试结果时出错: {ex.Message}", MessageBoxButton.OK)
+                    );
+                }
+
+                await UpdateBatchStatusAsync();
                 
                 if (completedTaskAggregate.IsFaulted)
                 {
@@ -834,8 +919,6 @@ namespace FatFullVersion.Services
             {
                  var continueRetest = await _messageService.ShowAsync("警告", "当前有其他测试正在运行中或已计划。是否仍要单独复测此通道？", MessageBoxButton.YesNo);
                  if (continueRetest != MessageBoxResult.Yes) return false;
-                 // 如果用户选择继续，可能需要考虑是否取消现有任务，或以某种方式隔离复测
-                 // 目前简单处理为允许继续，但可能会有并发问题，需要更完善的逻辑
             }
 
             if (!await EnsurePlcConnectionsAsync()) return false;
@@ -884,46 +967,71 @@ namespace FatFullVersion.Services
             await ShowTestProgressDialogAsync(true, channelMapping);
             System.Diagnostics.Debug.WriteLine($"通道复测启动: {channelMapping.VariableName} @ {DateTime.Now}");
 
+            HardPointTestRawResult rawResult = new HardPointTestRawResult(false, "初始化状态");
             try
             {
                 await UpdateProgressMessageAsync($"复测中: {channelMapping.VariableName} ({channelMapping.ChannelTag})...");
-                // 3. 准备硬点测试状态
+                
+                // 【优化】仅设置开始状态，不进行UI通知
                 _channelStateManager.BeginHardPointTest(channelMapping, DateTime.Now);
-                NotifyTestResultsUpdated(new[] { channelMapping.Id });
 
                 // 4. 执行测试
-                HardPointTestRawResult rawResult = await retestTask.RunTestAsync(_masterCancellationTokenSource.Token);
+                rawResult = await retestTask.RunTestAsync(_masterCancellationTokenSource.Token);
                 System.Diagnostics.Debug.WriteLine($"通道 {channelMapping.VariableName} 复测完成. 成功: {rawResult.IsSuccess}");
-
-                // 5. 设置测试结果
-                _channelStateManager.SetHardPointTestOutcome(channelMapping, rawResult, DateTime.Now);
-                NotifyTestResultsUpdated(new[] { channelMapping.Id });
-                
-                await _messageService.ShowAsync("复测完成", $"通道 '{channelMapping.VariableName}' 的复测已完成。请检查结果。", MessageBoxButton.OK);
             }
             catch (OperationCanceledException)
             {
                 System.Diagnostics.Debug.WriteLine($"通道 {channelMapping.VariableName} 复测被取消.");
-                var cancelResult = new HardPointTestRawResult(false, "复测任务被用户取消。");
-                _channelStateManager.SetHardPointTestOutcome(channelMapping, cancelResult, DateTime.Now);
-                NotifyTestResultsUpdated(new[] { channelMapping.Id });
-                await _messageService.ShowAsync("复测取消", $"通道 '{channelMapping.VariableName}' 的复测已被取消。", MessageBoxButton.OK);
+                rawResult = new HardPointTestRawResult(false, "复测任务被用户取消。");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"通道 {channelMapping.VariableName} 复测发生错误: {ex.Message}");
-                var errorResult = new HardPointTestRawResult(false, $"复测 '{channelMapping.VariableName}' 时发生异常: {ex.Message}");
-                _channelStateManager.SetHardPointTestOutcome(channelMapping, errorResult, DateTime.Now);
-                NotifyTestResultsUpdated(new[] { channelMapping.Id });
-                await _messageService.ShowAsync("复测错误", $"通道 '{channelMapping.VariableName}' 复测过程中发生错误: {ex.Message}", MessageBoxButton.OK);
+                rawResult = new HardPointTestRawResult(false, $"复测 '{channelMapping.VariableName}' 时发生异常: {ex.Message}");
             }
             finally
             {
                 _isRunning = false;
                 CloseProgressDialog();
                 _activeTasks.TryRemove(retestTask.Id, out _); // 从活动任务中移除
+            }
+
+            // 【优化】统一处理测试结果和保存
+            try
+            {
+                // 5. 设置测试结果
+                _channelStateManager.SetHardPointTestOutcome(channelMapping, rawResult, DateTime.Now);
+                NotifyTestResultsUpdated(new[] { channelMapping.Id });
+                
+                // 【关键节点2】通道复测更新单条记录
+                System.Diagnostics.Debug.WriteLine($"开始保存复测结果: {channelMapping.VariableName}");
+                
+                bool saveSuccess = await _testRecordService.UpdateRetestResultAsync(channelMapping);
+                
+                string resultMessage;
+                if (saveSuccess)
+                {
+                    System.Diagnostics.Debug.WriteLine($"复测结果保存成功: {channelMapping.VariableName}");
+                    resultMessage = $"通道 '{channelMapping.VariableName}' 的复测已完成并保存。";
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"复测结果保存失败: {channelMapping.VariableName}");
+                    resultMessage = $"通道 '{channelMapping.VariableName}' 的复测已完成，但保存失败。请检查数据库连接。";
+                }
+                
+                await _messageService.ShowAsync("复测完成", resultMessage, MessageBoxButton.OK);
+            }
+            catch (Exception saveEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"保存复测结果时出错: {saveEx.Message}");
+                await _messageService.ShowAsync("复测完成", $"通道 '{channelMapping.VariableName}' 的复测已完成，但保存时出错: {saveEx.Message}", MessageBoxButton.OK);
+            }
+            finally
+            {
                 await UpdateBatchStatusAsync(); // 更新批次状态
             }
+            
             return true;
         }
 

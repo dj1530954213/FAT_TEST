@@ -93,11 +93,11 @@ namespace FatFullVersion.IServices
         /// <summary>
         /// 确认接线已完成，启用测试功能
         /// </summary>
-        /// <param name="batchInfo">批次信息 (from ViewModels namespace)</param>
+        /// <param name="batchInfo">批次信息</param>
         /// <param name="isConfirmed">是否确认完成</param>
         /// <param name="testMap">测试映射集合</param>
         /// <returns>确认操作是否成功</returns>
-        Task<bool> ConfirmWiringCompleteAsync(FatFullVersion.ViewModels.BatchInfo batchInfo, bool isConfirmed, IEnumerable<ChannelMapping> testMap);
+        Task<bool> ConfirmWiringCompleteAsync(BatchInfo batchInfo, bool isConfirmed, IEnumerable<ChannelMapping> testMap);
 
         /// <summary>
         /// 显示测试进度对话框

@@ -8,11 +8,13 @@ using FatFullVersion.Entities;
 using FatFullVersion.ViewModels;
 using FatFullVersion.Entities.EntitiesEnum;
 using System.Collections.ObjectModel;
+using FatFullVersion.Shared;
 
 namespace FatFullVersion.IServices
 {
     /// <summary>
     /// 通道映射服务接口
+    /// 负责处理通道映射相关的业务逻辑，包括数据转换、批次管理和分配逻辑
     /// </summary>
     public interface IChannelMappingService
     {
@@ -103,8 +105,8 @@ namespace FatFullVersion.IServices
         /// <param name="batches">批次信息集合</param>
         /// <param name="channels">通道数据集合</param>
         /// <returns>更新后的批次信息集合</returns>
-        Task<IEnumerable<ViewModels.BatchInfo>> UpdateBatchStatusAsync(
-            IEnumerable<ViewModels.BatchInfo> batches,
+        Task<IEnumerable<BatchInfo>> UpdateBatchStatusAsync(
+            IEnumerable<BatchInfo> batches,
             IEnumerable<ChannelMapping> channels);
 
         /// <summary>
@@ -143,7 +145,7 @@ namespace FatFullVersion.IServices
         /// 获取所有批次
         /// </summary>
         /// <returns>批次信息列表</returns>
-        Task<IEnumerable<ViewModels.BatchInfo>> GetAllBatchesAsync();
+        Task<IEnumerable<BatchInfo>> GetAllBatchesAsync();
 
         /// <summary>
         /// 获取或创建批次信息
@@ -151,7 +153,7 @@ namespace FatFullVersion.IServices
         /// <param name="batchName">批次名称</param>
         /// <param name="itemCount">批次包含的项目数量</param>
         /// <returns>批次信息</returns>
-        Task<ViewModels.BatchInfo> GetOrCreateBatchAsync(string batchName, int itemCount);
+        Task<BatchInfo> GetOrCreateBatchAsync(string batchName, int itemCount);
 
         /// <summary>
         /// 从通道映射信息中提取批次信息
@@ -161,7 +163,7 @@ namespace FatFullVersion.IServices
         /// <param name="diChannels">DI通道列表</param>
         /// <param name="doChannels">DO通道列表</param>
         /// <returns>提取的批次信息集合</returns>
-        Task<IEnumerable<ViewModels.BatchInfo>> ExtractBatchInfoAsync(
+        Task<IEnumerable<BatchInfo>> ExtractBatchInfoAsync(
             IEnumerable<ChannelMapping> aiChannels,
             IEnumerable<ChannelMapping> aoChannels,
             IEnumerable<ChannelMapping> diChannels,
@@ -172,7 +174,7 @@ namespace FatFullVersion.IServices
         /// </summary>
         /// <param name="allChannels">所有通道集合</param>
         /// <returns>提取的批次信息集合</returns>
-        Task<IEnumerable<ViewModels.BatchInfo>> ExtractBatchInfoAsync(
+        Task<IEnumerable<BatchInfo>> ExtractBatchInfoAsync(
             IEnumerable<ChannelMapping> allChannels);
 
         /// <summary>
@@ -188,5 +190,46 @@ namespace FatFullVersion.IServices
         /// <param name="pointDataList">点数据列表</param>
         /// <returns>创建的通道映射集合</returns>
         Task<IEnumerable<ChannelMapping>> CreateAndInitializeChannelMappingsAsync(IEnumerable<ExcelPointData> pointDataList);
+
+        /// <summary>
+        /// 验证通道映射数据的完整性和正确性
+        /// </summary>
+        /// <param name="channels">需要验证的通道集合</param>
+        /// <returns>验证结果，包含错误信息列表</returns>
+        /// <remarks>
+        /// 该方法检查通道数据的必填字段、数值范围、重复性等，确保数据质量
+        /// </remarks>
+        Task<ValidationResult> ValidateChannelMappingsAsync(IEnumerable<ChannelMapping> channels);
+
+        /// <summary>
+        /// 获取指定模块类型的通道数量统计
+        /// </summary>
+        /// <param name="channels">通道数据集合</param>
+        /// <param name="moduleType">模块类型（如AI、AO、DI、DO等）</param>
+        /// <returns>指定类型的通道数量</returns>
+        int GetChannelCountByType(IEnumerable<ChannelMapping> channels, string moduleType);
+
+        /// <summary>
+        /// 按照模块类型分组获取通道
+        /// </summary>
+        /// <param name="channels">通道数据集合</param>
+        /// <returns>按模块类型分组的通道字典</returns>
+        Dictionary<string, List<ChannelMapping>> GroupChannelsByModuleType(IEnumerable<ChannelMapping> channels);
+
+        /// <summary>
+        /// 从通道集合中提取批次信息的重载方法
+        /// </summary>
+        /// <param name="channels">通道数据集合</param>
+        /// <returns>提取的批次信息集合</returns>
+        Task<IEnumerable<BatchInfo>> ExtractBatchInfoAsync(
+            ObservableCollection<ChannelMapping> channels);
+
+        /// <summary>
+        /// 从通道集合中提取批次信息的泛型重载方法
+        /// </summary>
+        /// <param name="channels">通道数据集合</param>
+        /// <returns>提取的批次信息集合</returns>
+        Task<IEnumerable<BatchInfo>> ExtractBatchInfoAsync(
+            ICollection<ChannelMapping> channels);
     }
 }

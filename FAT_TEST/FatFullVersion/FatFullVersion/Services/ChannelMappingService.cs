@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -352,12 +352,12 @@ namespace FatFullVersion.Services
         /// </summary>
         /// <param name="allChannels">所有通道集合</param>
         /// <returns>提取的批次信息集合</returns>
-        public async Task<IEnumerable<ViewModels.BatchInfo>> ExtractBatchInfoAsync(
+        public async Task<IEnumerable<BatchInfo>> ExtractBatchInfoAsync(
             IEnumerable<ChannelMapping> allChannels)
         {
             if (allChannels == null)
             {
-                return Enumerable.Empty<ViewModels.BatchInfo>();
+                return Enumerable.Empty<BatchInfo>();
             }
 
             return await Task.Run(() =>
@@ -375,7 +375,7 @@ namespace FatFullVersion.Services
                         .ToList();
                     
                     // 创建批次信息对象列表
-                    var batchInfoList = new List<ViewModels.BatchInfo>();
+                    var batchInfoList = new List<BatchInfo>();
                     
                     foreach (var batch in batchGroups)
                     {
@@ -429,7 +429,7 @@ namespace FatFullVersion.Services
                         var lastTestTime = testedChannels.Any() ? testedChannels.Max(c => c.TestTime) : null;
                         
                         // 创建批次信息对象
-                        var batchInfo = new ViewModels.BatchInfo(batch.BatchName, batchChannels.Count)
+                        var batchInfo = new BatchInfo(batch.BatchName, batchChannels.Count)
                         {
                             Status = status,
                             FirstTestTime = firstTestTime,
@@ -444,7 +444,7 @@ namespace FatFullVersion.Services
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"提取批次信息失败: {ex.Message}");
-                    return Enumerable.Empty<ViewModels.BatchInfo>();
+                    return Enumerable.Empty<BatchInfo>();
                 }
             });
         }
@@ -1058,14 +1058,14 @@ namespace FatFullVersion.Services
         /// <param name="batches">批次信息集合</param>
         /// <param name="testResults">测试结果集合</param>
         /// <returns>更新后的批次信息集合</returns>
-        public async Task<IEnumerable<ViewModels.BatchInfo>> UpdateBatchStatusAsync(
-            IEnumerable<ViewModels.BatchInfo> batches,
+        public async Task<IEnumerable<BatchInfo>> UpdateBatchStatusAsync(
+            IEnumerable<BatchInfo> batches,
             IEnumerable<ChannelMapping> testResults)
         {
             // 参数有效性检查
             if (batches == null || testResults == null)
             {
-                return batches ?? Enumerable.Empty<ViewModels.BatchInfo>();
+                return batches ?? Enumerable.Empty<BatchInfo>();
             }
 
             // 异步执行以避免阻塞UI线程
@@ -1124,7 +1124,7 @@ namespace FatFullVersion.Services
         /// </summary>
         /// <param name="batch">批次信息</param>
         /// <param name="batchChannels">该批次下的所有通道列表</param>
-        private void UpdateBatchStatus(ViewModels.BatchInfo batch, List<ChannelMapping> batchChannels)
+        private void UpdateBatchStatus(BatchInfo batch, List<ChannelMapping> batchChannels)
         {
             if (batchChannels == null || !batchChannels.Any())
             {
@@ -1185,7 +1185,7 @@ namespace FatFullVersion.Services
         /// </summary>
         /// <param name="batch">批次信息</param>
         /// <param name="batchResults">批次测试结果</param>
-        private void UpdateBatchTestTimes(ViewModels.BatchInfo batch, List<ChannelMapping> batchResults)
+        private void UpdateBatchTestTimes(BatchInfo batch, List<ChannelMapping> batchResults)
         {
             var testedResultsWithTime = batchResults
                 .Where(r => r.TestTime.HasValue)
@@ -1354,7 +1354,7 @@ namespace FatFullVersion.Services
         /// <param name="diChannels">DI通道列表</param>
         /// <param name="doChannels">DO通道列表</param>
         /// <returns>提取的批次信息集合</returns>
-        public async Task<IEnumerable<ViewModels.BatchInfo>> ExtractBatchInfoAsync(
+        public async Task<IEnumerable<BatchInfo>> ExtractBatchInfoAsync(
             IEnumerable<ChannelMapping> aiChannels,
             IEnumerable<ChannelMapping> aoChannels,
             IEnumerable<ChannelMapping> diChannels,
@@ -1403,7 +1403,7 @@ namespace FatFullVersion.Services
         /// 获取所有批次
         /// </summary>
         /// <returns>批次信息列表</returns>
-        public async Task<IEnumerable<ViewModels.BatchInfo>> GetAllBatchesAsync()
+        public async Task<IEnumerable<BatchInfo>> GetAllBatchesAsync()
         {
             // 获取所有通道
             var allChannels = await GetAllChannelMappingsAsync();
@@ -1418,7 +1418,7 @@ namespace FatFullVersion.Services
         /// <param name="batchName">批次名称</param>
         /// <param name="itemCount">批次包含的项目数量</param>
         /// <returns>批次信息</returns>
-        public async Task<ViewModels.BatchInfo> GetOrCreateBatchAsync(string batchName, int itemCount)
+        public async Task<BatchInfo> GetOrCreateBatchAsync(string batchName, int itemCount)
         {
             if (string.IsNullOrEmpty(batchName))
                 throw new ArgumentException("批次名称不能为空", nameof(batchName));
@@ -1434,7 +1434,7 @@ namespace FatFullVersion.Services
                 return existingBatch;
                 
             // 创建新批次
-            return new ViewModels.BatchInfo(batchName, itemCount);
+            return new BatchInfo(batchName, itemCount);
         }
 
         /// <summary>
@@ -1662,6 +1662,94 @@ namespace FatFullVersion.Services
             // 由于 ChannelMapping 对象是引用类型，channels 集合中的对象已经被修改。
             // 如果 ObservableCollection 需要强制刷新UI，可能需要额外操作，但通常属性更改会通知。
             return channels; 
+        }
+
+        /// <summary>
+        /// 验证通道映射数据的完整性和正确性
+        /// </summary>
+        /// <param name="channels">需要验证的通道集合</param>
+        /// <returns>验证结果，包含错误信息列表</returns>
+        public async Task<ValidationResult> ValidateChannelMappingsAsync(IEnumerable<ChannelMapping> channels)
+        {
+            return await Task.Run(() =>
+            {
+                var result = new ValidationResult { IsValid = true };
+                var channelList = channels?.ToList() ?? new List<ChannelMapping>();
+
+                foreach (var channel in channelList)
+                {
+                    if (channel == null)
+                    {
+                        result.ErrorMessages.Add("发现空的通道对象");
+                        result.IsValid = false;
+                        continue;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(channel.VariableName))
+                    {
+                        result.ErrorMessages.Add($"通道 {channel.TestId} 缺少变量名");
+                        result.IsValid = false;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(channel.ModuleType))
+                    {
+                        result.ErrorMessages.Add($"通道 {channel.VariableName} 缺少模块类型");
+                        result.IsValid = false;
+                    }
+                }
+
+                return result;
+            });
+        }
+
+        /// <summary>
+        /// 获取指定模块类型的通道数量统计
+        /// </summary>
+        /// <param name="channels">通道数据集合</param>
+        /// <param name="moduleType">模块类型（如AI、AO、DI、DO等）</param>
+        /// <returns>指定类型的通道数量</returns>
+        public int GetChannelCountByType(IEnumerable<ChannelMapping> channels, string moduleType)
+        {
+            if (channels == null || string.IsNullOrWhiteSpace(moduleType))
+                return 0;
+
+            return channels.Count(c => c?.ModuleType?.Equals(moduleType, StringComparison.OrdinalIgnoreCase) == true);
+        }
+
+        /// <summary>
+        /// 按照模块类型分组获取通道
+        /// </summary>
+        /// <param name="channels">通道数据集合</param>
+        /// <returns>按模块类型分组的通道字典</returns>
+        public Dictionary<string, List<ChannelMapping>> GroupChannelsByModuleType(IEnumerable<ChannelMapping> channels)
+        {
+            if (channels == null)
+                return new Dictionary<string, List<ChannelMapping>>();
+
+            return channels
+                .Where(c => c != null && !string.IsNullOrWhiteSpace(c.ModuleType))
+                .GroupBy(c => c.ModuleType.ToUpper())
+                .ToDictionary(g => g.Key, g => g.ToList());
+        }
+
+        /// <summary>
+        /// 从通道集合中提取批次信息的重载方法（ObservableCollection）
+        /// </summary>
+        /// <param name="channels">通道数据集合</param>
+        /// <returns>提取的批次信息集合</returns>
+        public async Task<IEnumerable<BatchInfo>> ExtractBatchInfoAsync(ObservableCollection<ChannelMapping> channels)
+        {
+            return await ExtractBatchInfoAsync((IEnumerable<ChannelMapping>)channels);
+        }
+
+        /// <summary>
+        /// 从通道集合中提取批次信息的泛型重载方法（ICollection）
+        /// </summary>
+        /// <param name="channels">通道数据集合</param>
+        /// <returns>提取的批次信息集合</returns>
+        public async Task<IEnumerable<BatchInfo>> ExtractBatchInfoAsync(ICollection<ChannelMapping> channels)
+        {
+            return await ExtractBatchInfoAsync((IEnumerable<ChannelMapping>)channels);
         }
     }
 }
