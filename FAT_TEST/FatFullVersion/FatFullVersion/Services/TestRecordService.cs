@@ -27,7 +27,7 @@ namespace FatFullVersion.Services
         }
 
         /// <summary>
-        /// 保存测试记录
+        /// 保存测试记录 - 通用方法
         /// </summary>
         /// <param name="channelMappings">通道映射数据集合</param>
         /// <param name="testTag">测试标识，如果为null则使用测试记录中的标识</param>
@@ -50,27 +50,8 @@ namespace FatFullVersion.Services
                     }
                 }
 
-                // 检查所有记录是否都有测试标识
-                //if (records.Any(r => string.IsNullOrEmpty(r.TestTag)))
-                //{
-                //    // 为没有测试标识的记录设置统一的标识
-                //    var newTag = GenerateTestTag();
-                //    foreach (var record in records.Where(r => string.IsNullOrEmpty(r.TestTag)))
-                //    {
-                //        record.TestTag = newTag;
-                //    }
-                //}
-
-                //// 确保所有记录都有唯一Id
-                //foreach (var record in records.Where(r => string.IsNullOrEmpty(r.Id)))
-                //{
-                //    record.Id = Guid.NewGuid().ToString("N");
-                //}
-
-                // 保存记录
-                //return await _repository.SaveTestRecordsAsync(records);
-
-                return await _repository.SaveTestRecordsWithSqlAsync(records);
+                // 使用优化后的EF Core方法保存记录
+                return await _repository.SaveTestRecordsAsync(records);
             }
             catch (Exception ex)
             {
@@ -80,7 +61,7 @@ namespace FatFullVersion.Services
         }
 
         /// <summary>
-        /// 保存单个测试记录
+        /// 保存单个测试记录 - 手动测试场景
         /// </summary>
         /// <param name="channelMapping">通道映射数据</param>
         /// <returns>操作是否成功</returns>
@@ -91,23 +72,63 @@ namespace FatFullVersion.Services
                 if (channelMapping == null)
                     return false;
 
-                // 如果没有测试标识，生成一个新的
-                //if (string.IsNullOrEmpty(channelMapping.TestTag))
-                //{
-                //    channelMapping.TestTag = GenerateTestTag();
-                //}
-
-                // 确保有唯一Id
-                //if (string.IsNullOrEmpty(channelMapping.Id))
-                //{
-                //    channelMapping.Id = Guid.NewGuid().ToString("N");
-                //}
-
-                return await _repository.SaveTestRecordWithSqlAsync(channelMapping);
+                return await _repository.SaveTestRecordAsync(channelMapping);
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"保存单个测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 批量保存硬点自动测试完成的记录 - 新增优化方法
+        /// </summary>
+        /// <param name="channelMappings">通道映射数据集合</param>
+        /// <param name="testTag">测试标识</param>
+        /// <returns>操作是否成功</returns>
+        public async Task<bool> SaveHardPointTestResultsAsync(IEnumerable<ChannelMapping> channelMappings, string testTag = null)
+        {
+            try
+            {
+                if (channelMappings == null || !channelMappings.Any())
+                    return true;
+
+                var records = channelMappings.ToList();
+                if (!string.IsNullOrEmpty(testTag))
+                {
+                    foreach (var record in records)
+                    {
+                        record.TestTag = testTag;
+                    }
+                }
+
+                return await _repository.SaveHardPointTestResultsAsync(records);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"批量保存硬点测试结果时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 更新单个通道的复测结果 - 复测场景优化
+        /// </summary>
+        /// <param name="channelMapping">通道映射数据</param>
+        /// <returns>操作是否成功</returns>
+        public async Task<bool> UpdateRetestResultAsync(ChannelMapping channelMapping)
+        {
+            try
+            {
+                if (channelMapping == null)
+                    return false;
+
+                return await _repository.UpdateRetestResultAsync(channelMapping);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"更新复测结果时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
         }

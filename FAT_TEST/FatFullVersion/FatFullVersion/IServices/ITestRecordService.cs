@@ -12,7 +12,7 @@ namespace FatFullVersion.IServices
     public interface ITestRecordService
     {
         /// <summary>
-        /// 保存测试记录
+        /// 保存测试记录 - 通用方法
         /// </summary>
         /// <param name="channelMappings">通道映射数据集合</param>
         /// <param name="testTag">测试标识，如果为null则使用测试记录中的标识</param>
@@ -20,11 +20,26 @@ namespace FatFullVersion.IServices
         Task<bool> SaveTestRecordsAsync(IEnumerable<ChannelMapping> channelMappings, string testTag = null);
 
         /// <summary>
-        /// 保存单个测试记录
+        /// 保存单个测试记录 - 手动测试场景
         /// </summary>
         /// <param name="channelMapping">通道映射数据</param>
         /// <returns>操作是否成功</returns>
         Task<bool> SaveTestRecordAsync(ChannelMapping channelMapping);
+
+        /// <summary>
+        /// 批量保存硬点自动测试完成的记录 - 新增优化方法
+        /// </summary>
+        /// <param name="channelMappings">通道映射数据集合</param>
+        /// <param name="testTag">测试标识</param>
+        /// <returns>操作是否成功</returns>
+        Task<bool> SaveHardPointTestResultsAsync(IEnumerable<ChannelMapping> channelMappings, string testTag = null);
+
+        /// <summary>
+        /// 更新单个通道的复测结果 - 复测场景优化
+        /// </summary>
+        /// <param name="channelMapping">通道映射数据</param>
+        /// <returns>操作是否成功</returns>
+        Task<bool> UpdateRetestResultAsync(ChannelMapping channelMapping);
 
         /// <summary>
         /// 恢复指定测试标识的测试记录

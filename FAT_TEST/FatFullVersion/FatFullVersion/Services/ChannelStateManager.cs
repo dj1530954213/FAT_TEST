@@ -1,10 +1,10 @@
 using System;
-using FatFullVersion.IServices;
-using FatFullVersion.Models; // 确保 ExcelPointData 和 ChannelMapping 在此或 Entities
-using FatFullVersion.Entities;
-using FatFullVersion.Shared;
-using System.Linq;
 using System.Globalization;
+using FatFullVersion.Models;
+using FatFullVersion.IServices;
+using FatFullVersion.Shared;
+using FatFullVersion.Entities;
+using System.Linq;
 
 namespace FatFullVersion.Services
 {
@@ -349,9 +349,15 @@ namespace FatFullVersion.Services
         {
             if (channel == null) return;
 
+            // 设置整体状态为跳过
             channel.OverallStatus = OverallResultStatus.Skipped;
+            
+            // 设置硬点测试状态为跳过，这会自动更新HardPointTestResult
+            channel.HardPointStatus = Shared.TestStatus.Skipped;
+            
             channel.ResultText = string.IsNullOrWhiteSpace(reason) ? "已跳过测试" : $"已跳过测试，原因: {reason}";
             channel.FinalTestTime = skipTime;
+            
             if (channel.Status != StatusSkipped) // 如果 Status 属性保留并使用
             {
                 channel.Status = StatusSkipped;
@@ -396,14 +402,14 @@ namespace FatFullVersion.Services
                 channel.ResultText = StatusWaiting; // 或者更具体的如 "接线已确认，等待测试开始"
                 // TestResultStatus 保持为 0 (未测试)
             }
-            // 如果通道已分配但未进行任何测试（例如 TestResultStatus 为 0 且 HardPointTestResult 为空或NotTested）
+            // 如果通道已分配但未进行任何测试（例如 OverallStatus 为 NotTested 且 HardPointStatus 为 NotTested）
             // 也应该更新为等待测试
-            else if (channel.OverallStatus == OverallResultStatus.NotTested && (channel.HardPointStatus == Shared.TestStatus.NotTested || string.IsNullOrEmpty(channel.ResultText)))
+            else if (channel.OverallStatus == OverallResultStatus.NotTested && 
+                     (channel.HardPointStatus == Shared.TestStatus.NotTested || string.IsNullOrEmpty(channel.ResultText)))
             {
                 channel.HardPointStatus = Shared.TestStatus.Waiting;
                 channel.ResultText = StatusWaiting; 
             }
-
 
             // 调用 EvaluateOverallStatus 以确保状态一致性，尽管此操作本身不应改变 TestResultStatus 从0到其他终态
             // 但它可以帮助标准化 ResultText (如果 EvaluateOverallStatus 中有相应逻辑)

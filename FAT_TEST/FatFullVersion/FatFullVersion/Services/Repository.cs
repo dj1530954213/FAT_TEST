@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using FatFullVersion.Data;
@@ -13,8 +10,6 @@ using FatFullVersion.Entities.ValueObject;
 using FatFullVersion.IServices;
 using FatFullVersion.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.Extensions.Logging;
 
 namespace FatFullVersion.Services
 {
@@ -43,6 +38,8 @@ namespace FatFullVersion.Services
                 return false;
             }
         }
+
+        #region PLC连接配置操作 - 保持不变
 
         public async Task<PlcConnectionConfig> GetTestPlcConnectionConfigAsync()
         {
@@ -77,6 +74,10 @@ namespace FatFullVersion.Services
         {
             return await _context.PlcConnections.ToListAsync();
         }
+
+        #endregion
+
+        #region 通道比较表操作 - 保持不变
 
         public async Task<string> GetPlcCommunicationAddress(string channelTag)
         {
@@ -147,7 +148,7 @@ namespace FatFullVersion.Services
                 }
 
                 // 保存更改
-                return await _context.SaveChangesAsync()>=0;
+                return await _context.SaveChangesAsync() >= 0;
             }
             catch (Exception)
             {
@@ -155,10 +156,12 @@ namespace FatFullVersion.Services
             }
         }
 
-        #region 测试记录操作
+        #endregion
+
+        #region 测试记录操作 - 重构简化
 
         /// <summary>
-        /// 保存测试记录集合
+        /// 保存测试记录集合 - 使用EF Core批量操作优化
         /// </summary>
         /// <param name="records">测试记录集合</param>
         /// <returns>保存操作是否成功</returns>
@@ -169,7 +172,15 @@ namespace FatFullVersion.Services
                 if (records == null || !records.Any())
                     return true;
 
-                foreach (var record in records)
+                var recordsList = records.ToList();
+                
+                // 批量处理：分别处理新增和更新
+                var existingIds = recordsList.Where(r => r.Id != Guid.Empty).Select(r => r.Id).ToList();
+                var existingRecords = await _context.ChannelMappings
+                    .Where(c => existingIds.Contains(c.Id))
+                    .ToListAsync();
+
+                foreach (var record in recordsList)
                 {
                     // 确保每条记录都有Guid作为Id
                     if (record.Id == Guid.Empty)
@@ -180,12 +191,11 @@ namespace FatFullVersion.Services
                     // 更新时间戳
                     record.UpdatedTime = DateTime.Now;
 
-                    // 处理可能存在的NaN值，将其转换为null
-                    // 检查所有数值类型的属性，替换NaN值
-                    ProcessNanValues(record);
+                    // 处理NaN值：直接转换为null，无需复杂转换
+                    ProcessNanValuesForStorage(record);
 
                     // 检查记录是否已存在
-                    var existing = await _context.ChannelMappings.FindAsync(record.Id);
+                    var existing = existingRecords.FirstOrDefault(e => e.Id == record.Id);
                     if (existing != null)
                     {
                         // 更新现有记录
@@ -205,29 +215,15 @@ namespace FatFullVersion.Services
                 MessageBox.Show($"保存测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
-            finally
-            {
-                foreach (var record in records)
-                {
-                    RestoreNanValues(record);
-                }
-            }
         }
+
         /// <summary>
-        /// 保存单个测试记录
+        /// 保存单个测试记录 - 手动测试场景优化
         /// </summary>
         /// <param name="record">测试记录</param>
         /// <returns>保存操作是否成功</returns>
         public async Task<bool> SaveTestRecordAsync(ChannelMapping record)
         {
-            foreach (var prop in typeof(ChannelMapping).GetProperties())
-            {
-                var value = prop.GetValue(record);
-                if (value is float f && float.IsNaN(f))
-                    Console.WriteLine($"字段 {prop.Name} 是 NaN");
-                if (value is double d && double.IsNaN(d))
-                    Console.WriteLine($"字段 {prop.Name} 是 NaN");
-            }
             try
             {
                 if (record == null)
@@ -243,7 +239,7 @@ namespace FatFullVersion.Services
                 record.UpdatedTime = DateTime.Now;
                 
                 // 处理NaN值
-                ProcessNanValues(record);
+                ProcessNanValuesForStorage(record);
                 
                 // 检查记录是否已存在
                 var existing = await _context.ChannelMappings.FindAsync(record.Id);
@@ -266,6 +262,117 @@ namespace FatFullVersion.Services
                 return false;
             }
         }
+
+        /// <summary>
+        /// 批量保存硬点自动测试完成的记录 - 新增优化方法
+        /// </summary>
+        /// <param name="records">测试记录集合</param>
+        /// <returns>保存操作是否成功</returns>
+        public async Task<bool> SaveHardPointTestResultsAsync(IEnumerable<ChannelMapping> records)
+        {
+            try
+            {
+                if (records == null || !records.Any())
+                    return true;
+
+                var recordsList = records.ToList();
+                
+                // 批量更新策略：只更新测试结果相关字段
+                foreach (var record in recordsList)
+                {
+                    record.UpdatedTime = DateTime.Now;
+                    ProcessNanValuesForStorage(record);
+                    
+                    var existing = await _context.ChannelMappings.FindAsync(record.Id);
+                    if (existing != null)
+                    {
+                        // 只更新测试结果相关字段，提高性能
+                        existing.HardPointTestResult = record.HardPointTestResult;
+                        existing.TestResultStatus = record.TestResultStatus;
+                        existing.ResultText = record.ResultText;
+                        existing.FinalTestTime = record.FinalTestTime;
+                        existing.TestTime = record.TestTime;
+                        existing.StartTime = record.StartTime;
+                        existing.UpdatedTime = record.UpdatedTime;
+                        
+                        // 更新测试数据字段
+                        existing.ExpectedValue = record.ExpectedValue;
+                        existing.ActualValue = record.ActualValue;
+                        existing.Value0Percent = record.Value0Percent;
+                        existing.Value25Percent = record.Value25Percent;
+                        existing.Value50Percent = record.Value50Percent;
+                        existing.Value75Percent = record.Value75Percent;
+                        existing.Value100Percent = record.Value100Percent;
+                    }
+                }
+
+                return await _context.SaveChangesAsync() > 0;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"批量保存硬点测试结果时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 更新单个通道的复测结果 - 复测场景优化
+        /// </summary>
+        /// <param name="record">测试记录</param>
+        /// <returns>保存操作是否成功</returns>
+        public async Task<bool> UpdateRetestResultAsync(ChannelMapping record)
+        {
+            try
+            {
+                if (record == null)
+                    return false;
+                
+                record.UpdatedTime = DateTime.Now;
+                ProcessNanValuesForStorage(record);
+                
+                var existing = await _context.ChannelMappings.FindAsync(record.Id);
+                if (existing != null)
+                {
+                    // 复测场景：更新所有测试相关字段
+                    existing.HardPointTestResult = record.HardPointTestResult;
+                    existing.TestResultStatus = record.TestResultStatus;
+                    existing.ResultText = record.ResultText;
+                    existing.FinalTestTime = record.FinalTestTime;
+                    existing.TestTime = record.TestTime;
+                    existing.StartTime = record.StartTime;
+                    existing.UpdatedTime = record.UpdatedTime;
+                    
+                    // 更新手动测试状态
+                    existing.ShowValueStatus = record.ShowValueStatus;
+                    existing.LowLowAlarmStatus = record.LowLowAlarmStatus;
+                    existing.LowAlarmStatus = record.LowAlarmStatus;
+                    existing.HighAlarmStatus = record.HighAlarmStatus;
+                    existing.HighHighAlarmStatus = record.HighHighAlarmStatus;
+                    existing.AlarmValueSetStatus = record.AlarmValueSetStatus;
+                    existing.MaintenanceFunction = record.MaintenanceFunction;
+                    existing.TrendCheck = record.TrendCheck;
+                    existing.ReportCheck = record.ReportCheck;
+                    
+                    // 更新测试数据
+                    existing.ExpectedValue = record.ExpectedValue;
+                    existing.ActualValue = record.ActualValue;
+                    existing.Value0Percent = record.Value0Percent;
+                    existing.Value25Percent = record.Value25Percent;
+                    existing.Value50Percent = record.Value50Percent;
+                    existing.Value75Percent = record.Value75Percent;
+                    existing.Value100Percent = record.Value100Percent;
+                    
+                    return await _context.SaveChangesAsync() > 0;
+                }
+                
+                return false;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"更新复测结果时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+        }
         
         /// <summary>
         /// 根据测试标识获取测试记录
@@ -282,12 +389,6 @@ namespace FatFullVersion.Services
                 var records = await _context.ChannelMappings
                     .Where(c => c.TestTag == testTag)
                     .ToListAsync();
-                
-                // 将数据库中的null值转换回NaN
-                foreach (var record in records)
-                {
-                    RestoreNanValues(record);
-                }
                 
                 return records;
             }
@@ -332,122 +433,25 @@ namespace FatFullVersion.Services
                 if (string.IsNullOrEmpty(testTag))
                     return false;
 
-                // 构建参数化的SQL DELETE语句
-                // 假设表名为 ChannelMappings，如果您的表名不同，请在此处修改
-                var sql = "DELETE FROM ChannelMappings WHERE TestTag = {0}";
+                var recordsToDelete = await _context.ChannelMappings
+                    .Where(c => c.TestTag == testTag)
+                    .ToListAsync();
 
-                // 执行SQL语句
-                int affectedRows = await _context.Database.ExecuteSqlRawAsync(sql, testTag);
+                if (recordsToDelete.Any())
+                {
+                    _context.ChannelMappings.RemoveRange(recordsToDelete);
+                    return await _context.SaveChangesAsync() > 0;
+                }
 
-                // 如果 affectedRows >= 0，表示命令成功执行（即使没有行被删除也是成功的）
-                return affectedRows >= 0;
+                return true; // 没有记录需要删除也算成功
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"使用SQL删除测试记录时出错: {ex.Message}", "数据库错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"删除测试记录时出错: {ex.Message}", "数据库错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
         }
         
-        #endregion
-
-        /// <summary>
-        /// 处理ChannelMapping对象中的NaN值，将其转换为-999999999以便存储到数据库
-        /// </summary>
-        /// <param name="record">待处理的通道映射对象</param>
-        private void ProcessNanValues(ChannelMapping record)
-        {
-
-            var props = typeof(ChannelMapping).GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-            foreach (var prop in props)
-            {
-                if (!prop.CanRead || !prop.CanWrite)
-                    continue;
-
-                var type = prop.PropertyType;
-                var value = prop.GetValue(record);
-
-                if (type == typeof(float) && value is float f && float.IsNaN(f))
-                {
-                    prop.SetValue(record, -999999999f);
-                }
-                else if (type == typeof(double) && value is double d && double.IsNaN(d))
-                {
-                    prop.SetValue(record, -999999999d);
-                }
-            }
-        }
-        
-        /// <summary>
-        /// 将数据库中读取的ChannelMapping对象中的-999999999值转换回NaN
-        /// </summary>
-        /// <param name="record">待处理的通道映射对象</param>
-        private void RestoreNanValues(ChannelMapping record)
-        {
-            // 将-999999999转换回NaN
-            // 处理float类型的字段
-            //if (record.RangeLowerLimitValue == -999999999)
-            //    record.RangeLowerLimitValue = float.NaN;
-
-            //if (record.RangeUpperLimitValue == -999999999)
-            //    record.RangeUpperLimitValue = float.NaN;
-
-            //if (record.SLLSetValueNumber == -999999999)
-            //    record.SLLSetValueNumber = float.NaN;
-
-            //if (record.SLSetValueNumber == -999999999)
-            //    record.SLSetValueNumber = float.NaN;
-
-            //if (record.SHSetValueNumber == -999999999)
-            //    record.SHSetValueNumber = float.NaN;
-
-            //if (record.SHHSetValueNumber == -999999999)
-            //    record.SHHSetValueNumber = float.NaN;
-
-            //// 处理double类型的字段
-            //if (record.ExpectedValue == -999999999)
-            //    record.ExpectedValue = double.NaN;
-
-            //if (record.ActualValue == -999999999)
-            //    record.ActualValue = double.NaN;
-
-            //if (record.Value0Percent == -999999999)
-            //    record.Value0Percent = double.NaN;
-
-            //if (record.Value25Percent == -999999999)
-            //    record.Value25Percent = double.NaN;
-
-            //if (record.Value50Percent == -999999999)
-            //    record.Value50Percent = double.NaN;
-
-            //if (record.Value75Percent == -999999999)
-            //    record.Value75Percent = double.NaN;
-
-            //if (record.Value100Percent == -999999999)
-            //    record.Value100Percent = double.NaN;
-
-            var props = typeof(ChannelMapping).GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-            foreach (var prop in props)
-            {
-                if (!prop.CanRead || !prop.CanWrite)
-                    continue;
-
-                var type = prop.PropertyType;
-                var value = prop.GetValue(record);
-
-                if (type == typeof(float) && value is float f && f == -999999999f)
-                {
-                    prop.SetValue(record, float.NaN);
-                }
-                else if (type == typeof(double) && value is double d && d == -999999999d)
-                {
-                    prop.SetValue(record, double.NaN);
-                }
-            }
-        }
-
         /// <summary>
         /// 获取所有测试记录
         /// </summary>
@@ -457,13 +461,6 @@ namespace FatFullVersion.Services
             try
             {
                 var records = await _context.ChannelMappings.ToListAsync();
-                
-                // 将数据库中的null值转换回NaN
-                foreach (var record in records)
-                {
-                    RestoreNanValues(record);
-                }
-                
                 return records;
             }
             catch (Exception ex)
@@ -473,371 +470,73 @@ namespace FatFullVersion.Services
             }
         }
 
-        private ChannelMapping CloneAndCleanNan(ChannelMapping original)
-        {
-            var clone = new ChannelMapping
-            {
-                Id = original.Id,
-                TestTag = original.TestTag,
-                UpdatedTime = original.UpdatedTime,
-                // ...复制所有字段...
-                RangeLowerLimitValue = (original.RangeLowerLimitValue.HasValue && float.IsNaN(original.RangeLowerLimitValue.Value))
-                    ? -999999999f
-                    : original.RangeLowerLimitValue,
-                // 对其他字段重复这一判断
-                // ...
-            };
-            return clone;
-        }
+        #endregion
+
+        #region 辅助方法
 
         /// <summary>
-        /// 使用原生SQL语句保存测试记录
+        /// 简化的NaN值处理：直接转换为null存储
         /// </summary>
-        /// <param name="record">测试记录</param>
-        /// <returns>保存操作是否成功</returns>
-        public async Task<bool> SaveTestRecordWithSqlAsync(ChannelMapping record)
+        /// <param name="record">待处理的通道映射对象</param>
+        private void ProcessNanValuesForStorage(ChannelMapping record)
         {
-            try
-            {
-                if (record == null)
-                    return false;
+            // 处理数值字段的NaN值，转换为null以便存储
+            if (record.RangeLowerLimitValue.HasValue && float.IsNaN(record.RangeLowerLimitValue.Value))
+                record.RangeLowerLimitValue = null;
                 
-                // 确保记录有Guid作为Id
-                if (record.Id == Guid.Empty)
-                {
-                    record.Id = Guid.NewGuid();
-                }
+            if (record.RangeUpperLimitValue.HasValue && float.IsNaN(record.RangeUpperLimitValue.Value))
+                record.RangeUpperLimitValue = null;
                 
-                // 更新时间戳
-                record.UpdatedTime = DateTime.Now;
+            if (record.SLLSetValueNumber.HasValue && float.IsNaN(record.SLLSetValueNumber.Value))
+                record.SLLSetValueNumber = null;
                 
-                // 处理NaN值
-                ProcessNanValues(record);
-
-                // 检查记录是否已存在
-                var existing = await _context.ChannelMappings.FirstOrDefaultAsync(c => c.Id == record.Id);
+            if (record.SLSetValueNumber.HasValue && float.IsNaN(record.SLSetValueNumber.Value))
+                record.SLSetValueNumber = null;
                 
-                if (existing != null)
-                {
-                    // 如果记录存在，使用SQL更新
-                    var query = @"
-                    UPDATE ChannelMappings
-                    SET TestTag = @TestTag,
-                        ModuleName = @ModuleName,
-                        ModuleType = @ModuleType,
-                        PowerSupplyType = @PowerSupplyType,
-                        WireSystem = @WireSystem,
-                        Tag = @Tag,
-                        StationName = @StationName,
-                        VariableName = @VariableName,
-                        VariableDescription = @VariableDescription,
-                        DataType = @DataType,
-                        ChannelTag = @ChannelTag,
-                        AccessProperty = @AccessProperty,
-                        SaveHistory = @SaveHistory,
-                        PowerFailureProtection = @PowerFailureProtection,
-                        RangeLowerLimit = @RangeLowerLimit,
-                        RangeLowerLimitValue = @RangeLowerLimitValue,
-                        RangeUpperLimit = @RangeUpperLimit,
-                        RangeUpperLimitValue = @RangeUpperLimitValue,
-                        SLLSetValue = @SLLSetValue,
-                        SLLSetValueNumber = @SLLSetValueNumber,
-                        SLLSetPoint = @SLLSetPoint,
-                        SLLSetPointPLCAddress = @SLLSetPointPLCAddress,
-                        SLLSetPointCommAddress = @SLLSetPointCommAddress,
-                        SLSetValue = @SLSetValue,
-                        SLSetValueNumber = @SLSetValueNumber,
-                        SLSetPoint = @SLSetPoint,
-                        SLSetPointPLCAddress = @SLSetPointPLCAddress,
-                        SLSetPointCommAddress = @SLSetPointCommAddress,
-                        SHSetValue = @SHSetValue,
-                        SHSetValueNumber = @SHSetValueNumber,
-                        SHSetPoint = @SHSetPoint,
-                        SHSetPointPLCAddress = @SHSetPointPLCAddress,
-                        SHSetPointCommAddress = @SHSetPointCommAddress,
-                        SHHSetValue = @SHHSetValue,
-                        SHHSetValueNumber = @SHHSetValueNumber,
-                        SHHSetPoint = @SHHSetPoint,
-                        SHHSetPointPLCAddress = @SHHSetPointPLCAddress,
-                        SHHSetPointCommAddress = @SHHSetPointCommAddress,
-                        LLAlarm = @LLAlarm,
-                        LLAlarmPLCAddress = @LLAlarmPLCAddress,
-                        LLAlarmCommAddress = @LLAlarmCommAddress,
-                        LAlarm = @LAlarm,
-                        LAlarmPLCAddress = @LAlarmPLCAddress,
-                        LAlarmCommAddress = @LAlarmCommAddress,
-                        HAlarm = @HAlarm,
-                        HAlarmPLCAddress = @HAlarmPLCAddress,
-                        HAlarmCommAddress = @HAlarmCommAddress,
-                        HHAlarm = @HHAlarm,
-                        HHAlarmPLCAddress = @HHAlarmPLCAddress,
-                        HHAlarmCommAddress = @HHAlarmCommAddress,
-                        MaintenanceValueSetting = @MaintenanceValueSetting,
-                        MaintenanceValueSetPoint = @MaintenanceValueSetPoint,
-                        MaintenanceValueSetPointPLCAddress = @MaintenanceValueSetPointPLCAddress,
-                        MaintenanceValueSetPointCommAddress = @MaintenanceValueSetPointCommAddress,
-                        MaintenanceEnableSwitchPoint = @MaintenanceEnableSwitchPoint,
-                        MaintenanceEnableSwitchPointPLCAddress = @MaintenanceEnableSwitchPointPLCAddress,
-                        MaintenanceEnableSwitchPointCommAddress = @MaintenanceEnableSwitchPointCommAddress,
-                        PLCAbsoluteAddress = @PLCAbsoluteAddress,
-                        PlcCommunicationAddress = @PlcCommunicationAddress,
-                        UpdatedTime = @UpdatedTime,
-                        TestBatch = @TestBatch,
-                        TestPLCChannelTag = @TestPLCChannelTag,
-                        TestPLCCommunicationAddress = @TestPLCCommunicationAddress,
-                        MonitorStatus = @MonitorStatus,
-                        TestId = @TestId,
-                        TestResultStatus = @TestResultStatus,
-                        ResultText = @ResultText,
-                        HardPointTestResult = @HardPointTestResult,
-                        TestTime = @TestTime,
-                        FinalTestTime = @FinalTestTime,
-                        Status = @Status,
-                        StartTime = @StartTime,
-                        EndTime = @EndTime,
-                        ExpectedValue = @ExpectedValue,
-                        ActualValue = @ActualValue,
-                        Value0Percent = @Value0Percent,
-                        Value25Percent = @Value25Percent,
-                        Value50Percent = @Value50Percent,
-                        Value75Percent = @Value75Percent,
-                        Value100Percent = @Value100Percent,
-                        LowLowAlarmStatus = @LowLowAlarmStatus,
-                        LowAlarmStatus = @LowAlarmStatus,
-                        HighAlarmStatus = @HighAlarmStatus,
-                        HighHighAlarmStatus = @HighHighAlarmStatus,
-                        MaintenanceFunction = @MaintenanceFunction,
-                        ErrorMessage = @ErrorMessage,
-                        CurrentValue = @CurrentValue,
-                        ShowValueStatus = @ShowValueStatus,
-                        AlarmValueSetStatus = @AlarmValueSetStatus,
-                        TrendCheck = @TrendCheck,
-                        ReportCheck = @ReportCheck
-                    WHERE Id = @Id";
-
-                    var parameters = CreateSqlParameters(record);
-
-                    // 执行SQL语句
-                    var result = await _context.Database.ExecuteSqlRawAsync(query, parameters.Select(p => 
-                        new Microsoft.Data.Sqlite.SqliteParameter(p.Key, p.Value)).ToArray());
-
-                    // 恢复NaN值
-                    RestoreNanValues(record);
-                    
-                    return result > 0;
-                }
-                else
-                {
-                    // 如果记录不存在，使用SQL插入
-                    var query = @"
-                    INSERT INTO ChannelMappings (
-                        Id, TestTag, ModuleName, ModuleType, PowerSupplyType, 
-                        WireSystem, Tag, StationName, VariableName, VariableDescription, 
-                        DataType, ChannelTag, AccessProperty, SaveHistory, PowerFailureProtection, 
-                        RangeLowerLimit, RangeLowerLimitValue, RangeUpperLimit, RangeUpperLimitValue, 
-                        SLLSetValue, SLLSetValueNumber, SLLSetPoint, SLLSetPointPLCAddress, SLLSetPointCommAddress, 
-                        SLSetValue, SLSetValueNumber, SLSetPoint, SLSetPointPLCAddress, SLSetPointCommAddress, 
-                        SHSetValue, SHSetValueNumber, SHSetPoint, SHSetPointPLCAddress, SHSetPointCommAddress, 
-                        SHHSetValue, SHHSetValueNumber, SHHSetPoint, SHHSetPointPLCAddress, SHHSetPointCommAddress, 
-                        LLAlarm, LLAlarmPLCAddress, LLAlarmCommAddress, 
-                        LAlarm, LAlarmPLCAddress, LAlarmCommAddress, 
-                        HAlarm, HAlarmPLCAddress, HAlarmCommAddress, 
-                        HHAlarm, HHAlarmPLCAddress, HHAlarmCommAddress, 
-                        MaintenanceValueSetting, MaintenanceValueSetPoint, MaintenanceValueSetPointPLCAddress, MaintenanceValueSetPointCommAddress, 
-                        MaintenanceEnableSwitchPoint, MaintenanceEnableSwitchPointPLCAddress, MaintenanceEnableSwitchPointCommAddress, 
-                        PLCAbsoluteAddress, PlcCommunicationAddress, 
-                        CreatedTime, UpdatedTime, 
-                        TestBatch, TestPLCChannelTag, TestPLCCommunicationAddress, 
-                        MonitorStatus, TestId, TestResultStatus, ResultText, HardPointTestResult, 
-                        TestTime, FinalTestTime, Status, StartTime, EndTime, 
-                        ExpectedValue, ActualValue, 
-                        Value0Percent, Value25Percent, Value50Percent, Value75Percent, Value100Percent, 
-                        LowLowAlarmStatus, LowAlarmStatus, HighAlarmStatus, HighHighAlarmStatus, 
-                        MaintenanceFunction, ErrorMessage, CurrentValue, ShowValueStatus, AlarmValueSetStatus,
-                        TrendCheck, ReportCheck
-                    ) VALUES (
-                        @Id, @TestTag, @ModuleName, @ModuleType, @PowerSupplyType, 
-                        @WireSystem, @Tag, @StationName, @VariableName, @VariableDescription, 
-                        @DataType, @ChannelTag, @AccessProperty, @SaveHistory, @PowerFailureProtection, 
-                        @RangeLowerLimit, @RangeLowerLimitValue, @RangeUpperLimit, @RangeUpperLimitValue, 
-                        @SLLSetValue, @SLLSetValueNumber, @SLLSetPoint, @SLLSetPointPLCAddress, @SLLSetPointCommAddress, 
-                        @SLSetValue, @SLSetValueNumber, @SLSetPoint, @SLSetPointPLCAddress, @SLSetPointCommAddress, 
-                        @SHSetValue, @SHSetValueNumber, @SHSetPoint, @SHSetPointPLCAddress, @SHSetPointCommAddress, 
-                        @SHHSetValue, @SHHSetValueNumber, @SHHSetPoint, @SHHSetPointPLCAddress, @SHHSetPointCommAddress, 
-                        @LLAlarm, @LLAlarmPLCAddress, @LLAlarmCommAddress, 
-                        @LAlarm, @LAlarmPLCAddress, @LAlarmCommAddress, 
-                        @HAlarm, @HAlarmPLCAddress, @HAlarmCommAddress, 
-                        @HHAlarm, @HHAlarmPLCAddress, @HHAlarmCommAddress, 
-                        @MaintenanceValueSetting, @MaintenanceValueSetPoint, @MaintenanceValueSetPointPLCAddress, @MaintenanceValueSetPointCommAddress, 
-                        @MaintenanceEnableSwitchPoint, @MaintenanceEnableSwitchPointPLCAddress, @MaintenanceEnableSwitchPointCommAddress, 
-                        @PLCAbsoluteAddress, @PlcCommunicationAddress, 
-                        @CreatedTime, @UpdatedTime, 
-                        @TestBatch, @TestPLCChannelTag, @TestPLCCommunicationAddress, 
-                        @MonitorStatus, @TestId, @TestResultStatus, @ResultText, @HardPointTestResult, 
-                        @TestTime, @FinalTestTime, @Status, @StartTime, @EndTime, 
-                        @ExpectedValue, @ActualValue, 
-                        @Value0Percent, @Value25Percent, @Value50Percent, @Value75Percent, @Value100Percent, 
-                        @LowLowAlarmStatus, @LowAlarmStatus, @HighAlarmStatus, @HighHighAlarmStatus, 
-                        @MaintenanceFunction, @ErrorMessage, @CurrentValue, @ShowValueStatus, @AlarmValueSetStatus,
-                        @TrendCheck, @ReportCheck
-                    )";
-
-                    var parameters = CreateSqlParameters(record);
-                    parameters.Add("@CreatedTime", record.CreatedTime);
-
-                    // 执行SQL语句
-                    var result = await _context.Database.ExecuteSqlRawAsync(query, parameters.Select(p => 
-                        new Microsoft.Data.Sqlite.SqliteParameter(p.Key, p.Value)).ToArray());
-
-                    // 恢复NaN值
-                    RestoreNanValues(record);
-                    
-                    return result > 0;
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"保存测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                return false;
-            }
+            if (record.SHSetValueNumber.HasValue && float.IsNaN(record.SHSetValueNumber.Value))
+                record.SHSetValueNumber = null;
+                
+            if (record.SHHSetValueNumber.HasValue && float.IsNaN(record.SHHSetValueNumber.Value))
+                record.SHHSetValueNumber = null;
+                
+            if (record.ExpectedValue.HasValue && float.IsNaN(record.ExpectedValue.Value))
+                record.ExpectedValue = null;
+                
+            if (record.ActualValue.HasValue && float.IsNaN(record.ActualValue.Value))
+                record.ActualValue = null;
+                
+            if (record.Value0Percent.HasValue && float.IsNaN(record.Value0Percent.Value))
+                record.Value0Percent = null;
+                
+            if (record.Value25Percent.HasValue && float.IsNaN(record.Value25Percent.Value))
+                record.Value25Percent = null;
+                
+            if (record.Value50Percent.HasValue && float.IsNaN(record.Value50Percent.Value))
+                record.Value50Percent = null;
+                
+            if (record.Value75Percent.HasValue && float.IsNaN(record.Value75Percent.Value))
+                record.Value75Percent = null;
+                
+            if (record.Value100Percent.HasValue && float.IsNaN(record.Value100Percent.Value))
+                record.Value100Percent = null;
         }
 
-        /// <summary>
-        /// 创建SQL参数列表
-        /// </summary>
-        /// <param name="record">通道映射记录</param>
-        /// <returns>参数字典</returns>
-        private Dictionary<string, object> CreateSqlParameters(ChannelMapping record)
-        {
-            return new Dictionary<string, object>
-            {
-                { "@Id", record.Id },
-                { "@TestTag", record.TestTag ?? (object)DBNull.Value },
-                { "@ModuleName", record.ModuleName ?? (object)DBNull.Value },
-                { "@ModuleType", record.ModuleType ?? (object)DBNull.Value },
-                { "@PowerSupplyType", record.PowerSupplyType ?? (object)DBNull.Value },
-                { "@WireSystem", record.WireSystem ?? (object)DBNull.Value },
-                { "@Tag", record.Tag ?? (object)DBNull.Value },
-                { "@StationName", record.StationName ?? (object)DBNull.Value },
-                { "@VariableName", record.VariableName ?? (object)DBNull.Value },
-                { "@VariableDescription", record.VariableDescription ?? (object)DBNull.Value },
-                { "@DataType", record.DataType ?? (object)DBNull.Value },
-                { "@ChannelTag", record.ChannelTag ?? (object)DBNull.Value },
-                { "@AccessProperty", record.AccessProperty ?? (object)DBNull.Value },
-                { "@SaveHistory", record.SaveHistory ?? (object)DBNull.Value },
-                { "@PowerFailureProtection", record.PowerFailureProtection ?? (object)DBNull.Value },
-                { "@RangeLowerLimit", record.RangeLowerLimit ?? (object)DBNull.Value },
-                { "@RangeLowerLimitValue", record.RangeLowerLimitValue.HasValue ? (object)record.RangeLowerLimitValue.Value : DBNull.Value },
-                { "@RangeUpperLimit", record.RangeUpperLimit ?? (object)DBNull.Value },
-                { "@RangeUpperLimitValue", record.RangeUpperLimitValue.HasValue ? (object)record.RangeUpperLimitValue.Value : DBNull.Value },
-                { "@SLLSetValue", record.SLLSetValue ?? (object)DBNull.Value },
-                { "@SLLSetValueNumber", record.SLLSetValueNumber.HasValue ? (object)record.SLLSetValueNumber.Value : DBNull.Value },
-                { "@SLLSetPoint", record.SLLSetPoint ?? (object)DBNull.Value },
-                { "@SLLSetPointPLCAddress", record.SLLSetPointPLCAddress ?? (object)DBNull.Value },
-                { "@SLLSetPointCommAddress", record.SLLSetPointCommAddress ?? (object)DBNull.Value },
-                { "@SLSetValue", record.SLSetValue ?? (object)DBNull.Value },
-                { "@SLSetValueNumber", record.SLSetValueNumber.HasValue ? (object)record.SLSetValueNumber.Value : DBNull.Value },
-                { "@SLSetPoint", record.SLSetPoint ?? (object)DBNull.Value },
-                { "@SLSetPointPLCAddress", record.SLSetPointPLCAddress ?? (object)DBNull.Value },
-                { "@SLSetPointCommAddress", record.SLSetPointCommAddress ?? (object)DBNull.Value },
-                { "@SHSetValue", record.SHSetValue ?? (object)DBNull.Value },
-                { "@SHSetValueNumber", record.SHSetValueNumber.HasValue ? (object)record.SHSetValueNumber.Value : DBNull.Value },
-                { "@SHSetPoint", record.SHSetPoint ?? (object)DBNull.Value },
-                { "@SHSetPointPLCAddress", record.SHSetPointPLCAddress ?? (object)DBNull.Value },
-                { "@SHSetPointCommAddress", record.SHSetPointCommAddress ?? (object)DBNull.Value },
-                { "@SHHSetValue", record.SHHSetValue ?? (object)DBNull.Value },
-                { "@SHHSetValueNumber", record.SHHSetValueNumber.HasValue ? (object)record.SHHSetValueNumber.Value : DBNull.Value },
-                { "@SHHSetPoint", record.SHHSetPoint ?? (object)DBNull.Value },
-                { "@SHHSetPointPLCAddress", record.SHHSetPointPLCAddress ?? (object)DBNull.Value },
-                { "@SHHSetPointCommAddress", record.SHHSetPointCommAddress ?? (object)DBNull.Value },
-                { "@LLAlarm", record.LLAlarm ?? (object)DBNull.Value },
-                { "@LLAlarmPLCAddress", record.LLAlarmPLCAddress ?? (object)DBNull.Value },
-                { "@LLAlarmCommAddress", record.LLAlarmCommAddress ?? (object)DBNull.Value },
-                { "@LAlarm", record.LAlarm ?? (object)DBNull.Value },
-                { "@LAlarmPLCAddress", record.LAlarmPLCAddress ?? (object)DBNull.Value },
-                { "@LAlarmCommAddress", record.LAlarmCommAddress ?? (object)DBNull.Value },
-                { "@HAlarm", record.HAlarm ?? (object)DBNull.Value },
-                { "@HAlarmPLCAddress", record.HAlarmPLCAddress ?? (object)DBNull.Value },
-                { "@HAlarmCommAddress", record.HAlarmCommAddress ?? (object)DBNull.Value },
-                { "@HHAlarm", record.HHAlarm ?? (object)DBNull.Value },
-                { "@HHAlarmPLCAddress", record.HHAlarmPLCAddress ?? (object)DBNull.Value },
-                { "@HHAlarmCommAddress", record.HHAlarmCommAddress ?? (object)DBNull.Value },
-                { "@MaintenanceValueSetting", record.MaintenanceValueSetting ?? (object)DBNull.Value },
-                { "@MaintenanceValueSetPoint", record.MaintenanceValueSetPoint ?? (object)DBNull.Value },
-                { "@MaintenanceValueSetPointPLCAddress", record.MaintenanceValueSetPointPLCAddress ?? (object)DBNull.Value },
-                { "@MaintenanceValueSetPointCommAddress", record.MaintenanceValueSetPointCommAddress ?? (object)DBNull.Value },
-                { "@MaintenanceEnableSwitchPoint", record.MaintenanceEnableSwitchPoint ?? (object)DBNull.Value },
-                { "@MaintenanceEnableSwitchPointPLCAddress", record.MaintenanceEnableSwitchPointPLCAddress ?? (object)DBNull.Value },
-                { "@MaintenanceEnableSwitchPointCommAddress", record.MaintenanceEnableSwitchPointCommAddress ?? (object)DBNull.Value },
-                { "@PLCAbsoluteAddress", record.PLCAbsoluteAddress ?? (object)DBNull.Value },
-                { "@PlcCommunicationAddress", record.PlcCommunicationAddress ?? (object)DBNull.Value },
-                { "@CreatedTime", record.CreatedTime },
-                { "@UpdatedTime", record.UpdatedTime.HasValue ? (object)record.UpdatedTime.Value : DBNull.Value },
-                { "@TestBatch", record.TestBatch ?? (object)DBNull.Value },
-                { "@TestPLCChannelTag", record.TestPLCChannelTag ?? (object)DBNull.Value },
-                { "@TestPLCCommunicationAddress", record.TestPLCCommunicationAddress ?? (object)DBNull.Value },
-                { "@MonitorStatus", record.MonitorStatus ?? (object)DBNull.Value },
-                { "@TestId", record.TestId },
-                { "@TestResultStatus", record.TestResultStatus },
-                { "@ResultText", record.ResultText ?? (object)DBNull.Value },
-                { "@HardPointTestResult", record.HardPointTestResult ?? (object)DBNull.Value },
-                { "@TestTime", record.TestTime.HasValue ? (object)record.TestTime.Value : DBNull.Value },
-                { "@FinalTestTime", record.FinalTestTime.HasValue ? (object)record.FinalTestTime.Value : DBNull.Value },
-                { "@Status", record.Status ?? (object)DBNull.Value },
-                { "@StartTime", record.StartTime.HasValue ? (object)record.StartTime.Value : DBNull.Value },
-                { "@EndTime", record.EndTime.HasValue ? (object)record.EndTime.Value : DBNull.Value },
-                { "@ExpectedValue", record.ExpectedValue.HasValue ? (object)record.ExpectedValue.Value : DBNull.Value },
-                { "@ActualValue", record.ActualValue.HasValue ? (object)record.ActualValue.Value : DBNull.Value },
-                { "@Value0Percent", record.Value0Percent.HasValue ? (object)record.Value0Percent.Value : DBNull.Value },
-                { "@Value25Percent", record.Value25Percent.HasValue ? (object)record.Value25Percent.Value : DBNull.Value },
-                { "@Value50Percent", record.Value50Percent.HasValue ? (object)record.Value50Percent.Value : DBNull.Value },
-                { "@Value75Percent", record.Value75Percent.HasValue ? (object)record.Value75Percent.Value : DBNull.Value },
-                { "@Value100Percent", record.Value100Percent.HasValue ? (object)record.Value100Percent.Value : DBNull.Value },
-                { "@LowLowAlarmStatus", record.LowLowAlarmStatus ?? (object)DBNull.Value },
-                { "@LowAlarmStatus", record.LowAlarmStatus ?? (object)DBNull.Value },
-                { "@HighAlarmStatus", record.HighAlarmStatus ?? (object)DBNull.Value },
-                { "@HighHighAlarmStatus", record.HighHighAlarmStatus ?? (object)DBNull.Value },
-                { "@MaintenanceFunction", record.MaintenanceFunction ?? (object)DBNull.Value },
-                { "@ErrorMessage", record.ErrorMessage ?? (object)DBNull.Value },
-                { "@CurrentValue", record.CurrentValue ?? (object)DBNull.Value },
-                { "@ShowValueStatus", record.ShowValueStatus ?? (object)DBNull.Value },
-                { "@AlarmValueSetStatus", record.AlarmValueSetStatus ?? (object)DBNull.Value },
-                { "@TrendCheck", record.TrendCheck ?? (object)DBNull.Value },
-                { "@ReportCheck", record.ReportCheck ?? (object)DBNull.Value }
-            };
-        }
+        #endregion
 
-        /// <summary>
-        /// 使用原生SQL语句批量保存多条测试记录
-        /// </summary>
-        /// <param name="records">测试记录集合</param>
-        /// <returns>保存操作是否成功</returns>
+        #region 废弃的方法 - 保留接口兼容性
+
+        [Obsolete("已废弃，请使用SaveTestRecordsAsync")]
         public async Task<bool> SaveTestRecordsWithSqlAsync(IEnumerable<ChannelMapping> records)
         {
-            try
-            {
-                if (records == null || !records.Any())
-                    return true;
-
-                int successCount = 0;
-                foreach (var record in records)
-                {
-                    // 调用单个记录的SQL保存方法
-                    bool success = await SaveTestRecordWithSqlAsync(record);
-                    if (success)
-                    {
-                        successCount++;
-                    }
-                }
-
-                // 如果有任何记录保存成功，就返回true
-                return successCount > 0;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"批量保存测试记录时出错: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                return false;
-            }
+            return await SaveTestRecordsAsync(records);
         }
+
+        [Obsolete("已废弃，请使用SaveTestRecordAsync")]
+        public async Task<bool> SaveTestRecordWithSqlAsync(ChannelMapping record)
+        {
+            return await SaveTestRecordAsync(record);
+        }
+
+        #endregion
     }
 }

@@ -101,23 +101,35 @@ namespace FatFullVersion.IServices
 
         #endregion
         
-        #region 测试记录操作
+        #region 测试记录操作 - 重构优化
         
         /// <summary>
-        /// 保存测试记录集合
+        /// 保存测试记录集合 - 通用方法
         /// </summary>
         /// <param name="records">测试记录集合</param>
         /// <returns>保存操作是否成功</returns>
         Task<bool> SaveTestRecordsAsync(IEnumerable<ChannelMapping> records);
-        Task<bool> SaveTestRecordsWithSqlAsync(IEnumerable<ChannelMapping> records);
+
         /// <summary>
-        /// 保存单个测试记录
+        /// 保存单个测试记录 - 手动测试场景优化
         /// </summary>
         /// <param name="record">测试记录</param>
         /// <returns>保存操作是否成功</returns>
         Task<bool> SaveTestRecordAsync(ChannelMapping record);
-        Task<bool> SaveTestRecordWithSqlAsync(ChannelMapping record);
 
+        /// <summary>
+        /// 批量保存硬点自动测试完成的记录 - 新增优化方法
+        /// </summary>
+        /// <param name="records">测试记录集合</param>
+        /// <returns>保存操作是否成功</returns>
+        Task<bool> SaveHardPointTestResultsAsync(IEnumerable<ChannelMapping> records);
+
+        /// <summary>
+        /// 更新单个通道的复测结果 - 复测场景优化
+        /// </summary>
+        /// <param name="record">测试记录</param>
+        /// <returns>保存操作是否成功</returns>
+        Task<bool> UpdateRetestResultAsync(ChannelMapping record);
 
         /// <summary>
         /// 根据测试标识获取测试记录
@@ -144,6 +156,22 @@ namespace FatFullVersion.IServices
         /// </summary>
         /// <returns>所有测试记录集合</returns>
         Task<List<ChannelMapping>> GetAllTestRecordsAsync();
+        
+        #endregion
+
+        #region 废弃的方法 - 保留向后兼容性
+        
+        /// <summary>
+        /// 批量保存测试记录 - 已废弃，请使用SaveTestRecordsAsync
+        /// </summary>
+        [Obsolete("已废弃，请使用SaveTestRecordsAsync")]
+        Task<bool> SaveTestRecordsWithSqlAsync(IEnumerable<ChannelMapping> records);
+        
+        /// <summary>
+        /// 保存单个测试记录 - 已废弃，请使用SaveTestRecordAsync
+        /// </summary>
+        [Obsolete("已废弃，请使用SaveTestRecordAsync")]
+        Task<bool> SaveTestRecordWithSqlAsync(ChannelMapping record);
         
         #endregion
     }
