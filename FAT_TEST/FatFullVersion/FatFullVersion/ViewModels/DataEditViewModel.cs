@@ -1925,8 +1925,8 @@ namespace FatFullVersion.ViewModels
         /// </summary>
         /// <param name="channel">需要测试的AI通道</param>
         /// <remarks>
-        /// 该方法将用户输入的测试值发送到测试PLC，执行以下操作：
-        /// 1. 验证输入的测试值是否有效
+        /// 该方法发送AI测试值到测试PLC，执行以下操作：
+        /// 1. 验证测试值的有效性
         /// 2. 将测试值转换为百分比值
         /// 3. 将测试值写入测试PLC的相应地址
         /// 4. 更新手动测试状态
@@ -1935,14 +1935,32 @@ namespace FatFullVersion.ViewModels
         {
             try
             {
-                // 实现发送AI测试值的逻辑
-                // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1), 
-                    ChannelRangeConversion.RealValueToPercentage(channel, AISetValue));
+                if (channel == null)
+                {
+                    await _messageService.ShowAsync("错误", "通道信息无效", MessageBoxButton.OK);
+                    return;
+                }
+
+                // 验证并解析AI设定值
+                if (string.IsNullOrWhiteSpace(AISetValue) || !float.TryParse(AISetValue, out float testValue))
+                {
+                    await _messageService.ShowAsync("错误", "请输入有效的测试值", MessageBoxButton.OK);
+                    return;
+                }
+
+                // 调用服务发送测试值
+                bool success = await _manualTestIoService.SendAITestValueAsync(channel, testValue);
+                
+                if (!success)
+                {
+                    await _messageService.ShowAsync("错误", "发送AI测试值失败，请检查通道配置和PLC连接", MessageBoxButton.OK);
+                }
+                // 注意：成功时不显示消息，避免频繁弹窗干扰操作员
             }
             catch (Exception ex)
             {
                 await _messageService.ShowAsync("错误", $"发送AI测试值失败: {ex.Message}", MessageBoxButton.OK);
+                System.Diagnostics.Debug.WriteLine($"ExecuteSendAITestValue Error: {ex.Message}");
             }
         }
         /// <summary>
@@ -2281,23 +2299,33 @@ namespace FatFullVersion.ViewModels
         /// <param name="channel">需要测试的DI通道</param>
         /// <remarks>
         /// 该方法发送DI测试信号到测试PLC，执行以下操作：
-        /// 1. 检查通道是否有效
-        /// 2. 将DI信号设置为激活状态
-        /// 3. 将DI状态写入测试PLC的相应地址
-        /// 4. 更新DI测试状态
+        /// 1. 验证通道参数的有效性
+        /// 2. 调用ManualTestIoService发送DI测试信号（激活状态）
+        /// 3. 处理操作结果并显示相应的反馈
         /// </remarks>
         private async void ExecuteSendDITest(ChannelMapping channel)
         {
             try
             {
-                // 实现发送DI测试信号的逻辑
-                // 直接执行业务逻辑，不弹出消息框
-                var result = _targetPlc;
-                await _testPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, true);
+                if (channel == null)
+                {
+                    await _messageService.ShowAsync("错误", "通道信息无效", MessageBoxButton.OK);
+                    return;
+                }
+
+                // 调用服务发送DI测试信号
+                bool success = await _manualTestIoService.SendDITestSignalAsync(channel);
+                
+                if (!success)
+                {
+                    await _messageService.ShowAsync("错误", "发送DI测试信号失败，请检查通道配置和PLC连接", MessageBoxButton.OK);
+                }
+                // 注意：成功时不显示消息，避免频繁弹窗干扰操作员
             }
             catch (Exception ex)
             {
                 await _messageService.ShowAsync("错误", $"发送DI测试信号失败: {ex.Message}", MessageBoxButton.OK);
+                System.Diagnostics.Debug.WriteLine($"ExecuteSendDITest Error: {ex.Message}");
             }
         }
         /// <summary>
@@ -2315,13 +2343,25 @@ namespace FatFullVersion.ViewModels
         {
             try
             {
-                // 实现重置DI测试信号的逻辑
-                // 直接执行业务逻辑，不弹出消息框
-                await _testPlc.WriteDigitalValueAsync(channel.TestPLCCommunicationAddress, false);
+                if (channel == null)
+                {
+                    await _messageService.ShowAsync("错误", "通道信息无效", MessageBoxButton.OK);
+                    return;
+                }
+
+                // 调用服务复位DI测试信号
+                bool success = await _manualTestIoService.ResetDITestSignalAsync(channel);
+                
+                if (!success)
+                {
+                    await _messageService.ShowAsync("错误", "复位DI测试信号失败，请检查通道配置和PLC连接", MessageBoxButton.OK);
+                }
+                // 注意：成功时不显示消息，避免频繁弹窗干扰操作员
             }
             catch (Exception ex)
             {
-                await _messageService.ShowAsync("错误", $"重置DI测试信号失败: {ex.Message}", MessageBoxButton.OK);
+                await _messageService.ShowAsync("错误", $"复位DI测试信号失败: {ex.Message}", MessageBoxButton.OK);
+                System.Diagnostics.Debug.WriteLine($"ExecuteResetDI Error: {ex.Message}");
             }
         }
         /// <summary>
@@ -2360,10 +2400,6 @@ namespace FatFullVersion.ViewModels
 
         #region 8、手动测试-AO
         /// <summary>
-        /// 打开AO手动测试窗口
-        /// </summary>
-        /// <param name="channel">要测试的通道</param>
-        /// <summary>
         /// 打开AO通道手动测试窗口
         /// </summary>
         /// <param name="channel">需要手动测试的AO通道</param>
@@ -2372,6 +2408,7 @@ namespace FatFullVersion.ViewModels
         /// 1. 设置当前选中的通道
         /// 2. 初始化手动测试状态
         /// 3. 打开AO手动测试窗口
+        /// 4. 启动AO数值监控服务
         /// </remarks>
         private async void OpenAOManualTest(ChannelMapping channel)
         {
@@ -2393,39 +2430,16 @@ namespace FatFullVersion.ViewModels
 
                     IsAOManualTestOpen = true;
                     AOCurrentValue = string.Empty; // 清空上次的值
-                    
                     AOMonitorStatus = "停止监测";
-                    while (IsAOManualTestOpen && CurrentChannel != null && CurrentChannel.Id == channel.Id)
+
+                    // 启动AO数值监控服务，每 0.5 秒读取一次并更新绑定值
+                    _manualTestIoService.StartAOValueMonitoring(CurrentChannel, (currentValue) =>
                     {
-                        try
+                        Application.Current.Dispatcher.Invoke(() =>
                         {
-                            if (!string.IsNullOrEmpty(CurrentChannel.TestPLCCommunicationAddress))
-                            {
-                                var readResult = await _testPlc.ReadAnalogValueAsync(CurrentChannel.TestPLCCommunicationAddress.Substring(1));
-                                if (readResult.IsSuccess)
-                                {
-                                    AOCurrentValue = ChannelRangeConversion.PercentageToRealValue(CurrentChannel, readResult.Data).ToString("F3");
-                                }
-                                else
-                                {
-                                    AOCurrentValue = "读取失败";
-                                }
-                            }
-                            else
-                            {
-                                AOCurrentValue = "反馈点地址无效";
-                            }
-                            await Task.Delay(500);
-                        }
-                        catch (Exception e)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"AO手动测试监控失败: {e.Message}");
-                            AOCurrentValue = "监控异常";
-                            break;
-                        }
-                    }
-                    AOMonitorStatus = "开始监测";
-                    AOCurrentValue = string.Empty; 
+                            AOCurrentValue = currentValue;
+                        });
+                    });
                 }
             }
             catch (Exception ex)
@@ -2446,6 +2460,13 @@ namespace FatFullVersion.ViewModels
             {
                 // 设置AO手动测试窗口打开状态为false
                 IsAOManualTestOpen = false;
+
+                // 停止AO数值监控
+                _manualTestIoService.StopAll();
+
+                // 清空AO当前值显示
+                AOCurrentValue = string.Empty;
+                AOMonitorStatus = "开始监测";
 
                 // 检查当前通道是否通过了测试
                 if (CurrentChannel != null && CurrentChannel.ShowValueStatus == "通过")
@@ -2470,28 +2491,33 @@ namespace FatFullVersion.ViewModels
         /// </summary>
         /// <param name="channel">需要监测的AO通道</param>
         /// <remarks>
-        /// 该方法启动AO通道的监测过程，执行以下操作：
-        /// 1. 设置当前监测的AO通道
-        /// 2. 循环读取AO通道的模拟值
-        /// 3. 更新AO监测状态和当前值
+        /// 该方法用于启动或重启AO通道的监测过程。
+        /// 实际的监控逻辑已通过ManualTestIoService的StartAOValueMonitoring方法实现。
         /// </remarks>
         private async void ExecuteStartAOMonitor(ChannelMapping channel)
         {
             try
             {
-                if (channel != null && channel.ShowValueStatus != "通过")
+                if (channel != null && channel.ShowValueStatus != "通过" && IsAOManualTestOpen)
                 {
                     // 设置当前监测的AO通道
                     CurrentChannel = channel;
                     CurrentTestResult = channel;
-                    // 启动AO监测逻辑，当窗口关闭或者
-                    while (channel.ShowValueStatus != "通过" && IsAOManualTestOpen)
+                    
+                    // AO监控已在OpenAOManualTest中通过服务启动，此处仅更新状态
+                    AOMonitorStatus = "停止监测";
+                    
+                    // 如果需要重新启动监控，可以调用服务的监控方法
+                    if (string.IsNullOrEmpty(AOCurrentValue) || AOCurrentValue == "监控异常")
                     {
-                        float persentValue = (await _testPlc.ReadAnalogValueAsync(channel.TestPLCCommunicationAddress.Substring(1))).Data;
-                        AOCurrentValue = ChannelRangeConversion.PercentageToRealValue(channel, persentValue).ToString("F3");
-                        await Task.Delay(500);
+                        _manualTestIoService.StartAOValueMonitoring(CurrentChannel, (currentValue) =>
+                        {
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                AOCurrentValue = currentValue;
+                            });
+                        });
                     }
-                    // 直接执行业务逻辑，不弹出消息框
                 }
             }
             catch (Exception ex)
@@ -2557,10 +2583,6 @@ namespace FatFullVersion.ViewModels
 
         #region 9、手动测试-DO
         /// <summary>
-        /// 打开DO手动测试窗口
-        /// </summary>
-        /// <param name="channel">要测试的通道</param>
-        /// <summary>
         /// 打开DO通道手动测试窗口
         /// </summary>
         /// <param name="channel">需要手动测试的DO通道</param>
@@ -2569,6 +2591,7 @@ namespace FatFullVersion.ViewModels
         /// 1. 设置当前选中的通道
         /// 2. 初始化手动测试状态
         /// 3. 打开DO手动测试窗口
+        /// 4. 启动DO数值监控服务
         /// </remarks>
         private async void OpenDOManualTest(ChannelMapping channel)
         {
@@ -2590,33 +2613,16 @@ namespace FatFullVersion.ViewModels
                     
                     IsDOManualTestOpen = true;
                     DOCurrentValue = string.Empty; // 清空上次的值
-
-                    // 监控DO点当前值 (通常是读取测试PLC上连接到此DO输出的DI点)
                     DOMonitorStatus = "停止监测";
-                    while (IsDOManualTestOpen && CurrentChannel != null && CurrentChannel.Id == channel.Id)
+
+                    // 启动DO数值监控服务，每 0.5 秒读取一次并更新绑定值
+                    _manualTestIoService.StartDOValueMonitoring(CurrentChannel, (currentValue) =>
                     {
-                        try
+                        Application.Current.Dispatcher.Invoke(() =>
                         {
-                            if (!string.IsNullOrEmpty(CurrentChannel.TestPLCCommunicationAddress)) // 使用TestPLCCommunicationAddress作为反馈点
-                            {
-                                var readResult = await _testPlc.ReadDigitalValueAsync(CurrentChannel.TestPLCCommunicationAddress.Substring(1));
-                                DOCurrentValue = readResult.IsSuccess ? (readResult.Data ? "ON" : "OFF") : "读取失败";
-                            }
-                            else
-                            {
-                                DOCurrentValue = "反馈点地址无效";
-                            }
-                            await Task.Delay(500);
-                        }
-                        catch (Exception e)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"DO手动测试监控失败: {e.Message}");
-                            DOCurrentValue = "监控异常";
-                            break;
-                        }
-                    }
-                    DOMonitorStatus = "开始监测";
-                    DOCurrentValue = string.Empty; // 窗口关闭或监控停止后清空
+                            DOCurrentValue = currentValue;
+                        });
+                    });
                 }
             }
             catch (Exception ex)
@@ -3345,13 +3351,34 @@ namespace FatFullVersion.ViewModels
         }
         private void ExecuteCloseDOManualTest() 
         { 
-            IsDOManualTestOpen = false; 
-            if (CurrentChannel != null && CurrentChannel.ShowValueStatus == "通过")
+            try
             {
-                _testTaskManager.CompleteAllTestsAsync();
+                // 设置DO手动测试窗口打开状态为false
+                IsDOManualTestOpen = false; 
+
+                // 停止DO数值监控
+                _manualTestIoService.StopAll();
+
+                // 清空DO当前值显示
+                DOCurrentValue = string.Empty;
+                DOMonitorStatus = "开始监测";
+
+                // 检查当前通道是否通过了测试
+                if (CurrentChannel != null && CurrentChannel.ShowValueStatus == "通过")
+                {
+                    _testTaskManager.CompleteAllTestsAsync();
+                }
+
+                // 刷新批次状态
+                RefreshBatchStatus();
+
+                // 更新点位统计
+                UpdatePointStatistics();
             }
-            RefreshBatchStatus();
-            UpdatePointStatistics();
+            catch (Exception ex)
+            {
+                _ = _messageService.ShowAsync("错误", $"关闭DO手动测试窗口失败: {ex.Message}", MessageBoxButton.OK);
+            }
         }
         private async void ExecuteSendAIMaintenance(ChannelMapping channel) 
         { 
@@ -3447,37 +3474,33 @@ namespace FatFullVersion.ViewModels
         }
         private async void ExecuteStartDOMonitor(ChannelMapping channel) 
         { 
-            // Placeholder, similar to OpenDOManualTest internal loop if needed as separate command
-            if (channel != null && channel.ShowValueStatus != "通过")
+            try
             {
-                CurrentChannel = channel;
-                CurrentTestResult = channel;
-                IsDOManualTestOpen = true; // Assuming this command implies the window is open or is part of it.
-                DOMonitorStatus = "停止监测";
-                while (IsDOManualTestOpen && CurrentChannel != null && CurrentChannel.Id == channel.Id && CurrentChannel.ShowValueStatus != "通过")
+                if (channel != null && channel.ShowValueStatus != "通过" && IsDOManualTestOpen)
                 {
-                    try
+                    // 设置当前监测的DO通道
+                    CurrentChannel = channel;
+                    CurrentTestResult = channel;
+                    
+                    // DO监控已在OpenDOManualTest中通过服务启动，此处仅更新状态
+                    DOMonitorStatus = "停止监测";
+                    
+                    // 如果需要重新启动监控，可以调用服务的监控方法
+                    if (string.IsNullOrEmpty(DOCurrentValue) || DOCurrentValue == "监控异常")
                     {
-                        if (!string.IsNullOrEmpty(CurrentChannel.TestPLCCommunicationAddress))
+                        _manualTestIoService.StartDOValueMonitoring(CurrentChannel, (currentValue) =>
                         {
-                            var readResult = await _testPlc.ReadDigitalValueAsync(CurrentChannel.TestPLCCommunicationAddress.Substring(1));
-                            DOCurrentValue = readResult.IsSuccess ? (readResult.Data ? "ON" : "OFF") : "读取失败";
-                        }
-                        else { DOCurrentValue = "反馈点地址无效"; }
-                        await Task.Delay(500);
-                    }
-                    catch (Exception e)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"DO手动测试监控失败: {e.Message}");
-                        DOCurrentValue = "监控异常";
-                        break;
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                DOCurrentValue = currentValue;
+                            });
+                        });
                     }
                 }
-                DOMonitorStatus = "开始监测";
-                if (!IsDOManualTestOpen || CurrentChannel?.ShowValueStatus == "通过") // If window closed or test passed, clear value
-                {
-                    DOCurrentValue = string.Empty;
-                }
+            }
+            catch (Exception ex)
+            {
+                await _messageService.ShowAsync("错误", $"启动DO监测失败: {ex.Message}", MessageBoxButton.OK);
             }
         }
         private void ExecuteConfirmDO(ChannelMapping channel) 

@@ -154,9 +154,11 @@ namespace FatFullVersion
                 // 注册测试结果导出服务
                 containerRegistry.RegisterSingleton<ITestResultExportService, TestResultExportService>();
 
-                // 注册手动测试 I/O 服务，显式注入被测PLC通信实例
+                // 注册手动测试 I/O 服务，注入目标PLC（读取报警设定值）和测试PLC（写入测试值）
                 container.RegisterDelegate<IManualTestIoService>(
-                    r => new ManualTestIoService(r.Resolve<IPlcCommunication>(serviceKey: "TargetPlcCommunication")),
+                    r => new ManualTestIoService(
+                        r.Resolve<IPlcCommunication>(serviceKey: "TargetPlcCommunication"),
+                        r.Resolve<IPlcCommunication>(serviceKey: "TestPlcCommunication")),
                     Reuse.Singleton,
                     serviceKey: "");
             }
