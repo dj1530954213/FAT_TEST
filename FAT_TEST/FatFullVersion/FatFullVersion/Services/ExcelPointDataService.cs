@@ -323,8 +323,15 @@ namespace FatFullVersion.Services
                         // 模块类型
                         excelPoint.ModuleType = GetStringCellValue(row.GetCell(2));
                         
-                        // 供电类型
-                        excelPoint.PowerSupplyType = GetStringCellValue(row.GetCell(3));
+                        // 供电类型(需要区分关于DI点位如果是非安全型的就将其分配到有源中也就是测试PLC的DO1中)
+                        if (GetStringCellValue(row.GetCell(2)).Contains("DI")&& !GetStringCellValue(row.GetCell(1)).Contains("S"))
+                        {
+                            excelPoint.PowerSupplyType = "有源";
+                        }
+                        else
+                        {
+                            excelPoint.PowerSupplyType = GetStringCellValue(row.GetCell(3));
+                        }  
                         
                         // 线制
                         excelPoint.WireSystem = GetStringCellValue(row.GetCell(4));
@@ -336,7 +343,7 @@ namespace FatFullVersion.Services
                         excelPoint.Tag = GetStringCellValue(row.GetCell(6));
                         
                         // 场站名
-                        excelPoint.StationName = GetStringCellValue(row.GetCell(7));
+                        excelPoint.StationName = GetStringCellValue(row.GetCell(6));
                         
                         // 变量名称
                         excelPoint.VariableName = GetStringCellValue(row.GetCell(8));

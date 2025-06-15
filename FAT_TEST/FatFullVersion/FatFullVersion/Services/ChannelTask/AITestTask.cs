@@ -1563,7 +1563,7 @@ namespace FatFullVersion.Models
                 bool allPassed = true;
                 
                 // 允许的最大偏差百分比
-                const float allowedDeviation = 1.0f;
+                const float allowedDeviation = 2.0f;
                 
                 // 评估每个测试点
                 foreach (var point in testPoints)

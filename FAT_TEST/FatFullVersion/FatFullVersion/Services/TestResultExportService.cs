@@ -475,8 +475,9 @@ namespace FatFullVersion.Services
                         sheet.SetColumnWidth(5, 10 * 256);  // 模块类型
                         sheet.SetColumnWidth(6, 25 * 256);  // 测试PLC通道位号
                         sheet.SetColumnWidth(7, 25 * 256);  // 被测PLC通道位号
-                        sheet.SetColumnWidth(8, 15 * 256);  // 供电类型
-                        sheet.SetColumnWidth(9, 10 * 256);  // 线制
+                        sheet.SetColumnWidth(8, 25 * 256);  // 被测PLC模块型号
+                        sheet.SetColumnWidth(9, 15 * 256);  // 供电类型
+                        sheet.SetColumnWidth(10, 10 * 256); // 线制
                         
                         // 创建标题行样式
                         var headerStyle = workbook.CreateCellStyle();
@@ -526,7 +527,7 @@ namespace FatFullVersion.Services
                         var headerRow = sheet.CreateRow(0);
                         var headers = new[] { 
                             "站场名", "测试ID", "测试批次", "变量名称", "变量描述", 
-                            "模块类型", "测试PLC通道位号", "被测PLC通道位号", "供电类型", "线制"
+                            "模块类型", "测试PLC通道位号", "被测PLC通道位号", "被测PLC模块型号", "供电类型", "线制"
                         };
                         
                         for (int i = 0; i < headers.Length; i++)
@@ -545,6 +546,8 @@ namespace FatFullVersion.Services
                         string currentTestBatch = null;
                         int stationNameStartRow = 1;
                         int testBatchStartRow = 1;
+                        string currentModuleModel = null;
+                        int moduleModelStartRow = 1;
                         
                         // 用于批次颜色的随机数生成器
                         var random = new Random();
@@ -643,12 +646,15 @@ namespace FatFullVersion.Services
                             
                             // 8. 被测PLC通道位号
                             SetCellValue(dataRow, 7, channel.ChannelTag, contentStyle);
+
+                            // 9. 被测PLC模块型号
+                            SetCellValue(dataRow, 8, channel.ModuleName, contentStyle);
                             
-                            // 9. 供电类型
-                            SetCellValue(dataRow, 8, channel.PowerSupplyType, contentStyle);
+                            // 10. 供电类型
+                            SetCellValue(dataRow, 9, channel.PowerSupplyType, contentStyle);
                             
-                            // 10. 线制
-                            SetCellValue(dataRow, 9, channel.WireSystem, contentStyle);
+                            // 11. 线制
+                            SetCellValue(dataRow, 10, channel.WireSystem, contentStyle);
                             
                             // 检查是否需要合并单元格
                             if (channel.StationName != currentStationName)
@@ -677,6 +683,18 @@ namespace FatFullVersion.Services
                                 currentTestBatch = channel.TestBatch;
                                 testBatchStartRow = rowIndex;
                             }
+
+                            // 检查是否需要合并被测PLC模块型号单元格
+                            if (channel.ModuleName != currentModuleModel)
+                            {
+                                if (currentModuleModel != null && rowIndex > moduleModelStartRow)
+                                {
+                                    sheet.AddMergedRegion(new CellRangeAddress(moduleModelStartRow, rowIndex - 1, 8, 8));
+                                }
+
+                                currentModuleModel = channel.ModuleName;
+                                moduleModelStartRow = rowIndex;
+                            }
                             
                             rowIndex++;
                         }
@@ -691,6 +709,12 @@ namespace FatFullVersion.Services
                         if (currentTestBatch != null && rowIndex > testBatchStartRow)
                         {
                             sheet.AddMergedRegion(new CellRangeAddress(testBatchStartRow, rowIndex - 1, 2, 2));
+                        }
+
+                        // 处理最后一组被测PLC模块型号合并
+                        if (currentModuleModel != null && rowIndex > moduleModelStartRow)
+                        {
+                            sheet.AddMergedRegion(new CellRangeAddress(moduleModelStartRow, rowIndex - 1, 8, 8));
                         }
                         
                         // 保存工作簿到文件

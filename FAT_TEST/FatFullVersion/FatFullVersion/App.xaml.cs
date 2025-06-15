@@ -147,13 +147,17 @@ namespace FatFullVersion
                         .Type<ITestTaskManager>()
                         .Type<IPlcCommunication>(serviceKey: "TestPlc")
                         .Type<IPlcCommunication>(serviceKey: "TargetPlc")
-                        .Type<IMessageService>());
+                        .Type<IMessageService>()
+                        .Type<IChannelRangerSettingService>());
                 }
                 catch (Exception ex)
                 {
                     MessageBox.Show($"注册DataEditView失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                     // 继续运行程序，但后续可能出现DataEditView相关错误
                 }
+
+                // 注册量程设置服务
+                containerRegistry.RegisterSingleton<IChannelRangerSettingService, ChannelRangerSettingService>();
 
                 // 注册测试结果导出服务
                 containerRegistry.RegisterSingleton<ITestResultExportService, TestResultExportService>();

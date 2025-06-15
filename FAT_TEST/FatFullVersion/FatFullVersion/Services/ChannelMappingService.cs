@@ -433,14 +433,14 @@ namespace FatFullVersion.Services
         }
 
         /// <summary>
-        /// 使用配置中的通道信息分配通道(实际使用的通道分配的方法)use
+        /// 根据配置分配通道(原实现)，保持兼容
         /// </summary>
-        /// <param name="channels">待分配的通道</param>
-        /// <param name="testChannelMappings">测试PLC的通道映射</param>
+        /// <param name="channels">待分配的通道集合</param>
+        /// <param name="testChannelMappings">测试PLC通道映射</param>
         /// <param name="totalTestChannels">测试PLC通道总数</param>
         private void AllocateChannelsWithConfig(
-            List<ChannelMapping> channels, 
-            List<ComparisonTable> testChannelMappings, 
+            List<ChannelMapping> channels,
+            List<ComparisonTable> testChannelMappings,
             int totalTestChannels)
         {
             if (channels == null || channels.Count == 0 || testChannelMappings == null || testChannelMappings.Count == 0)
@@ -487,6 +487,75 @@ namespace FatFullVersion.Services
             {
                 System.Diagnostics.Debug.WriteLine($"分配通道失败: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 根据配置分配通道，允许指定批次起始号，用于按机架顺序分配
+        /// </summary>
+        /// <param name="channels">待分配的通道集合</param>
+        /// <param name="testChannelMappings">测试PLC通道映射</param>
+        /// <param name="totalTestChannels">测试PLC通道总数</param>
+        /// <param name="startBatchNumber">起始批次号(>=1)</param>
+        /// <returns>此次分配使用到的最大批次号</returns>
+        private int AllocateChannelsWithConfigOffset(
+            List<ChannelMapping> channels,
+            List<ComparisonTable> testChannelMappings,
+            int totalTestChannels,
+            int startBatchNumber)
+        {
+            if (channels == null || channels.Count == 0 || testChannelMappings == null || testChannelMappings.Count == 0)
+            {
+                return startBatchNumber - 1; // 未使用任何批次
+            }
+
+            try
+            {
+                int batchCount = (int)Math.Ceiling((double)channels.Count / totalTestChannels);
+
+                for (int i = 0; i < channels.Count; i++)
+                {
+                    var channel = channels[i];
+                    if (channel == null) continue;
+
+                    int batchNumber = startBatchNumber + i / totalTestChannels;
+                    int indexInBatch = i % totalTestChannels;
+
+                    if (indexInBatch >= testChannelMappings.Count)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"警告：通道 {channel.VariableName} 无法分配测试PLC通道，因为超出了可用通道范围");
+                        continue;
+                    }
+
+                    var testChannelMapping = testChannelMappings[indexInBatch];
+                    if (testChannelMapping == null) continue;
+
+                    channel.TestBatch = $"批次{batchNumber}";
+                    channel.TestPLCChannelTag = testChannelMapping.ChannelAddress;
+                    channel.TestPLCCommunicationAddress = testChannelMapping.CommunicationAddress;
+                }
+
+                return startBatchNumber + batchCount - 1;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"分配通道失败: {ex.Message}");
+                return startBatchNumber - 1;
+            }
+        }
+
+        /// <summary>
+        /// 根据通道位号解析机架号(位号格式示例: 1_2_AI_0)
+        /// </summary>
+        /// <param name="channelTag">通道位号</param>
+        /// <returns>机架号，解析失败返回int.MaxValue以便排到最后</returns>
+        private int GetRackNumber(string channelTag)
+        {
+            if (string.IsNullOrWhiteSpace(channelTag)) return int.MaxValue;
+
+            var parts = channelTag.Split('_');
+            if (parts.Length == 0) return int.MaxValue;
+
+            return int.TryParse(parts[0], out int rack) ? rack : int.MaxValue;
         }
 
         /// <summary>
@@ -587,64 +656,81 @@ namespace FatFullVersion.Services
                 // 获取各类型测试通道数量
                 var channelCounts = GetChannelCountsFromConfig();
                 
-                // 使用配置中的通道信息进行分配
+                // 使用配置中的通道信息进行分配（按机架顺序）
                 await Task.Run(() =>
                 {
                     // 获取通道映射
-                    var aoMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.AO)
-                        ?.ToList() ?? new List<ComparisonTable>();
-                        
-                    var aiMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.AI)
-                        ?.ToList() ?? new List<ComparisonTable>();
-                        
-                    var doMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.DO)
-                        ?.ToList() ?? new List<ComparisonTable>();
-                        
-                    var diMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.DI)
-                        ?.ToList() ?? new List<ComparisonTable>();
-                    var aoNoneMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.AONone)
-                        ?.ToList() ?? new List<ComparisonTable>();
+                    var aoMappings = _testPlcConfig.CommentsTables?.Where(t => t.ChannelType == TestPlcChannelType.AO).ToList() ?? new List<ComparisonTable>();
+                    var aiMappings = _testPlcConfig.CommentsTables?.Where(t => t.ChannelType == TestPlcChannelType.AI).ToList() ?? new List<ComparisonTable>();
+                    var doMappings = _testPlcConfig.CommentsTables?.Where(t => t.ChannelType == TestPlcChannelType.DO).ToList() ?? new List<ComparisonTable>();
+                    var diMappings = _testPlcConfig.CommentsTables?.Where(t => t.ChannelType == TestPlcChannelType.DI).ToList() ?? new List<ComparisonTable>();
 
-                    var aiNoneMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.AINone)
-                        ?.ToList() ?? new List<ComparisonTable>();
+                    var aoNoneMappings = _testPlcConfig.CommentsTables?.Where(t => t.ChannelType == TestPlcChannelType.AONone).ToList() ?? new List<ComparisonTable>();
+                    var aiNoneMappings = _testPlcConfig.CommentsTables?.Where(t => t.ChannelType == TestPlcChannelType.AINone).ToList() ?? new List<ComparisonTable>();
+                    var doNoneMappings = _testPlcConfig.CommentsTables?.Where(t => t.ChannelType == TestPlcChannelType.DONone).ToList() ?? new List<ComparisonTable>();
+                    var diNoneMappings = _testPlcConfig.CommentsTables?.Where(t => t.ChannelType == TestPlcChannelType.DINone).ToList() ?? new List<ComparisonTable>();
 
-                    var doNoneMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.DONone)
-                        ?.ToList() ?? new List<ComparisonTable>();
+                    // 获取所有机架编号并排序
+                    var rackNumbers = allChannels
+                        .Where(c => !string.IsNullOrWhiteSpace(c.ChannelTag))
+                        .Select(c => GetRackNumber(c.ChannelTag))
+                        .Where(r => r != int.MaxValue)
+                        .Distinct()
+                        .OrderBy(r => r)
+                        .ToList();
 
-                    var diNoneMappings = _testPlcConfig.CommentsTables
-                        ?.Where(t => t.ChannelType == TestPlcChannelType.DINone)
-                        ?.ToList() ?? new List<ComparisonTable>();
+                    int currentBatchStart = 1;
 
-                    // 1. 为AI通道分配批次和测试PLC的AO通道(AI-AO)
-                    AllocateChannelsWithConfig(aiChannels, aoNoneMappings, aoNoneMappings.Count);
+                    foreach (var rack in rackNumbers)
+                    {
+                        int maxBatchUsedInRack = currentBatchStart - 1;
 
-                    // 2. 为AO通道分配批次和测试PLC的AI通道(AO-AI)
-                    AllocateChannelsWithConfig(aoChannels, aiNoneMappings, aiNoneMappings.Count);
+                        // 按机架过滤不同类型通道
+                        var aiRack = aiChannels.Where(c => GetRackNumber(c.ChannelTag) == rack).ToList();
+                        var aoRack = aoChannels.Where(c => GetRackNumber(c.ChannelTag) == rack).ToList();
+                        var diRack = diChannels.Where(c => GetRackNumber(c.ChannelTag) == rack).ToList();
+                        var doRack = doChannels.Where(c => GetRackNumber(c.ChannelTag) == rack).ToList();
 
-                    // 3. 为DI通道分配批次和测试PLC的DO通道(DI-DO)
-                    AllocateChannelsWithConfig(diChannels, doNoneMappings, doNoneMappings.Count);
+                        var aiNoneRack = aiNoneChannels.Where(c => GetRackNumber(c.ChannelTag) == rack).ToList();
+                        var aoNoneRack = aoNoneChannels.Where(c => GetRackNumber(c.ChannelTag) == rack).ToList();
+                        var diNoneRack = diNoneChannels.Where(c => GetRackNumber(c.ChannelTag) == rack).ToList();
+                        var doNoneRack = doNoneChannels.Where(c => GetRackNumber(c.ChannelTag) == rack).ToList();
 
-                    // 4. 为DO通道分配批次和测试PLC的DI通道(DO-DI)
-                    AllocateChannelsWithConfig(doChannels, diNoneMappings, diNoneMappings.Count);
+                        // 1. AI→AONone
+                        int last = AllocateChannelsWithConfigOffset(aiRack, aoNoneMappings, aoNoneMappings.Count, currentBatchStart);
+                        if (last > maxBatchUsedInRack) maxBatchUsedInRack = last;
 
-                    // 1. 为AI通道分配批次和测试PLC的AO通道(AI-AO)
-                    AllocateChannelsWithConfig(aiNoneChannels, aoMappings, aoMappings.Count);
+                        // 2. AO→AINone
+                        last = AllocateChannelsWithConfigOffset(aoRack, aiNoneMappings, aiNoneMappings.Count, currentBatchStart);
+                        if (last > maxBatchUsedInRack) maxBatchUsedInRack = last;
 
-                    // 2. 为AO通道分配批次和测试PLC的AI通道(AO-AI)
-                    AllocateChannelsWithConfig(aoNoneChannels, aiMappings, aiMappings.Count);
+                        // 3. DI→DONone
+                        last = AllocateChannelsWithConfigOffset(diRack, doNoneMappings, doNoneMappings.Count, currentBatchStart);
+                        if (last > maxBatchUsedInRack) maxBatchUsedInRack = last;
 
-                    // 3. 为DI通道分配批次和测试PLC的DO通道(DI-DO)
-                    AllocateChannelsWithConfig(diNoneChannels, doMappings, doMappings.Count);
+                        // 4. DO→DINone
+                        last = AllocateChannelsWithConfigOffset(doRack, diNoneMappings, diNoneMappings.Count, currentBatchStart);
+                        if (last > maxBatchUsedInRack) maxBatchUsedInRack = last;
 
-                    // 4. 为DO通道分配批次和测试PLC的DI通道(DO-DI)
-                    AllocateChannelsWithConfig(doNoneChannels, diMappings, diMappings.Count);
+                        // 5. AI(None)→AO
+                        last = AllocateChannelsWithConfigOffset(aiNoneRack, aoMappings, aoMappings.Count, currentBatchStart);
+                        if (last > maxBatchUsedInRack) maxBatchUsedInRack = last;
+
+                        // 6. AO(None)→AI
+                        last = AllocateChannelsWithConfigOffset(aoNoneRack, aiMappings, aiMappings.Count, currentBatchStart);
+                        if (last > maxBatchUsedInRack) maxBatchUsedInRack = last;
+
+                        // 7. DI(None)→DO
+                        last = AllocateChannelsWithConfigOffset(diNoneRack, doMappings, doMappings.Count, currentBatchStart);
+                        if (last > maxBatchUsedInRack) maxBatchUsedInRack = last;
+
+                        // 8. DO(None)→DI
+                        last = AllocateChannelsWithConfigOffset(doNoneRack, diMappings, diMappings.Count, currentBatchStart);
+                        if (last > maxBatchUsedInRack) maxBatchUsedInRack = last;
+
+                        // 更新下一个机架的批次起始号
+                        currentBatchStart = maxBatchUsedInRack + 1;
+                    }
                 });
                     
                 // 返回合并后的结果

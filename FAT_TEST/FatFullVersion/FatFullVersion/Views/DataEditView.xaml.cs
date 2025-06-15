@@ -28,6 +28,7 @@ namespace FatFullVersion.Views
         private readonly IMessageService _messageService;
         private readonly ITestResultExportService _testResultExportService;
         private readonly ITestRecordService _testRecordService;
+        private readonly IChannelRangerSettingService _channelRangeSettingService;
 
         /// <summary>
         /// 构造函数
@@ -46,7 +47,8 @@ namespace FatFullVersion.Views
             IServiceLocator serviceLocator,
             IMessageService messageService, 
             ITestResultExportService testResultExportService,
-            ITestRecordService testRecordService)
+            ITestRecordService testRecordService,
+            IChannelRangerSettingService channelRangeSettingService)
         {
             _pointDataService = pointDataService;
             _channelMappingService = channelMappingService;
@@ -61,6 +63,7 @@ namespace FatFullVersion.Views
             _messageService = messageService ?? throw new ArgumentNullException(nameof(messageService));
             _testResultExportService = testResultExportService;
             _testRecordService = testRecordService ?? throw new ArgumentNullException(nameof(testRecordService));
+            _channelRangeSettingService = channelRangeSettingService ?? throw new ArgumentNullException(nameof(channelRangeSettingService));
 
             try
             {
@@ -78,7 +81,8 @@ namespace FatFullVersion.Views
                         _testPlc,
                         _targetPlc,
                         _testResultExportService,
-                        _testRecordService
+                        _testRecordService,
+                        _channelRangeSettingService
                         );
                 }
                 

@@ -42,6 +42,7 @@ namespace FatFullVersion.ViewModels
         private readonly IMessageService _messageService;
         private readonly ITestResultExportService _testResultExportService;
         private readonly ITestRecordService _testRecordService;
+        private readonly IChannelRangerSettingService _channelRangeSettingService;
 
         private string _message;
 
@@ -926,6 +927,7 @@ namespace FatFullVersion.ViewModels
         #endregion
 
         #region 构造函数和初始化
+      
 
         /// <summary>
         /// DataEditViewModel构造函数
@@ -938,6 +940,7 @@ namespace FatFullVersion.ViewModels
         /// <param name="targetPlc">目标PLC通信接口</param>
         /// <param name="testResultExportService">测试结果导出服务接口</param>
         /// <param name="testRecordService">测试记录服务接口</param>
+        /// <param name="channelRangerSettingService">量程设置服务接口</param>
         public DataEditViewModel(
             IPointDataService pointDataService,
             IChannelMappingService channelMappingService,
@@ -946,7 +949,8 @@ namespace FatFullVersion.ViewModels
             IPlcCommunication testPlc,
             IPlcCommunication targetPlc,
             ITestResultExportService testResultExportService,
-            ITestRecordService testRecordService
+            ITestRecordService testRecordService,
+            IChannelRangerSettingService channelRangerSettingService
         )
         {
             _pointDataService = pointDataService;
@@ -957,6 +961,7 @@ namespace FatFullVersion.ViewModels
             _targetPlc = targetPlc ?? throw new ArgumentNullException(nameof(targetPlc));
             _testResultExportService = testResultExportService;
             _testRecordService = testRecordService ?? throw new ArgumentNullException(nameof(testRecordService));
+            _channelRangeSettingService = channelRangerSettingService ?? throw new ArgumentNullException(nameof(channelRangerSettingService));
 
             // 初始化数据结构
             Initialize();
@@ -1990,6 +1995,9 @@ namespace FatFullVersion.ViewModels
 
             // 加载该批次的测试结果
             LoadTestResults();
+
+            // 执行量程设定
+            ApplyChannelRangeSettingAsync();
         }
 
         /// <summary>
@@ -4640,6 +4648,49 @@ namespace FatFullVersion.ViewModels
         }
 
         #endregion
+
+        /// <summary>
+        /// 根据批次的AI通道是否为安全型设置量程值
+        /// </summary>
+        private async void ApplyChannelRangeSettingAsync()
+        {
+            try
+            {
+                if (SelectedBatch == null || string.IsNullOrEmpty(SelectedBatch.BatchName) || AllChannels == null)
+                    return;
+
+                // 获取当前批次的所有通道
+                var batchChannels = AllChannels.Where(c => c.TestBatch == SelectedBatch.BatchName).ToList();
+
+                if (batchChannels.Count == 0)
+                    return;
+                //需要先调用连接PLC的方法，确保PLC连接成功否则传入的PLC实例是默认的实例
+                if(!_testPlc.IsConnected)
+                {
+                    var testPlcConnectResult = await _testPlc.ConnectAsync();
+                    if (!testPlcConnectResult.IsSuccess)
+                    {
+                        await _messageService.ShowAsync("错误", $"无法连接测试PLC: {testPlcConnectResult.ErrorMessage}", MessageBoxButton.OK);
+                        MessageBox.Show("测试PLC连接失败");
+                    }
+                }
+                if(!_targetPlc.IsConnected)
+                {
+                    var targetPlcConnectResult = await _targetPlc.ConnectAsync();
+                    if (!targetPlcConnectResult.IsSuccess)
+                    {
+                        await _messageService.ShowAsync("错误", $"无法连接测试PLC: {targetPlcConnectResult.ErrorMessage}", MessageBoxButton.OK);
+                        MessageBox.Show("测试PLC连接失败");
+                    }
+                }
+                // 直接在服务内部完成量程写入
+                await _channelRangeSettingService.SetChannelRangeAsync(batchChannels, SelectedBatch.BatchName, _testPlc);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"写入AI量程失败: {ex.Message}");
+            }
+        }
     }
     // 批次信息类
     public class BatchInfo

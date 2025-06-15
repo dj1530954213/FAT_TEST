@@ -21,7 +21,7 @@ namespace ModbusTest
             modbus.AddressStartWithZero = false;
             modbus.IsCheckMessageId = true;
             modbus.IsStringReverse = false;
-            modbus.DataFormat = DCMCAJ.Core.DataFormat.CDAB;
+            modbus.DataFormat = DCMCAJ.Core.DataFormat.ABCD;
             if (isTest)
             {
                 modbus.CommunicationPipe = new DCMCAJ.Core.Pipe.PipeTcpNet("127.0.0.1", 502)
