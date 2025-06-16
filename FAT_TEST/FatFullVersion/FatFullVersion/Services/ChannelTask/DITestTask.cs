@@ -283,7 +283,9 @@ namespace FatFullVersion.Services.ChannelTask
                     //对常闭点位进行取反处理
                     if (ChannelMapping.WireSystem == "常闭")
                     {
-                        actualHighValue = !readHighResult.Data;
+                        //目前先不使用取反的逻辑
+                        //actualHighValue = !readHighResult.Data;
+                        actualHighValue = readHighResult.Data;
                     }
                     else
                     {
@@ -384,7 +386,9 @@ namespace FatFullVersion.Services.ChannelTask
                     bool actualLowValue;
                     if (ChannelMapping.WireSystem == "常闭")
                     {
-                        actualLowValue = !readLowResult.Data;
+                        //目前先不使用取反的逻辑
+                        //actualLowValue = !readLowResult.Data;
+                        actualLowValue = readLowResult.Data;
                     }
                     else
                     {
